@@ -7,6 +7,7 @@ import {
   resolveTimelineSeriesExtents,
   siTimelineEndFocusIso,
   wmsTimeExtentForMode,
+  wmsTimeExtentForAgroDeltaLayer,
   wmsTimeExtentForTimelineFocus,
   wmsTimeExtentForWeek,
 } from './siTimelineWeekIndex';
@@ -145,5 +146,19 @@ describe('wmsTimeExtentForWeek', () => {
     const ext = wmsTimeExtentForWeek({ startDate: tIso, endDate: tIso }, tIso);
     const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     expect(ext.end).toBe(todayIso);
+  });
+});
+
+describe('wmsTimeExtentForAgroDeltaLayer', () => {
+  it('never collapses to a single-day window (Δ layers need before/after)', () => {
+    const ext = wmsTimeExtentForAgroDeltaLayer('2026-06-14', '2026-06-14', '2026-06-14');
+    expect(ext.start).not.toBe(ext.end);
+    expect(ext.end).toBe('2026-06-14');
+  });
+
+  it('uses series start through focus when timeline range exists', () => {
+    const ext = wmsTimeExtentForAgroDeltaLayer('2026-06-14', '2026-03-01', '2026-06-14');
+    expect(ext.start).toBe('2026-03-01');
+    expect(ext.end).toBe('2026-06-14');
   });
 });

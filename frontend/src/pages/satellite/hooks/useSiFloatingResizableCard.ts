@@ -14,8 +14,10 @@ function readStoredLayout(key: string): SiFloatingCardLayout | null {
   try {
     const raw = localStorage.getItem(key);
     if (!raw) return null;
-    const o = JSON.parse(raw) as Partial<SiFloatingCardLayout>;
+    const o = JSON.parse(raw) as Partial<SiFloatingCardLayout> | null;
     if (
+      o &&
+      typeof o === 'object' &&
       typeof o.left === 'number' &&
       typeof o.top === 'number' &&
       typeof o.w === 'number' &&
@@ -23,8 +25,13 @@ function readStoredLayout(key: string): SiFloatingCardLayout | null {
     ) {
       return { left: o.left, top: o.top, w: o.w, h: o.h };
     }
+    localStorage.removeItem(key);
   } catch {
-    /* ignore */
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      /* ignore */
+    }
   }
   return null;
 }
@@ -74,17 +81,27 @@ export function useSiFloatingResizableCard({
   } | null>(null);
 
   const clampLayout = useCallback(
-    (next: SiFloatingCardLayout): SiFloatingCardLayout => {
+    (next: SiFloatingCardLayout | null | undefined): SiFloatingCardLayout => {
+      const size = defaultSize();
+      const fallbackPos = defaultPosition(size);
+      const base: SiFloatingCardLayout =
+        next &&
+        typeof next.left === 'number' &&
+        typeof next.top === 'number' &&
+        typeof next.w === 'number' &&
+        typeof next.h === 'number'
+          ? next
+          : { ...fallbackPos, ...size };
       const max = maxSize?.() ?? {
         w: typeof window !== 'undefined' ? window.innerWidth - 24 : 900,
         h: typeof window !== 'undefined' ? window.innerHeight - 24 : 900,
       };
-      const w = clamp(next.w, minSize.w, max.w);
-      const h = clamp(next.h, minSize.h, max.h);
-      const pos = clampFixedPanelPosition(next.left, next.top, w, h);
+      const w = clamp(base.w, minSize.w, max.w);
+      const h = clamp(base.h, minSize.h, max.h);
+      const pos = clampFixedPanelPosition(base.left, base.top, w, h);
       return { left: pos.left, top: pos.top, w, h };
     },
-    [maxSize, minSize.h, minSize.w],
+    [defaultPosition, defaultSize, maxSize, minSize.h, minSize.w],
   );
 
   const persistLayout = useCallback(

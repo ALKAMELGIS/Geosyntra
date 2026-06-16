@@ -38,6 +38,7 @@ function buildGooglePhotorealisticTile3DLayer(
     loader: Tiles3DLoader,
     loadOptions: cfg.loadOptions,
     maxScreenSpaceError,
+    refinementStrategy: 'best-available',
     pickable: true,
     operation: 'terrain+draw',
     _lighting: 'pbr',

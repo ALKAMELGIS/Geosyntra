@@ -83,7 +83,7 @@ function scheduleLiveCameraSync(map: MapboxMap): void {
     try {
       const cam = readSiMapCamera(map);
       commitSiMapUserCamera(cam, 'mapbox-gesture');
-      syncHandlers.onLiveCamera(cam);
+      // View-matrix only while navigating — React viewState commits on moveend.
     } catch {
       /* ignore */
     }
@@ -111,7 +111,7 @@ function onUserCameraEnd(): void {
   }
 }
 
-/** Live camera sync during pan / rotate / pitch — commits on moveend. */
+/** Live camera sync during pan / rotate / pitch — React state commits on moveend only. */
 export function installSiMapUserCameraSync(
   map: MapboxMap | null | undefined,
   handlers: SiMapUserCameraSyncHandlers,

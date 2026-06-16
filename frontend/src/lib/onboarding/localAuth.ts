@@ -1,5 +1,5 @@
 import { normalizeEmail, normalizeRole, startSession, type CurrentUser } from '../auth'
-import { readKeepSignedInPreference, writeKeepSignedInPreference } from '../authKeepSignedIn'
+import { readKeepSignedInPreference, syncSavedLoginCredentials } from '../authKeepSignedIn'
 import { registerPendingSignupInDirectory } from '../admin/adminUserManagement'
 import { adminPlanLabelForBillingId, normalizeSignupPlanId } from './signupPlans'
 import type { BillingPlanId } from './pricingPlans'
@@ -291,7 +291,7 @@ async function homeSignInLocal(input: {
       }
   match.lastLogin = new Date().toISOString()
   writeAdminUsers(users)
-  writeKeepSignedInPreference(input.keepSignedIn === true)
+  syncSavedLoginCredentials(input.keepSignedIn === true, email, password)
   startSession(user, { persist: input.keepSignedIn === true })
   return { ok: true, user }
 }
@@ -386,7 +386,7 @@ export async function homeSignIn(input: {
 
   syncPublicUserToAdminDirectory(result.user)
   const user = toCurrentUser(result.user)
-  writeKeepSignedInPreference(input.keepSignedIn === true)
+  syncSavedLoginCredentials(input.keepSignedIn === true, email, password)
   startSession(user, { persist: input.keepSignedIn === true, accessToken: result.accessToken })
   return { ok: true, user }
 }

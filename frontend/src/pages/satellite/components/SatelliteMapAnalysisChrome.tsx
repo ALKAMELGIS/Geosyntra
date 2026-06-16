@@ -147,7 +147,7 @@ export type SatelliteMapAnalysisToolbarProps = {
   onMapTool: (tool: 'rectangle' | 'polygon' | 'circle' | 'select') => void;
   /** AOI sketch committed or any drawing/edit session active — disables Clear when false */
   hasClearableDrawing?: boolean;
-  /** Clear all AOI graphics, exit drawing mode, restore pan; leaves basemap / imagery layers intact */
+  /** Clear all AOI graphics and drawing state; leaves basemap, WMS imagery, and added map layers intact */
   onClearDrawing?: () => void;
   hasAoi: boolean;
   staticChartsOpen: boolean;
@@ -374,16 +374,14 @@ export type SatelliteMapAnalysisChromeProps = {
   onOpenMapPrint?: () => void;
   routeMapOpen?: boolean;
   onToggleRouteMap?: () => void;
-  mapLayerSwipeOpen?: boolean;
-  onToggleMapLayerSwipe?: () => void;
   elevProfileOpen?: boolean;
   onToggleElevProfile?: () => void;
   mapWeatherIntelActive?: boolean;
   onToggleMapWeatherIntel?: () => void;
   quickDashboardOpen?: boolean;
   onToggleQuickDashboard?: () => void;
-  mapLayerControlOpen?: boolean;
-  onToggleMapLayerControl?: () => void;
+  exploreIndexesOpen?: boolean;
+  onToggleExploreIndexes?: () => void;
   /** When true, map analysis tools cannot open until feature pop-ups are closed. */
   mapAnalysisToolsLockedByPopups?: boolean;
 };
@@ -507,16 +505,14 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     onOpenMapPrint,
     routeMapOpen,
     onToggleRouteMap,
-    mapLayerSwipeOpen,
-    onToggleMapLayerSwipe,
     elevProfileOpen,
     onToggleElevProfile,
     mapWeatherIntelActive = false,
     onToggleMapWeatherIntel,
     quickDashboardOpen = false,
     onToggleQuickDashboard,
-    mapLayerControlOpen = false,
-    onToggleMapLayerControl,
+    exploreIndexesOpen = false,
+    onToggleExploreIndexes,
     mapAnalysisToolsLockedByPopups = false,
   } = props;
 
@@ -809,16 +805,14 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
       onOpenMapPrint={onOpenMapPrint}
       routeMapOpen={routeMapOpen}
       onToggleRouteMap={onToggleRouteMap}
-      mapLayerSwipeOpen={mapLayerSwipeOpen}
-      onToggleMapLayerSwipe={onToggleMapLayerSwipe}
       elevProfileOpen={elevProfileOpen}
       onToggleElevProfile={onToggleElevProfile}
       mapWeatherIntelActive={mapWeatherIntelActive}
       onToggleMapWeatherIntel={onToggleMapWeatherIntel}
       quickDashboardOpen={quickDashboardOpen}
       onToggleQuickDashboard={onToggleQuickDashboard}
-      mapLayerControlOpen={mapLayerControlOpen}
-      onToggleMapLayerControl={onToggleMapLayerControl}
+      exploreIndexesOpen={exploreIndexesOpen}
+      onToggleExploreIndexes={onToggleExploreIndexes}
       mapAnalysisToolsLockedByPopups={mapAnalysisToolsLockedByPopups}
       drawAssistHint={drawAssistHint}
       hasEditableAoiGeometry={hasEditableAoiGeometry}

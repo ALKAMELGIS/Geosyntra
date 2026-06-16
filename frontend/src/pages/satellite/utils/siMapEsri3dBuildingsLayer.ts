@@ -38,6 +38,7 @@ function buildTile3DLayer(entry: BasemapCatalogEntry, maxScreenSpaceError: numbe
       tileset: { maximumScreenSpaceError: maxScreenSpaceError },
     },
     maxScreenSpaceError,
+    refinementStrategy: 'best-available',
     pickable: false,
     _lighting: 'pbr',
   });

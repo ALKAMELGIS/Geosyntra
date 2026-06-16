@@ -3,6 +3,8 @@ import {
   hasAnyCustomLayerRefreshInFlight,
   isSiMapCameraInteracting,
   resetSiMapLayerCameraSyncGuardForTests,
+  shouldCommitReactViewStateDuringCameraMotion,
+  shouldDeferSiCustomLayerStructuralSync,
   shouldPauseSiCustomLayerMapSync,
 } from './siMapLayerCameraSyncGuard';
 import {
@@ -40,11 +42,13 @@ describe('siMapLayerCameraSyncGuard', () => {
 
   it('starts with camera not interacting', () => {
     expect(isSiMapCameraInteracting()).toBe(false);
+    expect(shouldCommitReactViewStateDuringCameraMotion()).toBe(true);
   });
 
-  it('shouldPauseSiCustomLayerMapSync during elevation transition', () => {
+  it('shouldDeferSiCustomLayerStructuralSync mirrors shouldPauseSiCustomLayerMapSync', () => {
     const ref = { current: true };
     bindSiMapLayerTransitionRef(ref);
+    expect(shouldDeferSiCustomLayerStructuralSync([])).toBe(true);
     expect(shouldPauseSiCustomLayerMapSync([])).toBe(true);
   });
 });

@@ -29,6 +29,12 @@ describe('siAoiExtractMaskGeoTiffExport', () => {
     expect(info.category).toBe('layer-not-loaded');
   });
 
+  it('maps missing AOI messages without map-extent guidance', () => {
+    const info = formatExtractMaskExportError(new Error('AOI not defined'));
+    expect(info.category).toBe('aoi-not-selected');
+    expect(formatExtractMaskStatusLine(info)).not.toMatch(/map extent/i);
+  });
+
   it('names export and staging layers uniquely', () => {
     expect(nextExportAoiGeoTiffLayerName([])).toBe('Exported AOI GeoTIFF');
     expect(nextExportAoiGeoTiffLayerName(['Exported AOI GeoTIFF'])).toBe('Exported AOI GeoTIFF (2)');

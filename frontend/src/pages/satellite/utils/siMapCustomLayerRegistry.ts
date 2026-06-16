@@ -32,9 +32,19 @@ import { computeSiLayerLabelRevision } from './siLayerLabelsEngine';
 import type { SiSymbologyAppearance, SiSymbologyDraftLike } from '../siSymbolStyleStudio';
 import { delayMs, waitForMapboxRasterSettle, waitForReactPaint } from './siMapRenderSync';
 import { syncSiMapOverlayLayerStack } from './siMapCustomVectorLayerStack';
+import { scheduleSiMapOverlayLayerStackSync } from './siMapOverlayLayerStackScheduler';
 import { isSiBimRenderLayer } from './siIfcBimTypes';
 import { removeAllMapboxMountsForAppLayerId } from './siMapLayerMapboxMountCleanup';
 import { withSiMapLayerMountElevation3d, resolveSiMapLayerMountElevation3d } from './siMapLayerElevation3dState';
+import { isSiMapDataLayerMutationFrozen } from './siMapRasterPipelineGuard';
+
+function syncSiMapOverlayStackWhenIdle(map: MapboxMap): void {
+  if (isSiMapDataLayerMutationFrozen()) {
+    scheduleSiMapOverlayLayerStackSync(map, { force: true });
+    return;
+  }
+  syncSiMapOverlayLayerStack(map);
+}
 
 export type SiCustomLayerLoadStatus = 'idle' | 'loading' | 'refreshing' | 'loaded' | 'empty' | 'failed';
 
@@ -747,7 +757,11 @@ export function patchCustomLayerSymbologyPaintsOnMap(
       applyMapboxLayerPaints(map, lineId, linePaint);
       applyMapboxLayerPaints(map, circleId, circlePaint);
     } else {
-      if (!opts?.keepExtrusionMount && siSafeMapGetLayer(map, extrusionId)) {
+      if (
+        !isSiMapDataLayerMutationFrozen() &&
+        !opts?.keepExtrusionMount &&
+        siSafeMapGetLayer(map, extrusionId)
+      ) {
         try {
           map.removeLayer(extrusionId);
         } catch {
@@ -764,7 +778,7 @@ export function patchCustomLayerSymbologyPaintsOnMap(
       applyMapboxLayerPaints(map, lineId, linePaint);
       applyMapboxLayerPaints(map, circleId, circlePaint);
     }
-    syncSiMapOverlayLayerStack(map);
+    syncSiMapOverlayStackWhenIdle(map);
     return true;
   } catch {
     return ensureSiCustomLayerMapboxMount(map, layer, mountOpts);
@@ -868,7 +882,7 @@ export function patchCustomLayerElevationBlendOnMap(
         applyMapboxLayerPaints(map, circleId, circle2d);
       }
     }
-    syncSiMapOverlayLayerStack(map);
+    syncSiMapOverlayStackWhenIdle(map);
     return true;
   } catch {
     return patchCustomLayerSymbologyPaintsOnMap(map, layer, mountOpts);
@@ -985,7 +999,7 @@ export function buildSiLayerMapDiagnosticRow(
 export function triggerSiMapLayerRenderSync(map: MapboxMap | null): void {
   if (!map) return;
   try {
-    syncSiMapOverlayLayerStack(map);
+    syncSiMapOverlayStackWhenIdle(map);
     map.triggerRepaint?.();
   } catch (e) {
     console.warn('[si-map] render sync failed', e);
@@ -1006,9 +1020,15 @@ export function flushSiCustomLayerOnMapCanvas(
   const fc = countGeoJsonFeatures(layer.geojson);
   if (fc === 0 && layer.renderMode !== 'raster' && layer.renderMode !== 'bim') return;
   const mountOpts = resolveSiCustomLayerMountOpts(layer, withSiMapLayerMountElevation3d(opts));
+  if (isSiMapDataLayerMutationFrozen()) {
+    if (!layerMapboxLayersPresent(map, layer)) return;
+    patchCustomLayerSymbologyPaintsOnMap(map, layer, { ...mountOpts, keepExtrusionMount: true });
+    triggerSiMapLayerRenderSync(map);
+    return;
+  }
   try {
     ensureSiCustomLayerMapboxMount(map, layer, mountOpts);
-    syncSiMapOverlayLayerStack(map);
+    syncSiMapOverlayStackWhenIdle(map);
     triggerSiMapLayerRenderSync(map);
   } catch {
     /* map mid-style rebuild */
@@ -1083,6 +1103,10 @@ export function ensureSiCustomLayerMapboxMount(
   const fc = countGeoJsonFeatures(layer.geojson);
   if (fc === 0 && layer.renderMode !== 'raster' && layer.renderMode !== 'bim') return false;
   if (!siMapStyleReady(map)) return false;
+
+  if (isSiMapDataLayerMutationFrozen()) {
+    return layerMapboxLayersPresent(map, layer);
+  }
 
   const mountOpts = resolveSiCustomLayerMountOpts(layer, withSiMapLayerMountElevation3d(opts));
   const elevation3d = resolveSiMapLayerMountElevation3d(mountOpts);
@@ -1254,7 +1278,13 @@ export function ensureSiCustomLayerMapboxMount(
   if (layerMapboxLayersPresent(map, layer)) {
     try {
       updateExistingSource();
-      if (!mountOpts.keepExtrusionMount && !useHeightExtrusion && !useBimExtrusion && map.getLayer(extrusionId)) {
+      if (
+        !isSiMapDataLayerMutationFrozen() &&
+        !mountOpts.keepExtrusionMount &&
+        !useHeightExtrusion &&
+        !useBimExtrusion &&
+        map.getLayer(extrusionId)
+      ) {
         try {
           map.removeLayer(extrusionId);
         } catch {
@@ -1307,7 +1337,7 @@ export function ensureSiCustomLayerMapboxMount(
         applyMapboxLayerPaints(map, lineId, linePaint);
         applyMapboxLayerPaints(map, circleId, circlePaint);
       }
-      syncSiMapOverlayLayerStack(map);
+      syncSiMapOverlayStackWhenIdle(map);
     } catch {
       /* ignore */
     }
@@ -1328,7 +1358,7 @@ export function ensureSiCustomLayerMapboxMount(
     } else if (useHeightExtrusion) mountHeightExtrusionLayers();
     else mountVectorLayers();
 
-    syncSiMapOverlayLayerStack(map);
+    syncSiMapOverlayStackWhenIdle(map);
     const ok = isSiCustomLayerPaintedOnMap(map, layer, mountOpts);
     if (ok) logSiCustomLayerDiagnostics(layer, map, { phase: 'imperative-mount', elevation3d });
     return ok;

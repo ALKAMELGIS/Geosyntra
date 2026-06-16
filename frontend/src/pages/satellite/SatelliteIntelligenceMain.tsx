@@ -21,8 +21,6 @@ import './map-toolbox-rail-spine.css';
 import './components/siSatCtxDockLuxuryGlass.css';
 import './siAgolAttributeTable.css';
 import './components/SiMapWeatherToolPanel.css';
-import './components/SiMapLayerSwipeToolPanel.css';
-import './components/SiMapLayerSwipeOverlay.css';
 import './utils/siMapCaptureSession.css';
 import '../dashboards/develop-dashboard.css';
 import { parseFile, parseRemoteUrlAsFile } from '../../utils/FileLoader';
@@ -160,18 +158,18 @@ import {
   stableFeatureLinkKey,
 } from '../../lib/geoAiLinkedSelection';
 import {
-  SiWmsIndexClassificationLegend,
   clearSpectralLegendDockOffset,
   siWmsShowsSpectralLegend,
 } from './components/SiWmsIndexClassificationLegend';
-import { SiWmsLiveLayerLegend, clearLiveLegendDockOffset } from './components/SiWmsLiveLayerLegend';
-import { siWmsResolveLegendDisplayMode } from './utils/siWmsLegendMode';
+import { clearLiveLegendDockOffset } from './components/SiWmsLiveLayerLegend';
+import { SiMapDynamicLegendStack } from './components/SiMapDynamicLegendStack';
+import { buildSiMapDynamicLegendEntries } from './utils/siMapDynamicLegendRegistry';
 import {
   SiWmsSymbologyPopup,
   SiWmsSymbologyToolbarIconButton,
 } from './components/SiWmsSymbologyPopup';
 import { SiQuickDashboardPanel } from './components/SiQuickDashboardPanel';
-import { SiMapLayerControlMount } from './components/SiMapLayerControlMount';
+import { SiExploreIndexesPanel } from './components/SiExploreIndexesPanel';
 import {
   SI_WMS_SYMBOLOGY_DEFAULT_UI,
   siAutoRampPresetForLayerName,
@@ -180,7 +178,8 @@ import {
   type SiWmsSymbologyUiState,
   mergeSymbologyUi,
 } from './utils/siWmsSymbologyModel';
-import { siWmsResolveCanonicalStops } from './utils/siWmsSpectralClassification';
+import { siWmsResolveCanonicalStops, siWmsLayerSupportsSpectralClassification } from './utils/siWmsSpectralClassification';
+import { extractWmsAoiDynamicClassificationValues } from './utils/siWmsDynamicPixelClassification';
 import {
   SI_AOI_DRAW_DRAFT_OUTLINE_PAINT,
   SI_AOI_MAP_OUTLINE_LINE_PAINT,
@@ -356,7 +355,11 @@ import { SiLayerLabelsSidePanel } from './components/SiLayerLabelsSidePanel';
 import './components/SiLayerLabelsSidePanel.css';
 import './components/SiAddSourceModal.css';
 import { SiEnvAddedLayersList } from './components/SiEnvAddedLayersList';
-import { buildLayerLiveIndexSelectGroups } from '../../lib/siLayerLiveCompositeCatalog';
+import {
+  buildLayerLiveIndexSelectGroups,
+  filterLayerLiveIndexSelectGroupsForMapCanvas,
+  getLayerLiveCompositeDef,
+} from '../../lib/siLayerLiveCompositeCatalog';
 import { SiEnvLayerLiveOptions } from './components/SiEnvLayerLiveOptions';
 import { SiLayerLiveIndexSelect } from './components/SiLayerLiveIndexSelect';
 import type { SiAddedLayerRowModel } from './siAddedLayersTypes';
@@ -438,17 +441,18 @@ import {
   shouldShowSiOrsIsochroneLayer,
   siMapFloatingFeaturePopupsAllowed,
   siMapInteractiveToolPanelOpen,
+  siMapInteractiveToolOpenBlockedByFeaturePopups,
   siMapInteractiveToolSuppressesIdentifyPopups,
 } from './utils/siMapToolIntegration';
 import { formatMapIdentifyStatusMessage } from './utils/siMapIdentifyStatus';
 import { SiMapWeatherToolPanel } from './components/SiMapWeatherToolPanel';
-import { SiMapLayerSwipeToolPanel, readStoredSwipeState } from './components/SiMapLayerSwipeToolPanel';
-import { SiMapLayerSwipeOverlay } from './components/SiMapLayerSwipeOverlay';
-import { buildSiMapSwipeLayerCatalog, filterSiMapSwipeComparableKeys } from './utils/siMapLayerSwipeCatalog';
-import {
-  DEFAULT_SI_MAP_LAYER_SWIPE_STATE,
-  type SiMapLayerSwipeState,
-} from './utils/siMapLayerSwipeRuntime';
+import './components/SiMapSwipeComparisonPanel.css';
+import './components/SiMapSwipeOverlay.css';
+import { SiMapSwipeComparisonPanel } from './components/SiMapSwipeComparisonPanel';
+import { SiMapSwipeOverlay } from './components/SiMapSwipeOverlay';
+import { SiMapSwipeRasterLayers } from './components/SiMapSwipeRasterLayers';
+import { buildSiMapSwipeLayerCatalog } from './utils/siMapLayerSwipeCatalog';
+import { useSiMapSwipeStore } from './stores/siMapSwipeStore';
 import { clearSiFloodAnalysisMapLayers, isSiFloodSimulationResultLayer } from './utils/siMapFloodLayerCleanup';
 import {
   SiMapWeatherIntelPopup,
@@ -569,11 +573,19 @@ import {
   syncSiMapSketchNavigationLock,
 } from './utils/siMapDrawSketchSession';
 import {
+  SI_TOUCH_CIRCLE_LONG_PRESS_MS,
+  buildTouchCircleAoiFeature,
+  isTouchPointerEvent,
+  shouldCancelTouchCircleLongPress,
+  type SiTouchCircleLongPressPending,
+} from './utils/siMapTouchCircleDraw';
+import {
   siMapGlobeZoomByDelta,
   siMapGlViewStateIsControlled,
 } from './utils/siMapGlobeZoom';
 import { useAgroCloudMapboxMouseHost } from './hooks/useAgroCloudMapboxMouseHost';
 import { isMapboxStyleReady, resizeMapboxMapSoon, whenMapboxStyleReady } from './utils/mapboxStyleReady';
+import { subscribeSiPersistentMapActivate } from './utils/siPersistentMapSession';
 import {
   applySiMapBasemap,
   buildSiBasemapMapStyleForEntry,
@@ -586,6 +598,10 @@ import {
   syncSiMapBasemapOnStyleReady,
   ensureSiMapBasemapVisible,
 } from './utils/siMapBasemapRuntime';
+import {
+  attachSiBasemapTilePyramidPrefetch,
+  detachSiBasemapTilePyramidPrefetch,
+} from './utils/siMapBasemapTilePyramid';
 import { SiBasemapWidget } from './components/SiBasemapWidget';
 import {
   buildSiMap3dMeshBasemapSyncOpts,
@@ -683,11 +699,15 @@ import {
   finalizeSiMapLayersAfterElevationTransition,
   scheduleSyncSiElevationViewLayersOnMap,
   scheduleGentleCustomLayersMapSync,
+  persistOperationalLayersOnMapDuringCameraMotion,
+  scheduleSiMapLayersFinalizeAfterCameraIdle,
   bindSiMapLayerSyncElevation3dRef,
   siMapLayerSyncElevation3dActive,
 } from './utils/siMapLayerRuntime';
+import { scheduleSiMapOverlayLayerStackSync } from './utils/siMapOverlayLayerStackScheduler';
 import {
   bindSiMapLayerTransitionRef,
+  bindSiMapProjectionSwitchRef,
   resetSiMapLayerTransitionBlend,
   setSiMapLayerTransitionBlendToward3d,
 } from './utils/siMapLayerTransitionGuard';
@@ -698,10 +718,24 @@ import {
   resolveSiCustomLayerMapDisplayLayer,
 } from './utils/siMapLayerRefreshBuffer';
 import {
+  bindSiMap3dTerrainCameraPerformance,
+  siMap3dTerrainOnCameraIdle,
+  uninstallSiMap3dTerrainCameraPerformance,
+} from './utils/siMap3dTerrainCameraPerformance';
+import {
   installSiMapLayerCameraSyncGuard,
   isSiMapCameraInteracting,
+  kickSiMapCameraMotionPersist,
+  setSiMapCameraMotionPersistHook,
+  shouldCommitReactViewStateDuringCameraMotion,
   shouldPauseSiCustomLayerMapSync,
 } from './utils/siMapLayerCameraSyncGuard';
+import {
+  bindSiMapPointerHudCommit,
+  flushSiMapPointerHudCommit,
+  recordSiMapPointerHud,
+  unbindSiMapPointerHudCommit,
+} from './utils/siMapRasterPipelineGuard';
 import {
   clearSiMapUserCameraAuthority,
   installSiMapUserCameraSync,
@@ -748,7 +782,7 @@ import {
   triggerSiMapLayerRenderSync,
   type SiCustomLayerLoadStatus,
 } from './utils/siMapCustomLayerRegistry';
-import { raiseSiMapTerrainContourLayersAboveWms } from './utils/siMapWmsRasterLayerStack';
+import { raiseSiMapTerrainContourLayersAboveWms, isSiMapWmsRasterLayerId } from './utils/siMapWmsRasterLayerStack';
 import type { Map as MapboxMap } from 'mapbox-gl';
 import {
   siMapPrintBasemapLayerIds,
@@ -836,6 +870,7 @@ import {
   resolveTimelineSeriesExtents,
   siTimelineEndFocusIso,
   wmsTimeExtentForMode,
+  wmsTimeExtentForAgroDeltaLayer,
   wmsTimeExtentForWeek,
 } from './utils/siTimelineWeekIndex';
 import { coerceFiniteNumber, normalizeWeeklyCompositeStats } from './utils/weeklyCompositeStats';
@@ -860,6 +895,7 @@ import {
 import {
   appendCollectionLayerLiveOptions,
   buildProviderLayerOptions,
+  filterRemoteSensingLayerOptionsForMapCanvas,
   isLayerLiveEvalOnlyLayerId,
   resolveDefaultAoiDrawWmsLayerId,
   resolveWmsLayerIdForOption,
@@ -3591,6 +3627,17 @@ export default function SatelliteIntelligence() {
     loadStoredSiMapProjectionMode(),
   );
   const [mapPointerWgs84, setMapPointerWgs84] = useState<{ lng: number; lat: number } | null>(null);
+  const mapPointerWgs84Ref = useRef<{ lng: number; lat: number } | null>(null);
+  useEffect(() => {
+    bindSiMapPointerHudCommit(point => {
+      setMapPointerWgs84(prev =>
+        prev && Math.abs(prev.lng - point.lng) < 1e-7 && Math.abs(prev.lat - point.lat) < 1e-7
+          ? prev
+          : point,
+      );
+    });
+    return () => unbindSiMapPointerHudCommit();
+  }, []);
   const mapProjectionModeRef = useRef<SiMapProjectionMode>(mapProjectionMode);
   mapProjectionModeRef.current = mapProjectionMode;
   const [globeAuto2D3D, setGlobeAuto2D3D] = useState(() => loadStoredGlobeAuto2D3D());
@@ -3601,8 +3648,11 @@ export default function SatelliteIntelligence() {
   );
   /** Ref-only — avoids re-rendering the page shell during camera easeTo (prevents hang). */
   const mapElevationTransitioningRef = useRef(false);
+  /** Blocks onMove + style sync while 2D/3D projection is switching (prevents viewState ↔ maxPitch loops). */
+  const siProjectionSwitchingRef = useRef(false);
   /** Stable 2D ↔ 3D layer symbology — hysteresis prevents flicker while camera pitch moves. */
   const siGlobeLayerExtrusion3dRef = useRef(false);
+  const reactGlobeExtrusion3dRef = useRef(false);
   const siLastLayerElev3dSyncedRef = useRef(false);
   const siLayerElev3dSyncTimerRef = useRef(0);
   /** Camera pitch ease runs while navigation stays unlocked (3D entry). */
@@ -3620,6 +3670,7 @@ export default function SatelliteIntelligence() {
   useEffect(() => {
     bindSiMapLayerSyncElevation3dRef(customLayerExtrusion3dRef);
     bindSiMapLayerTransitionRef(mapElevationTransitioningRef);
+    bindSiMapProjectionSwitchRef(siProjectionSwitchingRef);
   }, []);
   const siTerrainEnabledRef = useRef(mapElevationViewActive);
   siTerrainEnabledRef.current = mapElevationViewActive;
@@ -3633,7 +3684,10 @@ export default function SatelliteIntelligence() {
     viewState.pitch ?? 0,
     siGlobeLayerExtrusion3dRef.current,
   );
-  const globeView3dActive = siGlobeLayerExtrusion3dRef.current;
+  if (!isSiMapCameraInteracting() && !mapElevationTransitioningRef.current && !siProjectionSwitchingRef.current) {
+    reactGlobeExtrusion3dRef.current = siGlobeLayerExtrusion3dRef.current;
+  }
+  const globeView3dActive = reactGlobeExtrusion3dRef.current;
   const spaceBackdropExposure = useMemo(
     () =>
       siMapSpaceViewExposure(viewState.pitch ?? 0, {
@@ -3776,6 +3830,13 @@ export default function SatelliteIntelligence() {
     });
     ro.observe(el);
     return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    return subscribeSiPersistentMapActivate(() => {
+      const map = mapRef.current?.getMap?.() ?? mapRef.current;
+      resizeMapboxMapSoon(map);
+    });
   }, []);
 
   const weeklyTimelineIndexRef = useRef(weeklyTimelineIndex);
@@ -4248,18 +4309,6 @@ export default function SatelliteIntelligence() {
   const [siOrsSnappedGeoJson, setSiOrsSnappedGeoJson] = useState<GeoJSON.FeatureCollection | null>(null);
   const [mapWeatherOpen, setMapWeatherOpen] = useState(false);
   const [mapWeatherMinimized, setMapWeatherMinimized] = useState(false);
-  const [mapLayerSwipeOpen, setMapLayerSwipeOpen] = useState(false);
-  const [mapLayerSwipeMinimized, setMapLayerSwipeMinimized] = useState(false);
-  const [mapLayerSwipeState, setMapLayerSwipeState] = useState<SiMapLayerSwipeState>(() => {
-    const stored = readStoredSwipeState();
-    return {
-      ...DEFAULT_SI_MAP_LAYER_SWIPE_STATE,
-      ...stored,
-      leadingKeys: filterSiMapSwipeComparableKeys(stored.leadingKeys ?? []),
-      trailingKeys: filterSiMapSwipeComparableKeys(stored.trailingKeys ?? []),
-    };
-  });
-  const swipeProjectionRestoreRef = useRef<{ name: string } | null>(null);
   const [locAllocFacilitiesText, setLocAllocFacilitiesText] = useState('');
   const [locAllocDemandText, setLocAllocDemandText] = useState('');
   const [locAllocPickTarget, setLocAllocPickTarget] = useState<LocAllocPickTarget>(null);
@@ -4290,13 +4339,23 @@ export default function SatelliteIntelligence() {
   const [siLaLinksGeoJson, setSiLaLinksGeoJson] = useState<GeoJSON.FeatureCollection | null>(null);
   const [mapWeatherIntelActive, setMapWeatherIntelActive] = useState(false);
   const [quickDashboardOpen, setQuickDashboardOpen] = useState(false);
-  const [mapLayerControlOpen, setMapLayerControlOpen] = useState(false);
+  const [exploreIndexesOpen, setExploreIndexesOpen] = useState(false);
+  const [exploreIndexesCollapsed, setExploreIndexesCollapsed] = useState(false);
   const [mapWeatherIntelPin, setMapWeatherIntelPin] = useState<SiMapWeatherIntelPin | null>(null);
   const [mapWeatherIntelSearchPulse, setMapWeatherIntelSearchPulse] = useState<string | undefined>();
   const mapWeatherIntelActiveRef = useRef(mapWeatherIntelActive);
   mapWeatherIntelActiveRef.current = mapWeatherIntelActive;
   const [mapCropHealthOpen, setMapCropHealthOpen] = useState(false);
   const [mapCropHealthMinimized, setMapCropHealthMinimized] = useState(false);
+  const mapLayerSwipeOpen = useSiMapSwipeStore(s => s.panelOpen);
+  const mapLayerSwipeRuntime = useSiMapSwipeStore(s => s.runtime);
+  const mapLayerSwipeLayerA = useSiMapSwipeStore(s => s.layerA);
+  const mapLayerSwipeLayerB = useSiMapSwipeStore(s => s.layerB);
+  const setMapLayerSwipeOpen = useSiMapSwipeStore(s => s.setPanelOpen);
+  const patchMapLayerSwipeRuntime = useSiMapSwipeStore(s => s.patchRuntime);
+  const toggleMapLayerSwipePanel = useSiMapSwipeStore(s => s.togglePanel);
+  const setMapLayerSwipeLiveIds = useSiMapSwipeStore(s => s.setLiveMapboxLayerIds);
+  const bumpMapLayerSwipeMount = useSiMapSwipeStore(s => s.bumpLayersMount);
   const [sunSkySettings, setSunSkySettings] = useState<SiMapSunSkySettings>(() => loadStoredSiMapSunSkySettings());
   const [sunSkyLosSketchMode, setSunSkyLosSketchMode] = useState<'observer' | 'target' | null>(null);
   const sunSkyLosSketchModeRef = useRef(sunSkyLosSketchMode);
@@ -4309,6 +4368,8 @@ export default function SatelliteIntelligence() {
   mapCropHealthOpenRef.current = mapCropHealthOpen;
   const mapLayerSwipeOpenRef = useRef(mapLayerSwipeOpen);
   mapLayerSwipeOpenRef.current = mapLayerSwipeOpen;
+  const mapLayerSwipeSeededRef = useRef(false);
+  const swipeProjectionRestoreRef = useRef<{ name: string } | null>(null);
   const routeMapPickTargetRef = useRef(routeMapPickTarget);
   routeMapPickTargetRef.current = routeMapPickTarget;
   const locAllocPickTargetRef = useRef(locAllocPickTarget);
@@ -4426,8 +4487,6 @@ export default function SatelliteIntelligence() {
   const siGlobeHomeAppliedRef = useRef(false);
   /** Blocks controlled onMove while applying the centered globe home camera. */
   const siGlobeHomeApplyingRef = useRef(false);
-  /** Blocks onMove + style sync while 2D/3D projection is switching (prevents viewState ↔ maxPitch loops). */
-  const siProjectionSwitchingRef = useRef(false);
   const siElevationTransitionCleanupRef = useRef<(() => void) | null>(null);
   const siElevationRafTransitionCancelRef = useRef<(() => void) | null>(null);
   const siElevationWarmCleanupRef = useRef<(() => void) | null>(null);
@@ -4456,6 +4515,10 @@ export default function SatelliteIntelligence() {
     null | { type: 'handle'; h: 'center' | CircleCardinal } | { type: 'pan'; last: [number, number] }
   >(null);
   const circleRefineLastMoveRef = useRef<[number, number] | null>(null);
+  const touchCircleLongPressTimerRef = useRef<number | null>(null);
+  const touchCircleLongPressPendingRef = useRef<SiTouchCircleLongPressPending | null>(null);
+  /** True after touch long-press arms a circle drag (commit on pointer up, no refine step). */
+  const touchCircleDrawSessionRef = useRef(false);
   const preEditGeomRef = useRef<any | null>(null);
   const polylineStartRef = useRef<[number, number] | null>(null);
   polylineStartRef.current = polylineStart;
@@ -6260,9 +6323,9 @@ export default function SatelliteIntelligence() {
               : {}),
             ...(siSymbologyPreviewLayerId === l.id ? { symbologyStudioLive: true } : {}),
           }),
-        globeView3dActive,
+        false,
       ),
-    [customLayers, activeLayerActionDialog, labelsDraft, siSymbologyPreviewLayerId, globeView3dActive],
+    [customLayers, activeLayerActionDialog, labelsDraft, siSymbologyPreviewLayerId],
   );
 
   const prevMapStyleLayersReadyRef = useRef(false);
@@ -6308,10 +6371,48 @@ export default function SatelliteIntelligence() {
       );
     }
     installSiMapLayerCameraSyncGuard(map);
+    bindSiMap3dTerrainCameraPerformance(map);
     const mountOpts = { elevation3d: customLayerExtrusion3dRef.current, aggressive: false as const };
-    if (!shouldPauseSiCustomLayerMapSync(customLayersRef.current)) {
-      scheduleGentleCustomLayersMapSync(map, customLayersRef.current, mountOpts, 100);
-    }
+    scheduleGentleCustomLayersMapSync(map, customLayersRef.current, mountOpts, 100);
+  }, [mapStyleLayersMounted, customLayerStackSyncSig]);
+
+  /** Google Earth–style basemap pyramid prefetch — camera moves instantly, tiles warm in background. */
+  useEffect(() => {
+    if (!mapStyleLayersMounted) return;
+    const map = resolveSiMapboxMap(mapRef.current) as MapboxMap | null;
+    if (!map) return;
+    const detach = attachSiBasemapTilePyramidPrefetch(map, () => currentBasemapEntryRef.current);
+    return () => {
+      detach();
+      detachSiBasemapTilePyramidPrefetch(map);
+    };
+  }, [mapStyleLayersMounted, basemapId]);
+
+  /** Paint-only layer persistence every frame while pan / zoom / rotate — no remount. */
+  useEffect(() => {
+    if (!mapStyleLayersMounted) return;
+    setSiMapCameraMotionPersistHook(map => {
+      persistOperationalLayersOnMapDuringCameraMotion(map, customLayersRef.current, {
+        elevation3d: siGlobeLayerExtrusion3dRef.current,
+      });
+    });
+    return () => setSiMapCameraMotionPersistHook(null);
+  }, [mapStyleLayersMounted, customLayerStackSyncSig]);
+
+  /** Flush deferred layer stack repairs once camera motion settles. */
+  useEffect(() => {
+    if (!mapStyleLayersMounted) return;
+    const map = resolveSiMapboxMap(mapRef.current) as MapboxMap | null;
+    if (!map) return;
+    return siMap3dTerrainOnCameraIdle(() => {
+      reactGlobeExtrusion3dRef.current = siGlobeLayerExtrusion3dRef.current;
+      customLayerExtrusion3dRef.current = siGlobeLayerExtrusion3dRef.current;
+      if (shouldPauseSiCustomLayerMapSync(customLayersRef.current)) return;
+      scheduleSiMapLayersFinalizeAfterCameraIdle(map, customLayersRef.current, {
+        elevation3d: siGlobeLayerExtrusion3dRef.current,
+        aggressive: false,
+      });
+    });
   }, [mapStyleLayersMounted, customLayerStackSyncSig]);
 
   /** Periodic orphan-layer purge when map is idle (Layer Manager = SSOT). */
@@ -7437,11 +7538,15 @@ export default function SatelliteIntelligence() {
       }
       const mapInstance = mapRef.current?.getMap?.() ?? mapRef.current;
       if (!mapInstance) {
-        window.setTimeout(() => {
-          siProjectionSwitchingRef.current = false;
-        }, 0);
+        siProjectionSwitchingRef.current = false;
         return;
       }
+
+      const elevation3d = customLayerExtrusion3dRef.current;
+      persistOperationalLayersOnMapDuringCameraMotion(mapInstance, customLayersRef.current, {
+        elevation3d,
+      });
+      kickSiMapCameraMotionPersist(mapInstance);
 
       try {
         const camera = readSiMapCamera(mapInstance);
@@ -7450,26 +7555,39 @@ export default function SatelliteIntelligence() {
           buildings: true,
           ...siTerrainSettingsRef.current,
         });
-      setViewState(prev => {
-        const nextVs = clampSiViewStateForProjection(
-          {
-            ...prev,
-            longitude: next.longitude,
-            latitude: next.latitude,
-            zoom: next.zoom,
-            pitch: next.pitch,
-            bearing: next.bearing,
-          },
-          mode,
-        );
-        return siViewStatesNear(prev, nextVs) ? prev : nextVs;
-      });
-    } finally {
-      window.setTimeout(() => {
+        setViewState(prev => {
+          const nextVs = clampSiViewStateForProjection(
+            {
+              ...prev,
+              longitude: next.longitude,
+              latitude: next.latitude,
+              zoom: next.zoom,
+              pitch: next.pitch,
+              bearing: next.bearing,
+            },
+            mode,
+          );
+          return siViewStatesNear(prev, nextVs) ? prev : nextVs;
+        });
+
+        const finalizeProjectionSwitch = () => {
+          siProjectionSwitchingRef.current = false;
+          finalizeSiMapLayersAfterElevationTransition(
+            mapInstance,
+            customLayersRef.current,
+            elevation3d,
+          );
+          mapInstance.triggerRepaint?.();
+        };
+        try {
+          mapInstance.once('moveend', finalizeProjectionSwitch);
+        } catch {
+          window.setTimeout(finalizeProjectionSwitch, SI_ELEVATION_VIEW_TRANSITION_LOCK_MS);
+        }
+      } catch {
         siProjectionSwitchingRef.current = false;
-      }, SI_ELEVATION_VIEW_TRANSITION_LOCK_MS);
-    }
-  },
+      }
+    },
     [],
   );
 
@@ -7926,6 +8044,10 @@ export default function SatelliteIntelligence() {
       /** 2D→3D: keep the map interactive; only block view sync when exiting 3D. */
       siProjectionSwitchingRef.current = !next;
       setSiMapLayerTransitionBlendToward3d(next ? 0 : 1);
+      kickSiMapCameraMotionPersist(mapInstance);
+      persistOperationalLayersOnMapDuringCameraMotion(mapInstance, customLayersRef.current, {
+        elevation3d: customLayerExtrusion3dRef.current,
+      });
       siElevationTransitionCleanupRef.current?.();
       siElevationRafTransitionCancelRef.current?.();
       siElevationRafTransitionCancelRef.current = null;
@@ -8029,6 +8151,8 @@ export default function SatelliteIntelligence() {
           settled.pitch,
           siGlobeLayerExtrusion3dRef.current,
         );
+        reactGlobeExtrusion3dRef.current = siGlobeLayerExtrusion3dRef.current;
+        customLayerExtrusion3dRef.current = siGlobeLayerExtrusion3dRef.current;
         siLastLayerElev3dSyncedRef.current = siGlobeLayerExtrusion3dRef.current;
         if (next) {
           configureSiMapCameraControlsForView(mapInstance, true);
@@ -8070,17 +8194,10 @@ export default function SatelliteIntelligence() {
             syncSiMapElevationSkyRef.current();
           }
           mapInstance.triggerRepaint?.();
-          const deferHeavyLayers = () => {
-            if (next) {
-              syncSiElevationViewLayersOnMapImmediate(mapInstance, customLayersRef.current, true);
-            }
-          };
           if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-            window.requestIdleCallback(deferHeavyLayers, { timeout: 700 });
             window.requestIdleCallback(() => scheduleSiSyncMapProjectionIdle(), { timeout: 900 });
             window.requestIdleCallback(() => syncSiMapWeatherRef.current(), { timeout: 1100 });
           } else {
-            window.setTimeout(deferHeavyLayers, 32);
             window.setTimeout(() => scheduleSiSyncMapProjectionIdle(), 48);
             window.setTimeout(() => syncSiMapWeatherRef.current(), 96);
           }
@@ -8294,7 +8411,7 @@ export default function SatelliteIntelligence() {
   /** In-place 2D ↔ 3D symbology swap — debounced + hysteresis to avoid layer flicker during camera motion. */
   useEffect(() => {
     if (!mapStyleLayersMounted) return;
-    if (mapElevationTransitioningRef.current) return;
+    if (mapElevationTransitioningRef.current || siProjectionSwitchingRef.current) return;
     const want3d = globeView3dActive;
     const dock3d = mapElevationViewActive;
     window.clearTimeout(siLayerElev3dSyncTimerRef.current);
@@ -8305,7 +8422,7 @@ export default function SatelliteIntelligence() {
           ? 0
           : 220;
     siLayerElev3dSyncTimerRef.current = window.setTimeout(() => {
-      if (mapElevationTransitioningRef.current) return;
+      if (mapElevationTransitioningRef.current || siProjectionSwitchingRef.current) return;
       if (cameraOrbitDraggingRef.current) return;
       if (want3d === siLastLayerElev3dSyncedRef.current) return;
       const map = resolveSiMapboxMap(mapRef.current) as MapboxMap | null;
@@ -13340,25 +13457,6 @@ export default function SatelliteIntelligence() {
     });
   }, [geoAiRouteSession, dismissActiveMapFeaturePopups]);
 
-  const toggleMapLayerSwipe = useCallback(() => {
-    setMapLayerSwipeOpen(open => {
-      const next = !open;
-      if (next) {
-        dismissActiveMapFeaturePopups();
-        setMapLayerSwipeState(prev => ({
-          ...prev,
-          active:
-            filterSiMapSwipeComparableKeys(prev.leadingKeys).length > 0 &&
-            filterSiMapSwipeComparableKeys(prev.trailingKeys).length > 0 &&
-            !prev.leadingKeys.some(k => prev.trailingKeys.includes(k)),
-        }));
-      } else {
-        setMapLayerSwipeState(prev => ({ ...prev, active: false }));
-      }
-      return next;
-    });
-  }, [dismissActiveMapFeaturePopups]);
-
   const showMapWeatherIntelAt = useCallback(
     (lng: number, lat: number, source: SiMapWeatherIntelPin['source'], name?: string) => {
       if (!mapWeatherIntelActiveRef.current) return;
@@ -13388,9 +13486,28 @@ export default function SatelliteIntelligence() {
     setQuickDashboardOpen(open => !open);
   }, []);
 
-  const toggleMapLayerControl = useCallback(() => {
-    setMapLayerControlOpen(open => !open);
-  }, []);
+  const toggleExploreIndexes = useCallback(() => {
+    setExploreIndexesOpen(open => {
+      const next = !open;
+      if (next) {
+        dismissActiveMapFeaturePopups();
+        setExploreIndexesCollapsed(false);
+      }
+      return next;
+    });
+  }, [dismissActiveMapFeaturePopups]);
+
+  const onExploreIndexBandSelect = useCallback(
+    (layerId: string) => {
+      setWmsLayer(layerId);
+      setIsWmsOverlayVisible(true);
+      const ids = Object.keys(ENVIRONMENTAL_INDICES) as EnvironmentalIndexId[];
+      if (ids.includes(layerId as EnvironmentalIndexId)) {
+        setSelectedIndex(layerId as EnvironmentalIndexId);
+      }
+    },
+    [],
+  );
 
   const mapSunSkyActive = mapWeatherOpen && isSiMapSunSkyWeatherActive(mapWeatherSettings);
 
@@ -13419,8 +13536,6 @@ export default function SatelliteIntelligence() {
     setRouteMapOpen(false);
     setRouteMapPickTarget(null);
     setLocAllocPickTarget(null);
-    setMapLayerSwipeOpen(false);
-    setMapLayerSwipeState(prev => ({ ...prev, active: false }));
     setElevProfileOpen(false);
     setElevProfileSketching(false);
     resetElevProfile();
@@ -13428,7 +13543,8 @@ export default function SatelliteIntelligence() {
     setMapWeatherIntelPin(null);
     setMapWeatherOpen(false);
     setMapCropHealthOpen(false);
-  }, [resetElevProfile]);
+    setMapLayerSwipeOpen(false);
+  }, [resetElevProfile, setMapLayerSwipeOpen]);
 
   useEffect(() => {
     if (siMapInteractiveToolSuppressesIdentifyPopups(readSiMapInteractiveToolSnapshot())) {
@@ -13506,6 +13622,46 @@ export default function SatelliteIntelligence() {
       return next;
     });
   }, [resetElevProfile, dismissActiveMapFeaturePopups]);
+
+  const handleSwipeProjectionLock = useCallback((locked: boolean) => {
+    const map = mapRef.current?.getMap?.() ?? mapRef.current;
+    if (!map?.setProjection) return;
+    try {
+      if (locked) {
+        if (!swipeProjectionRestoreRef.current) {
+          const current = map.getProjection?.();
+          swipeProjectionRestoreRef.current =
+            current && typeof current === 'object' && 'name' in current
+              ? { name: String((current as { name?: string }).name ?? 'globe') }
+              : { name: 'globe' };
+        }
+        map.setProjection({ name: 'mercator' });
+      } else if (swipeProjectionRestoreRef.current) {
+        map.setProjection({
+          name: swipeProjectionRestoreRef.current.name === 'mercator' ? 'globe' : swipeProjectionRestoreRef.current.name,
+        });
+        swipeProjectionRestoreRef.current = null;
+      }
+    } catch {
+      /* map mid-teardown */
+    }
+  }, []);
+
+  const toggleMapLayerSwipe = useCallback(() => {
+    if (mapLayerSwipeOpenRef.current) {
+      setMapLayerSwipeOpen(false);
+      return;
+    }
+    if (siMapInteractiveToolOpenBlockedByFeaturePopups(readSiMapInteractiveToolSnapshot())) return;
+    dismissActiveMapFeaturePopups();
+    useSiMapSwipeStore.getState().setMinimized(false);
+    toggleMapLayerSwipePanel();
+  }, [
+    dismissActiveMapFeaturePopups,
+    readSiMapInteractiveToolSnapshot,
+    setMapLayerSwipeOpen,
+    toggleMapLayerSwipePanel,
+  ]);
 
   useEffect(() => {
     if (!isMapLoaded || !elevProfileOpen || !elevProfileSketching) return;
@@ -14338,6 +14494,14 @@ export default function SatelliteIntelligence() {
     });
   };
 
+  const clearTouchCircleLongPress = useCallback(() => {
+    if (touchCircleLongPressTimerRef.current != null) {
+      window.clearTimeout(touchCircleLongPressTimerRef.current);
+      touchCircleLongPressTimerRef.current = null;
+    }
+    touchCircleLongPressPendingRef.current = null;
+  }, []);
+
   const finalizeRectOrCircleDrag = (clientX: number, clientY: number) => {
     const map = getMapInstance();
     const spec = dragRectCircleRef.current;
@@ -14359,6 +14523,22 @@ export default function SatelliteIntelligence() {
       return;
     }
     if (spec.kind === 'circle') {
+      if (touchCircleDrawSessionRef.current) {
+        touchCircleDrawSessionRef.current = false;
+        setCircleRadiusM(null);
+        setMapDragPanEnabled(true);
+        const radiusM = haversineDistanceMeters(lng1, lat1, lng2, lat2);
+        if (radiusM < 1) {
+          skipNextMapClickRef.current = true;
+          return;
+        }
+        const feature = buildTouchCircleAoiFeature(lng1, lat1, lng2, lat2, radiusM);
+        commitUserGeometry(feature);
+        setMapDrawTool('select');
+        setDrawAssistHint('');
+        skipNextMapClickRef.current = true;
+        return;
+      }
       setCircleRadiusM(null);
       setCircleRefineDraft({ center: [lng1, lat1], edge: [lng2, lat2] });
       setDrawAssistHint(
@@ -14472,6 +14652,7 @@ export default function SatelliteIntelligence() {
       if (siGlobeHomeApplyingRef.current || mapElevationTransitioningRef.current) return;
       window.clearTimeout(timer);
       timer = window.setTimeout(() => {
+        flushSiMapPointerHudCommit(mapPointerWgs84Ref);
         syncViewStateFromMapCameraRef.current();
       }, 48);
     };
@@ -14481,7 +14662,9 @@ export default function SatelliteIntelligence() {
         siGlobeHomeApplyingRef.current ||
         mapElevationTransitioningRef.current ||
         siElevationCameraEasingRef.current,
-      onLiveCamera: cam => applyViewStateFromMapCamera(cam),
+      onLiveCamera: () => {
+        /* view-matrix only — React viewState commits on moveend */
+      },
       onCommitCamera: cam => applyViewStateFromMapCamera(cam),
     });
     return () => {
@@ -14606,6 +14789,8 @@ export default function SatelliteIntelligence() {
         dragRectCircleRef.current = null;
         polygonRingSketchDragRef.current = null;
         circleRefineInteractionRef.current = null;
+        clearTouchCircleLongPress();
+        touchCircleDrawSessionRef.current = false;
         setRectCirclePreview(null);
         setPolygonRing([]);
         setPolylineStart(null);
@@ -14697,6 +14882,8 @@ export default function SatelliteIntelligence() {
     dragRectCircleRef.current = null;
     polygonRingSketchDragRef.current = null;
     circleRefineInteractionRef.current = null;
+    clearTouchCircleLongPress();
+    touchCircleDrawSessionRef.current = false;
     setRectCirclePreview(null);
     setPointerLngLat(null);
     setPolylineStart(null);
@@ -15008,9 +15195,11 @@ export default function SatelliteIntelligence() {
   }, [syncMapNavigationFromState]);
 
   const clearAllAoiDrawing = useCallback(() => {
+    setDrawContextMenu(null);
     setGeomUndoStack([]);
     setGeomRedoStack([]);
     setDrawnGeometry(null);
+    drawnGeometryRef.current = null;
     setDrawnStats(null);
     setAoiFields([]);
     setSelectedFieldId(null);
@@ -15042,14 +15231,20 @@ export default function SatelliteIntelligence() {
     setMultiAoiItems([]);
     setActiveMultiAoiId(null);
     setMultiAoiPopupIds([]);
+    setSavedFields(sf => {
+      const next = sf.filter(f => f.libraryOrigin !== 'rs-workspace');
+      setSelectedSavedFieldId(cur => (cur && next.some(f => f.id === cur) ? cur : null));
+      return next;
+    });
     setWeeklyComposites([]);
     setMpcProcessResult(null);
     pauseTimelinePlayback();
     setFieldTimelineSessionActive(false);
     clearStacMapThumb();
-  }, [clearStacMapThumb, pauseTimelinePlayback]);
+    syncMapNavigationFromState();
+  }, [clearStacMapThumb, pauseTimelinePlayback, syncMapNavigationFromState]);
 
-  /** Fade AOI sketch + clipped raster overlay, then purge geometry and restore pan (basemap / vector layers unchanged). */
+  /** Fade AOI sketch + clipped raster overlay, then purge all RS drawings; basemap / WMS / added layers unchanged. */
   const clearSatelliteDrawingWithFade = useCallback(() => {
     const hasSketch =
       rectCirclePreview != null ||
@@ -15068,60 +15263,29 @@ export default function SatelliteIntelligence() {
 
     if (hasSketch) {
       cancelCurrentDrawing();
+      setFieldAnalysisStatus('Drawing sketch cleared.');
       setDrawVisualOpacity(1);
       return;
     }
 
-    const items = multiAoiItemsRef.current;
-    const activeId = activeMultiAoiIdRef.current;
+    const hasDrawingGraphics =
+      drawnGeometry != null ||
+      aoiFields.length > 0 ||
+      multiAoiItems.length > 0 ||
+      (!fieldsPanelDrawArmed && interactionMode !== 'view');
 
-    const resolveMultiAoiClearTargetId = (): string | null => {
-      if (!items.length) return null;
-      if (activeId && items.some(x => x.id === activeId)) return activeId;
-      const drawn = drawnGeometryRef.current;
-      if (drawn) {
-        const matches = items.filter(r => featureGeometriesMatch(drawn, r.feature));
-        if (matches.length === 1) return matches[0]!.id;
-      }
-      if (items.length === 1) return items[0]!.id;
-      return null;
-    };
-
-    const clearTargetId = resolveMultiAoiClearTargetId();
-
-    if (items.length > 0 && clearTargetId) {
-      const row = items.find(x => x.id === clearTargetId);
-      if (row) {
-        if (drawFadeRafRef.current != null) {
-          cancelAnimationFrame(drawFadeRafRef.current);
-          drawFadeRafRef.current = null;
-        }
-        removeMultiAoiById(clearTargetId);
-        setDrawVisualOpacity(1);
-        return;
-      }
-    }
-
-    if (items.length > 0 && !clearTargetId) {
-      setFieldAnalysisStatus(
-        'Select an AOI on the map or in the workspace list (one must be active or unambiguous), then tap Clear drawing to remove it.',
-      );
+    if (!hasDrawingGraphics) {
       setDrawVisualOpacity(1);
       return;
     }
-
-    const hasVisual =
-      drawnGeometry != null || aoiFields.length > 0 || (!fieldsPanelDrawArmed && mapDrawTool !== 'select');
 
     const finish = () => {
       clearAllAoiDrawing();
+      setFieldAnalysisStatus(
+        'All drawn AOIs cleared from the workspace. Map layers and imagery settings unchanged.',
+      );
       setDrawVisualOpacity(1);
     };
-
-    if (!hasVisual) {
-      setDrawVisualOpacity(1);
-      return;
-    }
 
     if (drawFadeRafRef.current != null) {
       cancelAnimationFrame(drawFadeRafRef.current);
@@ -15146,15 +15310,14 @@ export default function SatelliteIntelligence() {
   }, [
     cancelCurrentDrawing,
     clearAllAoiDrawing,
-    removeMultiAoiById,
-    featureGeometriesMatch,
     drawnGeometry,
     aoiFields.length,
+    multiAoiItems.length,
     rectCirclePreview,
     polygonRing.length,
     circleRefineDraft,
     polylineStart,
-    mapDrawTool,
+    interactionMode,
     fieldsPanelDrawArmed,
   ]);
 
@@ -15221,6 +15384,36 @@ export default function SatelliteIntelligence() {
     if (mapDrawTool === 'rectangle' || mapDrawTool === 'circle') {
       if (interactionModeRef.current !== 'draw') return;
       if (mapDrawTool === 'circle' && circleRefineDraft) return;
+
+      const isTouch = isTouchPointerEvent(orig as PointerEvent | undefined);
+      if (mapDrawTool === 'circle' && isTouch) {
+        clearTouchCircleLongPress();
+        touchCircleDrawSessionRef.current = false;
+        const pointerId =
+          orig && 'pointerId' in orig && Number.isFinite((orig as PointerEvent).pointerId)
+            ? (orig as PointerEvent).pointerId
+            : -1;
+        const center: [number, number] = [lng, lat];
+        touchCircleLongPressPendingRef.current = {
+          pointerId,
+          startClientX: (orig as PointerEvent).clientX,
+          startClientY: (orig as PointerEvent).clientY,
+          center,
+        };
+        touchCircleLongPressTimerRef.current = window.setTimeout(() => {
+          touchCircleLongPressTimerRef.current = null;
+          touchCircleLongPressPendingRef.current = null;
+          if (mapDrawToolRef.current !== 'circle' || interactionModeRef.current !== 'draw') return;
+          touchCircleDrawSessionRef.current = true;
+          mapIdentifyPointerRef.current = null;
+          dragRectCircleRef.current = { kind: 'circle', start: center };
+          setRectCirclePreview({ kind: 'circle', a: center, b: center });
+          setMapDragPanEnabled(false);
+          setDrawAssistHint('Drag to set radius · release to save AOI');
+        }, SI_TOUCH_CIRCLE_LONG_PRESS_MS);
+        return;
+      }
+
       mapIdentifyPointerRef.current = null;
       dragRectCircleRef.current = { kind: mapDrawTool, start: [lng, lat] };
       setRectCirclePreview({ kind: mapDrawTool, a: [lng, lat], b: [lng, lat] });
@@ -15364,13 +15557,24 @@ export default function SatelliteIntelligence() {
   };
 
   const handleMapPointerMove = (evt: any) => {
+    const orig = evt?.originalEvent as PointerEvent | MouseEvent | undefined;
+    const pendingTouchCircle = touchCircleLongPressPendingRef.current;
+    if (pendingTouchCircle && orig && 'clientX' in orig) {
+      if (
+        shouldCancelTouchCircleLongPress(
+          pendingTouchCircle,
+          orig.clientX,
+          orig.clientY,
+        )
+      ) {
+        clearTouchCircleLongPress();
+      }
+    }
+
     const lng = evt.lngLat.lng;
     const lat = evt.lngLat.lat;
     if (Number.isFinite(lng) && Number.isFinite(lat)) {
-      setMapPointerWgs84(prev => {
-        if (prev && Math.abs(prev.lng - lng) < 1e-7 && Math.abs(prev.lat - lat) < 1e-7) return prev;
-        return { lng, lat };
-      });
+      recordSiMapPointerHud(mapPointerWgs84Ref, lng, lat);
     }
     const map = getMapInstance();
     const intent = mapIdentifyPointerRef.current;
@@ -15577,6 +15781,7 @@ export default function SatelliteIntelligence() {
 
   useEffect(() => {
     const onUp = (e: PointerEvent | MouseEvent) => {
+      clearTouchCircleLongPress();
       if (dragRectCircleRef.current) {
         interactionEndRef.current.finalizeRect(e.clientX, e.clientY);
       }
@@ -15600,7 +15805,7 @@ export default function SatelliteIntelligence() {
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
     };
-  }, [syncMapNavigationFromState, syncViewStateFromMapCamera]);
+  }, [syncMapNavigationFromState, syncViewStateFromMapCamera, clearTouchCircleLongPress]);
 
   useEffect(() => {
     const map = mapRef.current?.getMap?.() ?? mapRef.current;
@@ -16647,20 +16852,30 @@ export default function SatelliteIntelligence() {
     [satelliteProviderId, satelliteCollectionId, wmsLayers, providerCacheEpoch],
   );
 
-  const remoteSensingLayerOptions = useMemo(
+  const mapCanvasLayerOptions = useMemo(
     () =>
-      providerFilteredLayerOptions
-        .filter(o => o.nativeWms || isLayerLiveEvalOnlyLayerId(o.id))
-        .map(o => ({ id: o.id, label: o.label })),
-    [providerFilteredLayerOptions],
+      filterRemoteSensingLayerOptionsForMapCanvas(
+        providerFilteredLayerOptions.filter(
+          o => o.nativeWms || isLayerLiveEvalOnlyLayerId(o.id),
+        ),
+        visibleWmsLayers,
+        satelliteCollectionId,
+      ),
+    [providerFilteredLayerOptions, visibleWmsLayers, satelliteCollectionId],
+  );
+
+  const remoteSensingLayerOptions = useMemo(
+    () => mapCanvasLayerOptions.map(o => ({ id: o.id, label: o.label })),
+    [mapCanvasLayerOptions],
   );
   remoteSensingLayerOptionsRef.current = remoteSensingLayerOptions;
 
   const layerLiveIndexSelectGroups = useMemo(() => {
-    const api = providerFilteredLayerOptions
+    const supportedIds = new Set(mapCanvasLayerOptions.map(o => o.id));
+    const api = mapCanvasLayerOptions
       .filter(o => o.nativeWms)
       .map(o => ({ id: o.id, label: o.label }));
-    const composite = providerFilteredLayerOptions
+    const composite = mapCanvasLayerOptions
       .filter(o => !o.nativeWms && isLayerLiveEvalOnlyLayerId(o.id))
       .map(o => ({
         id: o.id,
@@ -16671,20 +16886,24 @@ export default function SatelliteIntelligence() {
         groupOrder: o.groupOrder,
         layerOrder: o.layerOrder,
       }));
-    return buildLayerLiveIndexSelectGroups(api, composite);
-  }, [providerFilteredLayerOptions]);
+    return filterLayerLiveIndexSelectGroupsForMapCanvas(
+      buildLayerLiveIndexSelectGroups(api, composite),
+      supportedIds,
+    );
+  }, [mapCanvasLayerOptions]);
 
   const activeWmsLayer = useMemo(() => {
     const t = wmsLayer.trim();
     const opt =
-      providerFilteredLayerOptions.find(o => o.id === t || o.catalogId === t) ??
-      providerFilteredLayerOptions[0];
+      mapCanvasLayerOptions.find(o => o.id === t || o.catalogId === t) ??
+      mapCanvasLayerOptions[0];
     if (opt && !opt.nativeWms && isLayerLiveEvalOnlyLayerId(opt.id)) return opt.id;
     const resolved = resolveWmsLayerIdForOption(opt, wmsLayers);
     if (resolved && visibleWmsLayers.some(l => l.name === resolved)) return resolved;
-    const first = visibleWmsLayers.find(l => l.name.trim().length > 0)?.name.trim() ?? '';
-    return first;
-  }, [wmsLayer, visibleWmsLayers, providerFilteredLayerOptions, wmsLayers]);
+    const firstSupported = mapCanvasLayerOptions.find(o => o.nativeWms)?.id ?? '';
+    if (firstSupported) return firstSupported;
+    return mapCanvasLayerOptions[0]?.id ?? '';
+  }, [wmsLayer, visibleWmsLayers, mapCanvasLayerOptions, wmsLayers]);
 
   const wmsTileLayerName = useMemo(() => {
     const fallbackLayers = visibleWmsLayers.length ? visibleWmsLayers : wmsLayers;
@@ -16731,13 +16950,6 @@ export default function SatelliteIntelligence() {
   const siWmsSymbologyLayerPickOptions = useMemo(
     () => remoteSensingLayerOptions.filter(o => siWmsSymbologySupportsLayer(o.id)).map(o => ({ id: o.id, label: o.label })),
     [remoteSensingLayerOptions],
-  );
-
-  const symStopsForWmsLayerId = useCallback(
-    (layerId: string): readonly IndexRampStop[] | null => {
-      return siWmsResolveCanonicalStops(layerId, siWmsSymbologyByLayer[layerId]);
-    },
-    [siWmsSymbologyByLayer],
   );
 
   const symOpacityForWmsLayerId = useCallback(
@@ -16836,16 +17048,22 @@ export default function SatelliteIntelligence() {
       setFieldAnalysisStatus(
         `${getSatelliteProvider(satelliteProviderId).name} · ${collectionId} collection selected.`,
       );
-      const nextOpts = appendCollectionLayerLiveOptions(
-        buildProviderLayerOptions(
+      const nextOpts = filterRemoteSensingLayerOptionsForMapCanvas(
+        appendCollectionLayerLiveOptions(
+          buildProviderLayerOptions(
+            satelliteProviderId,
+            wmsLayers,
+            REMOTE_SENSING_HIDDEN_LAYER_IDS,
+            collectionId,
+          ),
           satelliteProviderId,
-          wmsLayers,
-          REMOTE_SENSING_HIDDEN_LAYER_IDS,
           collectionId,
+        ).filter(o => o.nativeWms || isLayerLiveEvalOnlyLayerId(o.id)),
+        wmsLayers.filter(
+          l => !REMOTE_SENSING_HIDDEN_LAYER_IDS.has(String(l.name || '').trim().toUpperCase()),
         ),
-        satelliteProviderId,
         collectionId,
-      ).filter(o => o.nativeWms || isLayerLiveEvalOnlyLayerId(o.id));
+      );
       const defaultLayer =
         nextOpts.find(o => o.id === 'LOS_DISP')?.id ??
         nextOpts.find(o => !o.nativeWms)?.id ??
@@ -17027,6 +17245,15 @@ export default function SatelliteIntelligence() {
       (fieldTimelineSessionActive || weeklyComposites.length > 0) && !isTimelinePlaying
         ? ('instant' as const)
         : timelineOptions.sliderMode;
+    const deltaDef = getLayerLiveCompositeDef(activeWmsLayer);
+    if (deltaDef?.isDelta) {
+      return wmsTimeExtentForAgroDeltaLayer(
+        wmsDate,
+        timelineExtentsForUi.startIso,
+        timelineExtentsForUi.endIso,
+        seriesOpts,
+      );
+    }
     return wmsTimeExtentForMode({
       mode: wmsSliderMode,
       focusIso: wmsDate,
@@ -17049,6 +17276,7 @@ export default function SatelliteIntelligence() {
     timelineOptions.sliderMode,
     timelineOptions.intervalUnit,
     timelineOptions.intervalLength,
+    activeWmsLayer,
   ]);
 
   const fieldSpectralSceneKey = useMemo(
@@ -17113,6 +17341,32 @@ export default function SatelliteIntelligence() {
     }
     return null;
   }, [multiAoiItems, activeMultiAoiId, drawnGeometry, aoiFields, selectedFieldId]);
+
+  const wmsMapCanvasAoiPixelValues = useMemo(() => {
+    if (!staticAoiChartFeature || !wmsLegendClassRaster?.grid?.length) return null;
+    const normalizedGeom = getDrawnGeometry(staticAoiChartFeature);
+    if (!normalizedGeom) return null;
+    const maskFeature: GeoJSON.Feature = { type: 'Feature', geometry: normalizedGeom, properties: {} };
+    const vals = extractWmsAoiDynamicClassificationValues(
+      wmsLegendClassRaster,
+      activeWmsLayer || '',
+      activeAoiChartLayer.layerId,
+      maskFeature,
+    );
+    return vals.length ? vals : null;
+  }, [staticAoiChartFeature, wmsLegendClassRaster, activeWmsLayer, activeAoiChartLayer.layerId]);
+
+  const symStopsForWmsLayerId = useCallback(
+    (layerId: string): readonly IndexRampStop[] | null => {
+      const activeId = (activeWmsLayer || '').trim();
+      const aoiValues =
+        layerId.trim() === activeId && wmsMapCanvasAoiPixelValues?.length
+          ? wmsMapCanvasAoiPixelValues
+          : null;
+      return siWmsResolveCanonicalStops(layerId, siWmsSymbologyByLayer[layerId], aoiValues);
+    },
+    [siWmsSymbologyByLayer, activeWmsLayer, wmsMapCanvasAoiPixelValues],
+  );
 
   const quickDashboardLayers = useMemo(
     () =>
@@ -17830,29 +18084,12 @@ export default function SatelliteIntelligence() {
     satelliteProviderId,
   ]);
 
-  const wmsLegendDisplayMode = useMemo(
-    () =>
-      siWmsResolveLegendDisplayMode({
-        profile: inferWmsEvalProfile(activeWmsLayer || ''),
-        layerId: activeWmsLayer || '',
-        sentinelVisible,
-        hasAoiGeometry: hasAnyAoiGeometryForSentinel,
-        symbologyPartial: activeWmsLayer ? siWmsSymbologyByLayer[activeWmsLayer] : undefined,
-      }),
-    [activeWmsLayer, sentinelVisible, hasAnyAoiGeometryForSentinel, siWmsSymbologyByLayer],
-  );
-
   const activeWmsSymbologyUi = useMemo(
     () => mergeSymbologyUi(activeWmsLayer ? siWmsSymbologyByLayer[activeWmsLayer] : undefined),
     [activeWmsLayer, siWmsSymbologyByLayer],
   );
 
   /** Close legend only when no symbology is available; never auto-open on load or layer change. */
-  useEffect(() => {
-    if (wmsLegendDisplayMode === 'none') {
-      setMapSpectralLegendOpen(false);
-    }
-  }, [wmsLegendDisplayMode]);
   const activeBasemapId = useMemo(() => resolveBasemapId(basemapId), [basemapId]);
   const currentBasemapEntry = useMemo(() => {
     return (
@@ -17860,6 +18097,30 @@ export default function SatelliteIntelligence() {
       catalogEntryById(basemapCatalog, resolveStartupBasemapId(false, basemapCatalog))!
     );
   }, [basemapCatalog, activeBasemapId]);
+
+  const mapLayerSwipeCatalog = useMemo(() => {
+    const mapInstance = mapRef.current?.getMap?.() ?? mapRef.current;
+    return buildSiMapSwipeLayerCatalog(mapInstance ?? null, customLayers, {
+      basemapLabel: currentBasemapEntry?.label ?? 'Base Map Layer',
+      layerLiveLabel: 'Layer Live',
+      layerALabel: 'Layer A',
+      layerBLabel: 'Layer B',
+      elevation3d: globeView3dActive,
+      includeSwipeSides: mapLayerSwipeOpen,
+    });
+  }, [
+    customLayers,
+    currentBasemapEntry?.label,
+    globeView3dActive,
+    mapLayerSwipeOpen,
+    isMapLoaded,
+    mapStyleLayersMounted,
+  ]);
+
+  const mapLayerSwipeAvailableDates = useMemo(
+    () => (timelineStops.length ? timelineStops : [wmsDate]).filter(Boolean),
+    [timelineStops, wmsDate],
+  );
 
   /** Keep basemap rasters visible after timeline / WMS stack churn. */
   useEffect(() => {
@@ -17873,50 +18134,6 @@ export default function SatelliteIntelligence() {
     return () => window.cancelAnimationFrame(frameId);
   }, [fieldTimelineSessionActive, weeklyComposites.length, isMapLoaded, activeBasemapId]);
 
-  const handleSwipeProjectionLock = useCallback((locked: boolean) => {
-    const map = mapRef.current?.getMap?.() ?? mapRef.current;
-    if (!map?.setProjection) return;
-    try {
-      if (locked) {
-        if (!swipeProjectionRestoreRef.current) {
-          const current = map.getProjection?.();
-          swipeProjectionRestoreRef.current =
-            current && typeof current === 'object' && 'name' in current
-              ? { name: String((current as { name: string }).name) }
-              : { name: 'globe' };
-        }
-        map.setProjection(SI_MAPBOX_PROJECTION_MERCATOR);
-        map.setPitch(0);
-        map.setBearing(0);
-      } else if (swipeProjectionRestoreRef.current) {
-        map.setProjection(
-          swipeProjectionRestoreRef.current.name === 'mercator'
-            ? SI_MAPBOX_PROJECTION_MERCATOR
-            : SI_MAPBOX_PROJECTION_GLOBE,
-        );
-        swipeProjectionRestoreRef.current = null;
-      }
-    } catch {
-      /* map mid-style rebuild */
-    }
-  }, []);
-
-  const mapLayerSwipeCatalog = useMemo(() => {
-    const mapInstance = mapRef.current?.getMap?.() ?? mapRef.current;
-    return buildSiMapSwipeLayerCatalog(mapInstance ?? null, customLayers, {
-      basemapLabel: currentBasemapEntry?.label ?? 'Base Map Layer',
-      layerLiveLabel: 'Layer Live',
-      elevation3d: globeView3dActive,
-    });
-  }, [
-    customLayers,
-    currentBasemapEntry?.label,
-    isMapLoaded,
-    sentinelVisible,
-    mapStyleLayersMounted,
-    globeView3dActive,
-    customLayerMapRenderSig,
-  ]);
   const { basemap3dEntries, basemapRasterEntries } = useMemo(
     () => partitionBasemapCatalog(basemapCatalog),
     [basemapCatalog],
@@ -18322,12 +18539,12 @@ export default function SatelliteIntelligence() {
 
   const mapPrintWmsLegendItems = useMemo(() => {
     if (!wmsSpectralLegend) return [];
-    const stops = siWmsResolveCanonicalStops(activeWmsLayer || '', activeWmsSymbologyUi);
+    const stops = symStopsForWmsLayerId(activeWmsLayer || '');
     return siWmsLegendRowsFromStops(stops).map(r => ({
       label: `${r.from.toFixed(2)} – ${r.to.toFixed(2)}`,
       color: r.color,
     }));
-  }, [wmsSpectralLegend, activeWmsLayer, activeWmsSymbologyUi]);
+  }, [wmsSpectralLegend, activeWmsLayer, symStopsForWmsLayerId]);
 
   const mapPrintLegendItems = useMemo(() => {
     const layerLabel =
@@ -18342,9 +18559,10 @@ export default function SatelliteIntelligence() {
       basemapLabel: currentBasemapLabel,
       layers: customLayers.map(layer => ({
         name: layer.name,
-        visible: layer.visible,
+        visible: layer.visible !== false,
         color: layer.strokeColor ?? layer.color,
         fillColor: layer.fillColor,
+        symbologyEntries: buildSiLayerLegendRows(layer, { maxItems: 12 }),
       })),
     });
   }, [
@@ -19699,11 +19917,12 @@ export default function SatelliteIntelligence() {
     const needsLiveWmsRaster =
       mapSpectralLegendOpen ||
       liveAoiStatsPopupOpen ||
-      (remoteSensingLiveAoiPopupAllowed && !!staticAoiChartFeature);
+      (remoteSensingLiveAoiPopupAllowed && !!staticAoiChartFeature) ||
+      (!!staticAoiChartFeature &&
+        !!activeWmsLayer?.trim() &&
+        siWmsLayerSupportsSpectralClassification(activeWmsLayer));
     if (!needsLiveWmsRaster || !staticAoiChartFeature || !wmsBaseUrl?.trim() || !activeWmsLayer?.trim()) {
-      if (!mapSpectralLegendOpen && !liveAoiStatsPopupOpen) {
-        setWmsLegendClassRaster(null);
-      }
+      setWmsLegendClassRaster(null);
       return;
     }
     const normalizedGeom = getDrawnGeometry(staticAoiChartFeature);
@@ -19735,6 +19954,7 @@ export default function SatelliteIntelligence() {
       wmsBaseUrl,
       wmsAccessToken: sentinelHubAccessToken,
       layerName: wmsTileLayerName || activeWmsLayer,
+      logicalLayerId: activeWmsLayer,
       chartLayerId: activeAoiChartLayer.layerId,
       timeStart: siWmsMapTimeExtent.start,
       timeEnd: siWmsMapTimeExtent.end,
@@ -19808,6 +20028,53 @@ export default function SatelliteIntelligence() {
     activeWmsLayer,
     symStopsForWmsLayerId,
   ]);
+
+  const mapDynamicLegendEntries = useMemo(
+    () =>
+      buildSiMapDynamicLegendEntries({
+        wmsLayerId: activeWmsLayer || '',
+        wmsVisible: sentinelVisible,
+        wmsLabel: wmsSpectralLegend?.label || activeWmsLayer || '',
+        wmsContext: wmsSpectralLegend?.context ?? { imageryDateIso: wmsDate },
+        wmsSymbologyPartial: activeWmsLayer ? siWmsSymbologyByLayer[activeWmsLayer] : undefined,
+        wmsAoiFiniteValues: wmsMapCanvasAoiPixelValues,
+        wmsClassAnalytics:
+          wmsLegendClassAnalytics ??
+          liveAoiPopupDisplayModel?.classAnalytics ??
+          liveAoiStatsView?.classAnalytics ??
+          null,
+        hasAoiGeometry: hasAnyAoiGeometryForSentinel,
+        customLayers,
+        cropHealthAlertsVisible:
+          mapCropHealthOpen &&
+          (cropHealthSettings.showHealthLayer || cropHealthSettings.showDiseaseRiskLayer),
+        resolveStops: symStopsForWmsLayerId,
+      }),
+    [
+      activeWmsLayer,
+      sentinelVisible,
+      wmsSpectralLegend,
+      wmsDate,
+      siWmsSymbologyByLayer,
+      wmsMapCanvasAoiPixelValues,
+      wmsLegendClassAnalytics,
+      liveAoiPopupDisplayModel?.classAnalytics,
+      liveAoiStatsView?.classAnalytics,
+      hasAnyAoiGeometryForSentinel,
+      customLayers,
+      mapCropHealthOpen,
+      cropHealthSettings.showHealthLayer,
+      cropHealthSettings.showDiseaseRiskLayer,
+      symStopsForWmsLayerId,
+    ],
+  );
+
+  /** Close legend when no visible layer can produce a legend entry. */
+  useEffect(() => {
+    if (!mapDynamicLegendEntries.length) {
+      setMapSpectralLegendOpen(false);
+    }
+  }, [mapDynamicLegendEntries.length]);
 
   const handleStaticComparisonLayerToggle = useCallback((id: StaticAoiChartLayerId) => {
     setStaticChartComparisonLayers(prev => {
@@ -20143,12 +20410,15 @@ export default function SatelliteIntelligence() {
         polylineStart != null);
     const rsToolActive =
       !fieldsPanelDrawArmed && mapDrawTool !== 'select' && mapDrawTool !== 'move';
+    const rsInteractionActive =
+      !fieldsPanelDrawArmed && (interactionMode === 'draw' || interactionMode === 'move');
     return (
       drawnGeometry != null ||
       aoiFields.length > 0 ||
       multiAoiItems.length > 0 ||
       rsInFlightSketch ||
-      rsToolActive
+      rsToolActive ||
+      rsInteractionActive
     );
   }, [
     fieldsPanelDrawArmed,
@@ -20160,6 +20430,7 @@ export default function SatelliteIntelligence() {
     circleRefineDraft,
     polylineStart,
     mapDrawTool,
+    interactionMode,
   ]);
 
   /** Sentinel Hub: GEOMETRY (3857 WKT) + EVALSCRIPT (RGBA, alpha = dataMask × optional index mask). */
@@ -20309,50 +20580,10 @@ export default function SatelliteIntelligence() {
     ],
   );
 
-  const resolveExtractMaskAoiFeature = useCallback((): GeoJSON.Feature | null => {
-    if (liveSnapshotAoiFeature?.geometry) return liveSnapshotAoiFeature;
-    const pivotGeom = selectedPivot?.feature?.geometry;
-    if (pivotGeom) {
-      return { type: 'Feature', geometry: pivotGeom as GeoJSON.Geometry, properties: { source: 'layer' } };
-    }
-    const fcBounds = pivotGeoJson?.features?.length ? getGeoJsonBounds(pivotGeoJson) : null;
-    if (fcBounds) {
-      return bboxToPolygonFeature(fcBounds[0], fcBounds[1], fcBounds[2], fcBounds[3], 'Layer extent');
-    }
-    const map = mapRef.current?.getMap?.() ?? mapRef.current;
-    try {
-      const b = map?.getBounds?.();
-      if (b) {
-        return bboxToPolygonFeature(b.getWest(), b.getSouth(), b.getEast(), b.getNorth(), 'Map extent');
-      }
-    } catch {
-      /* ignore */
-    }
-    return null;
-  }, [liveSnapshotAoiFeature, selectedPivot, pivotGeoJson]);
-
-  const resolveExtractMaskFitBounds = useCallback(
-    (feature: GeoJSON.Feature): [[number, number], [number, number]] | null => {
-      const b = siAoiReportFeatureBBoxLngLat(feature);
-      if (!b) return null;
-      return [
-        [b[0], b[1]],
-        [b[2], b[3]],
-      ];
-    },
-    [],
-  );
-
   const handleExportAoiMaskGeoTiff = useCallback(async () => {
-    const aoiFeature = resolveExtractMaskAoiFeature();
+    const aoiFeature = liveSnapshotAoiFeature;
     if (!aoiFeature?.geometry) {
-      setFieldAnalysisStatus(
-        'AOI not selected. Draw a polygon, pick a workspace AOI, use a layer feature, or fit the map extent.',
-      );
-      void appAlert(
-        'Select an AOI first — draw a polygon, pick a workspace AOI, use a layer feature, or fit the map extent.',
-        { title: 'Export to GeoTIFF' },
-      );
+      setFieldAnalysisStatus('AOI required — draw or select an existing AOI before exporting.');
       return;
     }
     if (!activeWmsLayer) {
@@ -20368,7 +20599,7 @@ export default function SatelliteIntelligence() {
       );
       return;
     }
-    const fitBounds = resolveExtractMaskFitBounds(aoiFeature);
+    const fitBounds = liveSnapshotFitBounds;
     if (!fitBounds) {
       setFieldAnalysisStatus('Could not compute AOI bounds for export.');
       return;
@@ -20381,14 +20612,13 @@ export default function SatelliteIntelligence() {
     pauseTimelinePlayback();
     try {
       setIsWmsOverlayVisible(true);
-      const existingNames = customLayers.map(l => l.name);
-      const { payload, layerName, sourceStaged } = await runExtractMaskGeoTiffWorkflow({
+      const { payload, layerName } = await runExtractMaskGeoTiffWorkflow({
         map: map as MapboxMap,
         aoiFeature,
         fitBounds,
         indexLayerId: activeWmsLayer,
         indexLayerLabel,
-        existingLayerNames: existingNames,
+        existingLayerNames: [],
         wmsExport: {
           wmsBaseUrl,
           wmsAccessToken: sentinelHubAccessToken,
@@ -20401,65 +20631,10 @@ export default function SatelliteIntelligence() {
           setIsWmsOverlayVisible(true);
         },
         onStatus: setFieldAnalysisStatus,
-        stageSourceLayer: async ({ id, name, payload: sourcePayload, indexLayerId }) =>
-          commitCustomLayerToMap(
-            {
-              id,
-              name,
-              geojson: siRasterExtentFootprint(sourcePayload.coordinates),
-              visible: true,
-              mapOpacity: 1,
-              source: 'generated',
-              renderMode: 'raster',
-              raster: { url: sourcePayload.previewUrl, coordinates: sourcePayload.coordinates },
-              ephemeral: true,
-              importMetadata: {
-                format: 'GeoTIFF',
-                crs: 'EPSG:4326',
-                generatedBy: 'extract-by-mask-source',
-                indexLayer: indexLayerId,
-                imageryDate: dateToTimelineIso(selectedDate),
-                widthPx: sourcePayload.width,
-                heightPx: sourcePayload.height,
-              },
-            },
-            { bounds: sourcePayload.boundsLngLat, statusLabel: `Rendering “${name}” on map…` },
-          ),
       });
 
-      const layerId = `export-geotiff-${Date.now()}`;
-      const mapOk = await commitCustomLayerToMap(
-        {
-          id: layerId,
-          name: layerName,
-          geojson: siRasterExtentFootprint(payload.coordinates),
-          visible: true,
-          mapOpacity: 1,
-          source: 'generated',
-          renderMode: 'raster',
-          raster: { url: payload.previewUrl, coordinates: payload.coordinates },
-          ephemeral: true,
-          importMetadata: {
-            format: 'GeoTIFF',
-            crs: 'EPSG:4326',
-            generatedBy: 'extract-by-mask-aoi',
-            indexLayer: activeWmsLayer,
-            sourceStagingLayer: sourceStaged?.layerName,
-            imageryDate: dateToTimelineIso(selectedDate),
-            widthPx: payload.width,
-            heightPx: payload.height,
-          },
-        },
-        { bounds: payload.boundsLngLat, statusLabel: `Rendering “${layerName}” on map…` },
-      );
-      if (!mapOk) {
-        setFieldAnalysisStatus(
-          `“${layerName}” was added to Added Layers — toggle visibility or use Zoom to layer if it does not appear.`,
-        );
-      } else {
-        setFieldAnalysisStatus(`Export complete: “${layerName}” added to Added Layers and shown on the map.`);
-      }
       triggerBrowserDownload(payload.geoTiffBlob, `${layerName.replace(/\s+/g, '_')}.tif`);
+      setFieldAnalysisStatus(`GeoTIFF export complete — ${layerName}.tif downloaded.`);
     } catch (err) {
       const info = formatExtractMaskExportError(err);
       setFieldAnalysisStatus(formatExtractMaskStatusLine(info));
@@ -20467,14 +20642,12 @@ export default function SatelliteIntelligence() {
       setAoiExtractMaskExportBusy(false);
     }
   }, [
-    resolveExtractMaskAoiFeature,
-    resolveExtractMaskFitBounds,
+    liveSnapshotAoiFeature,
+    liveSnapshotFitBounds,
     activeWmsLayer,
     remoteSensingLayerOptions,
     isMapLoaded,
     pauseTimelinePlayback,
-    customLayers,
-    commitCustomLayerToMap,
     selectedDate,
     wmsBaseUrl,
     sentinelHubAccessToken,
@@ -20658,6 +20831,44 @@ export default function SatelliteIntelligence() {
     symStopsForWmsLayerId,
     providerCacheEpoch,
     satelliteProviderId,
+  ]);
+
+  useEffect(() => {
+    if (!mapLayerSwipeOpen) {
+      mapLayerSwipeSeededRef.current = false;
+      return;
+    }
+    if (!mapStyleLayersMounted || mapLayerSwipeSeededRef.current) return;
+    mapLayerSwipeSeededRef.current = true;
+    const layerId = activeWmsLayer?.trim();
+    if (!layerId) return;
+    const store = useSiMapSwipeStore.getState();
+    store.patchLayerA({
+      layerId,
+      dateIso: wmsDate || store.layerA.dateIso,
+    });
+    if (!store.layerB.dateIso) {
+      store.patchLayerB({ dateIso: wmsDate });
+    }
+  }, [mapLayerSwipeOpen, mapStyleLayersMounted, activeWmsLayer, wmsDate]);
+
+  useEffect(() => {
+    if (!mapLayerSwipeOpen || !mapStyleLayersMounted) return;
+    const map = mapRef.current?.getMap?.() ?? mapRef.current;
+    if (!map?.getStyle?.()) return;
+    const ids = (map.getStyle()?.layers ?? []).map(l => l.id).filter(isSiMapWmsRasterLayerId);
+    setMapLayerSwipeLiveIds(ids);
+    bumpMapLayerSwipeMount();
+  }, [
+    mapLayerSwipeOpen,
+    mapLayerSwipeRuntime.active,
+    mapStyleLayersMounted,
+    mapLayerSwipeLayerA.layerId,
+    mapLayerSwipeLayerA.dateIso,
+    mapLayerSwipeLayerB.layerId,
+    mapLayerSwipeLayerB.dateIso,
+    setMapLayerSwipeLiveIds,
+    bumpMapLayerSwipeMount,
   ]);
 
   const handleVoiceGisIntent = useCallback(
@@ -21553,6 +21764,24 @@ export default function SatelliteIntelligence() {
               wmsTimelineFocusRev={wmsTimelineFocusRev}
             />
 
+            {mapLayerSwipeOpen && mapLayerSwipeRuntime.active ? (
+              <SiMapSwipeRasterLayers
+                active
+                isMapLoaded={mapStyleLayersMounted}
+                layerA={mapLayerSwipeLayerA}
+                layerB={mapLayerSwipeLayerB}
+                wmsBaseUrl={wmsBaseUrl}
+                cloudCoverage={cloudCoverage}
+                clipGeometry={drawnGeometry}
+                wmsRasterAoiBoundsLngLat={wmsRasterAoiBoundsLngLat}
+                drawVisualOpacity={drawVisualOpacity}
+                wmsLayersCatalog={wmsLayers}
+                symStopsForLayerId={symStopsForWmsLayerId}
+                symOpacityForLayerId={symOpacityForWmsLayerId}
+                defaultDateIso={wmsDate}
+              />
+            ) : null}
+
                 {mapStyleLayersMounted &&
                   customLayers.map(layerRaw => {
                   const layer = resolveSiCustomLayerMapDisplayLayer(layerRaw);
@@ -21651,7 +21880,7 @@ export default function SatelliteIntelligence() {
                         : { mapOpacity: op },
                   );
                   const instanceId = siMapboxSymbologyInstanceId(layer.id, styleKey);
-                  const srcKey = `${instanceId}-${useCluster ? 'cl' : 'ncl'}-${layerExtrusion3d ? '3d' : '2d'}`;
+                  const srcKey = `${instanceId}-${useCluster ? 'cl' : 'ncl'}`;
                   const labelDraftResolved = resolveSiMapLayerLabelDraft(
                     layer,
                     isLabelsStudioPreview ? labelsDraft : null,
@@ -22147,23 +22376,30 @@ export default function SatelliteIntelligence() {
                 siElevationRafTransitionCancelRef.current = null;
                 siElevationCameraEasingRef.current = false;
               }
-              setViewState(prev => {
-                const allowPitch =
-                  mapElevationViewActiveRef.current ||
-                  mapElevationTransitioningRef.current ||
-                  siElevationCameraEasingRef.current ||
-                  mapProjectionModeRef.current === 'globe' ||
-                  userDriving ||
-                  isSiMapManualOrbitCooldownActive() ||
-                  (prev.pitch ?? 0) > 0.5 ||
-                  (evt.viewState.pitch ?? 0) > 0.5;
-                const next = clampSiViewStateForProjection(
-                  evt.viewState,
-                  mapProjectionModeRef.current,
-                  { allowPitch },
+              const allowPitch =
+                mapElevationViewActiveRef.current ||
+                mapElevationTransitioningRef.current ||
+                siElevationCameraEasingRef.current ||
+                mapProjectionModeRef.current === 'globe' ||
+                userDriving ||
+                isSiMapManualOrbitCooldownActive() ||
+                (viewStateRef.current.pitch ?? 0) > 0.5 ||
+                (evt.viewState.pitch ?? 0) > 0.5;
+              const next = clampSiViewStateForProjection(
+                evt.viewState,
+                mapProjectionModeRef.current,
+                { allowPitch },
+              );
+              if (!shouldCommitReactViewStateDuringCameraMotion() || userDriving) {
+                viewStateRef.current = next;
+                siGlobeLayerExtrusion3dRef.current = resolveSiMapLayerExtrusion3dActive(
+                  mapElevationViewActiveRef.current,
+                  next.pitch ?? 0,
+                  siGlobeLayerExtrusion3dRef.current,
                 );
-                return siViewStatesNear(prev, next) ? prev : next;
-              });
+                return;
+              }
+              setViewState(prev => (siViewStatesNear(prev, next) ? prev : next));
             }}
             {...mouse.mapPointerHandlers}
             onMouseLeave={() => setMapPointerWgs84(null)}
@@ -22175,7 +22411,7 @@ export default function SatelliteIntelligence() {
             }}
             mapStyle={mapStyleForMapGl}
             mapboxAccessToken={mapboxAccessTokenForMap}
-            maxTileCacheSize={768}
+            maxTileCacheSize={1536}
             refreshExpiredTiles={false}
             preserveDrawingBuffer
             transformRequest={sentinelHubTransformRequest}
@@ -22338,6 +22574,18 @@ export default function SatelliteIntelligence() {
           {mapCanvasReady ? <SiMapGeoSyntraBrand /> : null}
 
           {mapCanvasReady ? (
+            <SiExploreIndexesPanel
+              open={exploreIndexesOpen}
+              collapsed={exploreIndexesCollapsed}
+              onCollapsedChange={setExploreIndexesCollapsed}
+              onClose={() => setExploreIndexesOpen(false)}
+              activeLayerId={activeWmsLayer}
+              layerOptions={remoteSensingLayerOptions}
+              onSelectLayer={(layerId) => onExploreIndexBandSelect(layerId)}
+            />
+          ) : null}
+
+          {mapCanvasReady ? (
             <SiMapWgs84CoordinateStatus
               pointer={mapPointerWgs84}
               projectionMode={mapProjectionMode}
@@ -22432,32 +22680,28 @@ export default function SatelliteIntelligence() {
           ) : null}
 
           {isMapLoaded && mapLayerSwipeOpen ? (
-            <SiMapLayerSwipeToolPanel
+            <SiMapSwipeComparisonPanel
               open={mapLayerSwipeOpen}
-              minimized={mapLayerSwipeMinimized}
-              onMinimizedChange={setMapLayerSwipeMinimized}
-              onClose={() => {
-                setMapLayerSwipeOpen(false);
-                setMapLayerSwipeMinimized(false);
-                setMapLayerSwipeState(prev => ({ ...prev, active: false }));
-              }}
-              catalog={mapLayerSwipeCatalog}
-              state={mapLayerSwipeState}
-              onStateChange={setMapLayerSwipeState}
+              mapRef={mapRef}
+              layerLiveGroups={layerLiveIndexSelectGroups}
+              defaultDateIso={wmsDate}
+              availableDates={mapLayerSwipeAvailableDates}
+              onClose={() => setMapLayerSwipeOpen(false)}
             />
           ) : null}
 
-          <SiMapLayerSwipeOverlay
-            mapRef={mapRef}
-            mapLoaded={isMapLoaded}
-            enabled={mapLayerSwipeOpen || mapLayerSwipeState.active}
-            catalog={mapLayerSwipeCatalog}
-            state={mapLayerSwipeState}
-            onPositionChange={position =>
-              setMapLayerSwipeState(prev => ({ ...prev, position }))
-            }
-            onSwipeProjectionLock={handleSwipeProjectionLock}
-          />
+          {isMapLoaded && mapLayerSwipeOpen ? (
+            <SiMapSwipeOverlay
+              mapRef={mapRef}
+              mapLoaded={isMapLoaded}
+              enabled={mapLayerSwipeOpen}
+              catalog={mapLayerSwipeCatalog}
+              state={mapLayerSwipeRuntime}
+              onPositionChange={position => patchMapLayerSwipeRuntime({ position })}
+              onSpyPositionChange={spyPosition => patchMapLayerSwipeRuntime({ spyPosition })}
+              onSwipeProjectionLock={handleSwipeProjectionLock}
+            />
+          ) : null}
 
           {isMapLoaded && mapCropHealthOpen ? (
             <SiMapCropHealthToolPanel
@@ -22650,40 +22894,11 @@ export default function SatelliteIntelligence() {
             />
           ) : null}
 
-          {isMapLoaded &&
-          mapSpectralLegendOpen &&
-          wmsSpectralLegend &&
-          wmsLegendDisplayMode === 'scientific' ? (
-            <SiWmsIndexClassificationLegend
-              profile={wmsSpectralLegend.profile}
-              layerLabel={wmsSpectralLegend.label}
-              context={wmsSpectralLegend.context}
-              classifiedStopsOverride={symStopsForWmsLayerId(activeWmsLayer || '')}
-              classAnalytics={
-                wmsLegendClassAnalytics ??
-                liveAoiPopupDisplayModel?.classAnalytics ??
-                liveAoiStatsView?.classAnalytics ??
-                null
-              }
-            />
-          ) : null}
-          {isMapLoaded &&
-          mapSpectralLegendOpen &&
-          wmsSpectralLegend &&
-          wmsLegendDisplayMode === 'live' ? (
-            <SiWmsLiveLayerLegend
-              profile={wmsSpectralLegend.profile}
-              layerId={activeWmsLayer || ''}
-              layerLabel={wmsSpectralLegend.label}
-              context={wmsSpectralLegend.context}
-              symbologyUi={activeWmsSymbologyUi}
-              symbologyPartial={activeWmsLayer ? siWmsSymbologyByLayer[activeWmsLayer] : undefined}
-              classAnalytics={
-                wmsLegendClassAnalytics ??
-                liveAoiPopupDisplayModel?.classAnalytics ??
-                liveAoiStatsView?.classAnalytics ??
-                null
-              }
+          {isMapLoaded && mapSpectralLegendOpen && mapDynamicLegendEntries.length > 0 ? (
+            <SiMapDynamicLegendStack
+              mapRef={mapRef}
+              mapLoaded={isMapLoaded}
+              entries={mapDynamicLegendEntries}
             />
           ) : null}
 
@@ -23105,24 +23320,43 @@ export default function SatelliteIntelligence() {
             onGeoAiFloatingRailToggle={onGeoAiFloatingRailToggle}
             onMapToolboxAddData={openAddLayerModal}
             mapSymbologyToolbarSlot={
-              <button
-                type="button"
-                className={
-                  'si-sat-ctx-rail-sym-tool' +
-                  (siWmsSymbologyChrome.open && siWmsSymbologyChrome.anchor === 'map-dock'
-                    ? ' si-sat-ctx-rail-sym-tool--on'
-                    : '')
-                }
-                title="Symbology — classified layer colors"
-                aria-pressed={siWmsSymbologyChrome.open && siWmsSymbologyChrome.anchor === 'map-dock'}
-                aria-label="Open symbology"
-                disabled={siWmsSymbologyLayerPickOptions.length === 0}
-                onClick={() => toggleWmsSymbology('map-dock')}
-              >
-                <i className="fa-solid fa-palette" aria-hidden />
-              </button>
+              <>
+                <button
+                  type="button"
+                  className={
+                    'si-sat-ctx-rail-sym-tool si-sat-ctx-rail-sym-tool--swipe' +
+                    (mapLayerSwipeOpen ? ' si-sat-ctx-rail-sym-tool--on' : '')
+                  }
+                  title={
+                    mapLayerSwipeOpen
+                      ? 'Close layer swipe compare'
+                      : 'Layer swipe compare — Layer A vs B on one map'
+                  }
+                  aria-pressed={mapLayerSwipeOpen}
+                  aria-label="Layer swipe compare"
+                  onClick={() => toggleMapLayerSwipe()}
+                >
+                  <i className="fa-solid fa-arrows-left-right" aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  className={
+                    'si-sat-ctx-rail-sym-tool' +
+                    (siWmsSymbologyChrome.open && siWmsSymbologyChrome.anchor === 'map-dock'
+                      ? ' si-sat-ctx-rail-sym-tool--on'
+                      : '')
+                  }
+                  title="Symbology — classified layer colors"
+                  aria-pressed={siWmsSymbologyChrome.open && siWmsSymbologyChrome.anchor === 'map-dock'}
+                  aria-label="Open symbology"
+                  disabled={siWmsSymbologyLayerPickOptions.length === 0}
+                  onClick={() => toggleWmsSymbology('map-dock')}
+                >
+                  <i className="fa-solid fa-palette" aria-hidden />
+                </button>
+              </>
             }
-            mapSpectralLegendAvailable={wmsLegendDisplayMode !== 'none' && sentinelVisible}
+            mapSpectralLegendAvailable={mapDynamicLegendEntries.length > 0}
             mapSpectralLegendOpen={mapSpectralLegendOpen}
             onToggleMapSpectralLegend={() =>
               setMapSpectralLegendOpen(open => {
@@ -23136,28 +23370,18 @@ export default function SatelliteIntelligence() {
             onOpenMapPrint={() => setMapPrintModalOpen(true)}
             routeMapOpen={routeMapOpen}
             onToggleRouteMap={toggleRouteMap}
-            mapLayerSwipeOpen={mapLayerSwipeOpen}
-            onToggleMapLayerSwipe={toggleMapLayerSwipe}
             elevProfileOpen={elevProfileOpen}
             onToggleElevProfile={toggleElevProfileTool}
+            mapLayerSwipeOpen={mapLayerSwipeOpen}
+            onToggleMapLayerSwipe={toggleMapLayerSwipe}
             mapWeatherIntelActive={mapWeatherIntelActive}
             onToggleMapWeatherIntel={toggleMapWeatherIntel}
             quickDashboardOpen={quickDashboardOpen}
             onToggleQuickDashboard={toggleQuickDashboard}
-            mapLayerControlOpen={mapLayerControlOpen}
-            onToggleMapLayerControl={toggleMapLayerControl}
+            exploreIndexesOpen={exploreIndexesOpen}
+            onToggleExploreIndexes={toggleExploreIndexes}
             mapAnalysisToolsLockedByPopups={false}
           />
-
-          {mapCanvasReady ? (
-            <SiMapLayerControlMount
-              mapRef={mapRef}
-              mapLoaded={isMapLoaded}
-              active={mapLayerControlOpen}
-              basemapEntry={currentBasemapEntry}
-              basemapStyleSig={activeBasemapId}
-            />
-          ) : null}
 
           <SiQuickDashboardPanel
             open={quickDashboardOpen}
@@ -23382,6 +23606,20 @@ export default function SatelliteIntelligence() {
                     aria-pressed={mapCropHealthOpen}
                   >
                     <i className="fa-solid fa-seedling" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    className={`si-basemap-button si-swipe-compare-button${mapLayerSwipeOpen ? ' active' : ''}`}
+                    onClick={() => toggleMapLayerSwipe()}
+                    title={
+                      mapLayerSwipeOpen
+                        ? 'Close layer swipe compare'
+                        : 'Layer swipe compare — Layer A vs B'
+                    }
+                    aria-label="Layer swipe compare"
+                    aria-pressed={mapLayerSwipeOpen}
+                  >
+                    <i className="fa-solid fa-arrows-left-right" aria-hidden />
                   </button>
                 </div>
               </div>
@@ -23651,8 +23889,8 @@ export default function SatelliteIntelligence() {
                                   type="button"
                                   className="si-map-analysis-tool si-map-analysis-tool--clear"
                                   disabled={!satelliteHasClearableDrawing}
-                                  title="Clear drawing"
-                                  aria-label="Clear drawing"
+                                  title="Clear all drawings"
+                                  aria-label="Clear all drawings"
                                   onClick={clearSatelliteDrawingWithFade}
                                 >
                                   <i className="fa-solid fa-eraser" aria-hidden />
@@ -23740,10 +23978,19 @@ export default function SatelliteIntelligence() {
                             <button
                               type="button"
                               className="si-field-analysis-export-geotiff-btn"
-                              disabled={aoiExtractMaskExportBusy || !isMapLoaded || !activeWmsLayer}
+                              disabled={
+                                aoiExtractMaskExportBusy ||
+                                !isMapLoaded ||
+                                !activeWmsLayer ||
+                                !liveSnapshotAoiFeature?.geometry
+                              }
                               onClick={() => void handleExportAoiMaskGeoTiff()}
                               aria-busy={aoiExtractMaskExportBusy}
-                              title="Export clipped raster to GeoTIFF (AOI mask, original pixel values)"
+                              title={
+                                !liveSnapshotAoiFeature?.geometry
+                                  ? 'Draw or select an AOI before exporting to GeoTIFF'
+                                  : 'Export clipped raster to GeoTIFF (AOI mask, original pixel values)'
+                              }
                             >
                               <i
                                 className={

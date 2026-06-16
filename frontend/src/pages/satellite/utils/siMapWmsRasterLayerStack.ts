@@ -1,6 +1,11 @@
 import type { Map as MapboxMap } from 'mapbox-gl';
 import type { SiSentinelHubRasterRunLite } from '../components/SiSentinelHubRasterLayers';
 import { SI_TERRAIN_CONTOUR_LABEL_LAYER_ID } from './siMap3DLabels';
+import { isSiMapDataLayerMutationFrozen } from './siMapRasterPipelineGuard';
+import {
+  applySiMapWmsRasterDoubleBuffered,
+  flushSiMapWmsRasterDoubleBuffer,
+} from './siMapWmsRasterDoubleBuffer';
 
 export const SI_MAP_TERRAIN_CONTOUR_LAYER_ID = 'si-terrain-contours';
 
@@ -14,7 +19,12 @@ export function siMapTerrainContourLayersMounted(map: MapboxMap): boolean {
 
 /** Mapbox layer ids for Sentinel Hub WMS rasters (always above AOI vectors). */
 export function isSiMapWmsRasterLayerId(layerId: string): boolean {
-  return layerId === 'sentinel-layer' || layerId.startsWith('si-sentinel-layer-');
+  return (
+    layerId === 'sentinel-layer' ||
+    layerId.startsWith('si-sentinel-layer-') ||
+    layerId === 'si-swipe-wms-layer-a' ||
+    layerId === 'si-swipe-wms-layer-b'
+  );
 }
 
 /** Source ids paired with {@link isSiMapWmsRasterLayerId}. */
@@ -76,6 +86,7 @@ export function raiseSiMapTerrainContourLayersAboveWms(map: MapboxMap): void {
  * Live Index tiles during normal viewing. Terrain contours are re-stacked above WMS afterward.
  */
 export function raiseSiMapWmsRasterLayersToTop(map: MapboxMap): void {
+  if (isSiMapDataLayerMutationFrozen()) return;
   if (!map.getStyle?.()) return;
   const style = map.getStyle();
   if (!style?.layers) return;
@@ -94,6 +105,7 @@ export function syncSiMapWmsRasterSourceBounds(
   map: MapboxMap,
   runs: SiSentinelHubRasterRunLite[] | null | undefined,
 ): void {
+  if (isSiMapDataLayerMutationFrozen()) return;
   if (!runs?.length) return;
   for (const spec of runs) {
     if (!spec.ready) continue;
@@ -116,8 +128,8 @@ export function refreshSiMapWmsRasterPaint(map: MapboxMap | null | undefined): v
   }
 }
 
-/** Update WMS tile URLs in place — avoids remounting Mapbox raster sources on timeline scrub. */
-export function syncSiMapWmsRasterSourceTiles(
+/** Imperative WMS `setTiles` — bypasses double buffer (used by flush). */
+export function syncSiMapWmsRasterSourceTilesImmediate(
   map: MapboxMap,
   runs: SiSentinelHubRasterRunLite[] | null | undefined,
   legacyTileUrl?: string | null,
@@ -141,4 +153,18 @@ export function syncSiMapWmsRasterSourceTiles(
       /* ignore map/source race during style rebuild */
     }
   }
+}
+
+/** Double-buffered entry — front GPU tiles stay immutable during pan/zoom/hover. */
+export function syncSiMapWmsRasterSourceTiles(
+  map: MapboxMap,
+  runs: SiSentinelHubRasterRunLite[] | null | undefined,
+  legacyTileUrl?: string | null,
+): void {
+  applySiMapWmsRasterDoubleBuffered(map, runs, legacyTileUrl, syncSiMapWmsRasterSourceTilesImmediate);
+}
+
+/** Flush back-buffered WMS tile URLs after camera / pipeline unfreezes. */
+export function flushDeferredSiMapWmsRasterSourceTiles(map: MapboxMap): void {
+  flushSiMapWmsRasterDoubleBuffer(map, syncSiMapWmsRasterSourceTilesImmediate);
 }

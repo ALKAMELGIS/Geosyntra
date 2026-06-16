@@ -17,6 +17,7 @@ import {
 import { isSiCustomLayerMapRefreshInFlight } from './siMapCustomLayerRegistry';
 import { withSiMapLayerMountElevation3d } from './siMapLayerElevation3dState';
 import { isSiMapElevationTransitionActive } from './siMapLayerTransitionGuard';
+import { isSiMapDataLayerMutationFrozen } from './siMapRasterPipelineGuard';
 
 export {
   collectMapboxCustomLayerAppIds,
@@ -52,6 +53,7 @@ export function reconcileLayerManagerWithMapCanvas(
   };
   if (!map?.getStyle?.()) return report;
   if (isSiMapElevationTransitionActive()) return report;
+  if (isSiMapDataLayerMutationFrozen()) return report;
 
   const activeById = new Map(appLayers.map(l => [l.id, l]));
   const mapAppIds = collectMapboxCustomLayerAppIds(map);

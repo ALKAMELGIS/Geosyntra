@@ -1,17 +1,23 @@
-import { useLayoutEffect, useMemo, useRef } from 'react';
+import { useLayoutEffect, useEffect, useMemo, useRef } from 'react';
 import { Layer, Source, useMap } from 'react-map-gl/mapbox';
 import {
   raiseSiMapWmsRasterLayersToTop,
   refreshSiMapWmsRasterPaint,
   syncSiMapWmsRasterSourceBounds,
   syncSiMapWmsRasterSourceTiles,
+  flushDeferredSiMapWmsRasterSourceTiles,
 } from '../utils/siMapWmsRasterLayerStack';
-import { syncSiMapOverlayLayerStack } from '../utils/siMapCustomVectorLayerStack';
+import { scheduleSiMapOverlayLayerStackSync } from '../utils/siMapOverlayLayerStackScheduler';
 import { buildSentinelHubWmsAoiClip } from '../../../lib/sentinelHubWmsAoiClip';
 import { sentinelHubWmsUsesMaxCloudCover } from '../../../lib/siSentinel1InsarLayerCatalog';
 import { SI_SENTINEL_HUB_WMS_MAP_MIN_ZOOM } from '../../../lib/siSentinelHubWmsMapZoom';
 import type { IndexRampStop } from '../../../lib/siWmsIndexClassificationRamp';
 import { isSiTimelinePlaybackBlocked } from '../utils/siMapCaptureSession';
+import {
+  isSiMapDataLayerMutationFrozen,
+  scheduleSiMapInteractionOverlayFrame,
+} from '../utils/siMapRasterPipelineGuard';
+import { siMap3dTerrainOnCameraIdle } from '../utils/siMap3dTerrainCameraPerformance';
 import { SI_WMS_CROSSFADE_MS, type SiTimelineTransitionMode } from '../utils/useSiWmsTimelineCrossfade';
 import {
   resolveSiMapboxMap,
@@ -178,18 +184,13 @@ export function SiSentinelHubRasterLayers(props: SiSentinelHubRasterLayersProps)
     captureFrozen || !isTimelinePlaying || !smooth ? 0 : Math.min(420, SI_WMS_CROSSFADE_MS);
 
   const { current: map } = useMap();
-  const stackSyncFrameRef = useRef<number | null>(null);
 
   const scheduleOverlayStackSync = () => {
-    if (stackSyncFrameRef.current != null) {
-      window.cancelAnimationFrame(stackSyncFrameRef.current);
-    }
-    stackSyncFrameRef.current = window.requestAnimationFrame(() => {
-      stackSyncFrameRef.current = null;
+    scheduleSiMapInteractionOverlayFrame(() => {
       const m = resolveSiMapboxMap(map);
-      if (!m) return;
+      if (!m || isSiMapDataLayerMutationFrozen()) return;
       raiseSiMapWmsRasterLayersToTop(m);
-      syncSiMapOverlayLayerStack(m);
+      scheduleSiMapOverlayLayerStackSync(m, { force: true });
       refreshSiMapWmsRasterPaint(m);
     });
   };
@@ -214,9 +215,10 @@ export function SiSentinelHubRasterLayers(props: SiSentinelHubRasterLayersProps)
       resolveSiMapboxMap(map)!,
       useMultiWmsStack ? readyRuns : null,
       legacyWmsMounted ? legacyTileUrl : null,
-      { forceImmediate: true },
     );
-    refreshSiMapWmsRasterPaint(resolveSiMapboxMap(map));
+    if (!isSiMapDataLayerMutationFrozen()) {
+      refreshSiMapWmsRasterPaint(resolveSiMapboxMap(map));
+    }
   }, [isMapLoaded, sentinelVisible, map, useMultiWmsStack, legacyWmsMounted, legacyTileUrl, readyRuns, wmsTimelineFocusRev]);
 
   useLayoutEffect(() => {
@@ -270,10 +272,6 @@ export function SiSentinelHubRasterLayers(props: SiSentinelHubRasterLayersProps)
     return () => {
       cancelled = true;
       window.clearTimeout(t);
-      if (stackSyncFrameRef.current != null) {
-        window.cancelAnimationFrame(stackSyncFrameRef.current);
-        stackSyncFrameRef.current = null;
-      }
     };
   }, [
     isMapLoaded,
@@ -288,6 +286,34 @@ export function SiSentinelHubRasterLayers(props: SiSentinelHubRasterLayersProps)
     activeWmsLayer,
     onRasterStackSettled,
   ]);
+
+  const wmsSyncRef = useRef({
+    useMultiWmsStack,
+    readyRuns,
+    legacyWmsMounted,
+    legacyTileUrl,
+  });
+  wmsSyncRef.current = { useMultiWmsStack, readyRuns, legacyWmsMounted, legacyTileUrl };
+
+  useEffect(() => {
+    if (!isMapLoaded || !sentinelVisible) return;
+    return siMap3dTerrainOnCameraIdle(() => {
+      const m = resolveSiMapboxMap(map);
+      if (!m) return;
+      const snap = wmsSyncRef.current;
+      flushDeferredSiMapWmsRasterSourceTiles(m);
+      syncSiMapWmsRasterSourceTiles(
+        m,
+        snap.useMultiWmsStack ? snap.readyRuns : null,
+        snap.legacyWmsMounted ? snap.legacyTileUrl : null,
+      );
+      refreshSiMapWmsRasterPaint(m);
+      if (!isSiMapDataLayerMutationFrozen()) {
+        raiseSiMapWmsRasterLayersToTop(m);
+        scheduleSiMapOverlayLayerStackSync(m, { force: true });
+      }
+    });
+  }, [isMapLoaded, sentinelVisible, map]);
 
   return (
     <>

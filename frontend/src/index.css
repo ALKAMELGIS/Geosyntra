@@ -14886,3 +14886,11 @@ html[data-theme='light'] .gs-field-detail__satlink-when {
   font-size: var(--ds-text-lg, 16px);
 }
 
+.geosyntra-route-layer {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
+}
+

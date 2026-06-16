@@ -20,6 +20,7 @@ export type AgroCompositeFormula =
   | 'vdg'
   | 'ari'
   | 'chs'
+  | 'cci'
   | 'cps';
 
 export type LayerLiveCompositeDef = {
@@ -40,11 +41,6 @@ const G = {
   irrig: '🚜 Irrigation & Field Management',
   growth: '🌾 Growth & Stability',
   risk: '⚠️ Risk & Composite',
-  vegDelta: '🌱 Vegetation Change Detection',
-  waterDelta: '💧 Moisture & Water Change Detection',
-  irrigDelta: '🚜 Irrigation & Field Change Detection',
-  growthDelta: '🌾 Growth & Stability Change Detection',
-  riskDelta: '⚠️ Risk & Composite Change Detection',
 } as const;
 
 function base(
@@ -60,20 +56,7 @@ function base(
   return { id, sciCode, title, groupKey, groupLabel, groupOrder, layerOrder, formula, isDelta: false };
 }
 
-function delta(
-  id: string,
-  sciCode: string,
-  title: string,
-  groupKey: string,
-  groupLabel: string,
-  groupOrder: number,
-  layerOrder: number,
-  formula: AgroCompositeFormula,
-): LayerLiveCompositeDef {
-  return { id, sciCode, title, groupKey, groupLabel, groupOrder, layerOrder, formula, isDelta: true };
-}
-
-/** Ordered catalog — base indices then delta (change detection) blocks. */
+/** Ordered catalog — agro composite indices (no change-detection / delta layers in Layer Live). */
 export const SI_LAYER_LIVE_COMPOSITE_CATALOG: readonly LayerLiveCompositeDef[] = [
   base('VHS', 'VHS', 'Vegetation Health Score', 'veg', G.veg, 1, 1, 'vhs'),
   base('VDI', 'VDI', 'Vegetation Density Index', 'veg', G.veg, 1, 2, 'vdi'),
@@ -96,34 +79,8 @@ export const SI_LAYER_LIVE_COMPOSITE_CATALOG: readonly LayerLiveCompositeDef[] =
   base('CRI', 'CRI', 'Crop Recovery Index', 'growth', G.growth, 4, 3, 'cri'),
   base('VDG', 'VDG', 'Vegetation Degradation Index', 'growth', G.growth, 4, 4, 'vdg'),
 
-  base('ARI', 'ARI', 'Agricultural Risk Index', 'risk', G.risk, 5, 1, 'ari'),
-  base('CHS', 'CHS', 'Composite Health Score', 'risk', G.risk, 5, 2, 'chs'),
-  base('CPS', 'CPS', 'Crop Priority Score', 'risk', G.risk, 5, 3, 'cps'),
-
-  delta('DELTA_VHS', 'ΔVHS', 'Vegetation Health Score Change', 'veg_delta', G.vegDelta, 6, 1, 'vhs'),
-  delta('DELTA_VDI', 'ΔVDI', 'Vegetation Density Change', 'veg_delta', G.vegDelta, 6, 2, 'vdi'),
-  delta('DELTA_CVI', 'ΔCVI', 'Crop Vigor Change', 'veg_delta', G.vegDelta, 6, 3, 'cvi'),
-  delta('DELTA_CSI', 'ΔCSI', 'Crop Stress Change', 'veg_delta', G.vegDelta, 6, 4, 'csi'),
-  delta('DELTA_WST', 'ΔWST', 'Water Stress Change', 'veg_delta', G.vegDelta, 6, 5, 'wst'),
-
-  delta('DELTA_DRI', 'ΔDRI', 'Drought Risk Change', 'water_delta', G.waterDelta, 7, 1, 'dri'),
-  delta('DELTA_VMI', 'ΔVMI', 'Vegetation Moisture Change', 'water_delta', G.waterDelta, 7, 2, 'vmi'),
-  delta('DELTA_SMI', 'ΔSMI', 'Soil Moisture Change', 'water_delta', G.waterDelta, 7, 3, 'smi'),
-  delta('DELTA_OIR', 'ΔOIR', 'Over Irrigation Risk Change', 'water_delta', G.waterDelta, 7, 4, 'oir'),
-
-  delta('DELTA_IEI', 'ΔIEI', 'Irrigation Efficiency Change', 'irrig_delta', G.irrigDelta, 8, 1, 'iei'),
-  delta('DELTA_UII', 'ΔUII', 'Under Irrigation Change', 'irrig_delta', G.irrigDelta, 8, 2, 'uii'),
-  delta('DELTA_FPR', 'ΔFPR', 'Field Priority Change', 'irrig_delta', G.irrigDelta, 8, 3, 'fpr'),
-  delta('DELTA_CPI', 'ΔCPI', 'Crop Performance Change', 'irrig_delta', G.irrigDelta, 8, 4, 'cpi'),
-
-  delta('DELTA_GPI', 'ΔGPI', 'Growth Potential Change', 'growth_delta', G.growthDelta, 9, 1, 'gpi'),
-  delta('DELTA_CSI2', 'ΔCSI2', 'Crop Stability Change', 'growth_delta', G.growthDelta, 9, 2, 'csi2'),
-  delta('DELTA_CRI', 'ΔCRI', 'Crop Recovery Change', 'growth_delta', G.growthDelta, 9, 3, 'cri'),
-  delta('DELTA_VDG', 'ΔVDG', 'Vegetation Degradation Change', 'growth_delta', G.growthDelta, 9, 4, 'vdg'),
-
-  delta('DELTA_ARI', 'ΔARI', 'Agricultural Risk Change', 'risk_delta', G.riskDelta, 10, 1, 'ari'),
-  delta('DELTA_CHS', 'ΔCHS', 'Composite Health Change', 'risk_delta', G.riskDelta, 10, 2, 'chs'),
-  delta('DELTA_CPS', 'ΔCPS', 'Crop Priority Change', 'risk_delta', G.riskDelta, 10, 3, 'cps'),
+  base('CHS', 'CHS', 'Composite Health Score', 'risk', G.risk, 5, 1, 'chs'),
+  base('CCI', 'CCI', 'Composite Crop Index', 'risk', G.risk, 5, 2, 'cci'),
 ];
 
 const CATALOG_BY_ID = new Map(
@@ -140,12 +97,76 @@ export function isLayerLiveCompositeLayerId(layerId: string): boolean {
 
 export type LayerLiveIndexSelectOption = {
   id: string;
-  /** Full layer name — shown on hover only. */
+  /** Full layer name — shown on hover and inline in parentheses. */
   title: string;
   /** Short code shown in the picker (abbreviation). */
   abbr: string;
+  /** Scientific / descriptive name — rendered as small text in parentheses. */
+  sciName?: string;
   layerOrder?: number;
+  /** Vegetation Health dashboard accent — unique per-index scientific color. */
+  accentColor?: string;
 };
+
+/** Vegetation Health — unique scientific accent per index (no shared palette). */
+export const LAYER_LIVE_VEGETATION_HEALTH_ACCENT_COLORS: Readonly<Record<string, string>> = {
+  VHS: '#0B3D2E',
+  VDI: '#1F7A4C',
+  CVI: '#FFD400',
+  CSI: '#FF4D4D',
+  WST: '#2D6BFF',
+} as const;
+
+export function resolveLayerLiveVegetationHealthAccentColor(layerId: string): string | undefined {
+  return LAYER_LIVE_VEGETATION_HEALTH_ACCENT_COLORS[String(layerId || '').trim().toUpperCase()];
+}
+
+function withOptionAccent(option: LayerLiveIndexSelectOption): LayerLiveIndexSelectOption {
+  const accentColor = resolveLayerLiveVegetationHealthAccentColor(option.id);
+  return accentColor ? { ...option, accentColor } : option;
+}
+
+/** Canonical scientific names for core spectral indices. */
+export const LAYER_LIVE_CORE_SCIENTIFIC_NAMES: Record<string, string> = {
+  NDVI: 'Normalized Difference Vegetation Index',
+  NDWI: 'Normalized Difference Water Index',
+  NDMI: 'Normalized Difference Moisture Index',
+  EVI: 'Enhanced Vegetation Index',
+  GNDVI: 'Green Normalized Difference Vegetation Index',
+  SAVI: 'Soil-Adjusted Vegetation Index',
+  NDRE: 'Normalized Difference Red Edge',
+  NDSI: 'Normalized Difference Snow Index',
+  LST: 'Land Surface Temperature',
+  NDBI: 'Normalized Difference Built-up Index',
+  MNDWI: 'Modified Normalized Difference Water Index',
+};
+
+/** Resolve inline scientific label for Layer Live picker rows. */
+export function resolveLayerLiveScientificName(abbr: string, title?: string): string | null {
+  const code = String(abbr || '').trim();
+  if (!code) return null;
+
+  const mapped = LAYER_LIVE_CORE_SCIENTIFIC_NAMES[code.toUpperCase()];
+  if (mapped) return mapped;
+
+  const raw = String(title || '').trim();
+  if (!raw) return null;
+
+  const cleaned = raw.split('·').map(s => s.trim()).find(part => part.length > 0) ?? raw;
+  if (!cleaned || cleaned.toUpperCase() === code.toUpperCase()) return null;
+  if (/^[\sA-Z0-9Δ-]+$/i.test(cleaned) && cleaned.length <= 12 && !/\s/.test(cleaned)) return null;
+
+  return cleaned;
+}
+
+function withSciName(
+  entry: Omit<LayerLiveIndexSelectOption, 'sciName'>,
+  sciNameSource?: string,
+): LayerLiveIndexSelectOption {
+  const sciName =
+    resolveLayerLiveScientificName(entry.abbr, sciNameSource ?? entry.title) ?? undefined;
+  return sciName ? { ...entry, sciName } : entry;
+}
 
 const LAYER_LIVE_INDEX_CODES = [
   'NDVI',
@@ -220,7 +241,64 @@ export type LayerLiveIndexSelectGroup = {
   options: LayerLiveIndexSelectOption[];
 };
 
-/** Group API + composite options for Layer Live pickers (preserves catalog order within composites). */
+/** Main Core group — primary spectral indices shown first in Layer Live pickers. */
+export const SI_LAYER_LIVE_CORE_GROUP = {
+  key: 'core',
+  label: '📊 Core indices',
+  order: 0,
+} as const;
+
+/** Canonical sort order for Core indices (vegetation → water → moisture → …). */
+export const SI_LAYER_LIVE_CORE_INDEX_ORDER = [
+  'NDVI',
+  'NDWI',
+  'NDMI',
+  'EVI',
+  'GNDVI',
+  'SAVI',
+  'NDRE',
+  'NDSI',
+  'LST',
+  'NDBI',
+  'MNDWI',
+] as const;
+
+const CORE_INDEX_SET = new Set<string>(SI_LAYER_LIVE_CORE_INDEX_ORDER);
+
+function coreIndexSortRank(abbr: string): number {
+  const idx = SI_LAYER_LIVE_CORE_INDEX_ORDER.indexOf(
+    abbr.toUpperCase() as (typeof SI_LAYER_LIVE_CORE_INDEX_ORDER)[number],
+  );
+  return idx >= 0 ? idx : 999;
+}
+
+/** True when a WMS / eval layer is a primary spectral index (NDVI, NDWI, …). */
+export function isLayerLiveCoreIndex(id: string, label: string): boolean {
+  const display = resolveLayerLiveAbbr(id, label);
+  const abbrU = display.abbr.toUpperCase();
+  if (CORE_INDEX_SET.has(abbrU)) return true;
+  const idU = String(id || '').trim().toUpperCase();
+  const labU = String(label || '').trim().toUpperCase();
+  for (const code of SI_LAYER_LIVE_CORE_INDEX_ORDER) {
+    if (idU === code || labU === code) return true;
+    if (new RegExp(`(^|[_-])${code}([_-]|$)`).test(idU)) return true;
+  }
+  return false;
+}
+
+function dedupeOptionsByAbbr(options: LayerLiveIndexSelectOption[]): LayerLiveIndexSelectOption[] {
+  const seen = new Set<string>();
+  const out: LayerLiveIndexSelectOption[] = [];
+  for (const o of options) {
+    const key = o.abbr.toUpperCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(o);
+  }
+  return out;
+}
+
+/** Group API + composite options for Layer Live pickers (Core first, composites, then other API). */
 export function buildLayerLiveIndexSelectGroups(
   apiOptions: Array<{ id: string; label: string }>,
   compositeOptions: Array<{
@@ -236,49 +314,108 @@ export function buildLayerLiveIndexSelectGroups(
   const sortOptions = (opts: LayerLiveIndexSelectOption[]) =>
     [...opts].sort((a, b) => (a.layerOrder ?? 999) - (b.layerOrder ?? 999));
 
-  const groups: LayerLiveIndexSelectGroup[] = [];
-  if (apiOptions.length) {
-    groups.push({
-      key: 'sentinel_api',
-      label: 'Sentinel (API)',
-      order: 0,
-      options: apiOptions.map((o, i) => {
-        const display = resolveLayerLiveAbbr(o.id, o.label);
-        return {
-          id: o.id,
-          title: display.title,
-          abbr: display.abbr,
-          layerOrder: i,
-        };
-      }),
+  const coreOptions: LayerLiveIndexSelectOption[] = [];
+  const apiOther: LayerLiveIndexSelectOption[] = [];
+
+  for (const o of apiOptions) {
+    const display = resolveLayerLiveAbbr(o.id, o.label);
+    const entry = withSciName({
+      id: o.id,
+      title: display.title,
+      abbr: display.abbr,
+      layerOrder: coreIndexSortRank(display.abbr),
     });
+    if (isLayerLiveCoreIndex(o.id, o.label)) {
+      coreOptions.push(entry);
+    } else {
+      apiOther.push({ ...entry, layerOrder: apiOther.length });
+    }
   }
 
   const byGroup = new Map<string, LayerLiveIndexSelectGroup>();
   for (const o of compositeOptions) {
-    const key = o.groupKey || 'composite';
-    let g = byGroup.get(key);
+    const gKey = o.groupKey || 'composite';
+
+    if (gKey === SI_LAYER_LIVE_CORE_GROUP.key) {
+      coreOptions.push(
+        withSciName(
+          {
+            id: o.id,
+            title: o.label,
+            abbr: o.sciCode || o.id,
+            layerOrder: coreIndexSortRank(o.sciCode || o.id),
+          },
+          o.label,
+        ),
+      );
+      continue;
+    }
+
+    let g = byGroup.get(gKey);
     if (!g) {
       g = {
-        key,
+        key: gKey,
         label: o.groupLabel || 'Composite indices',
         order: o.groupOrder ?? 99,
         options: [],
       };
-      byGroup.set(key, g);
+      byGroup.set(gKey, g);
     }
-    g.options.push({
-      id: o.id,
-      title: o.label,
-      abbr: o.sciCode || o.id,
-      layerOrder: o.layerOrder,
-    });
+    g.options.push(
+      withOptionAccent(
+        withSciName(
+          {
+            id: o.id,
+            title: o.label,
+            abbr: o.sciCode || o.id,
+            layerOrder: o.layerOrder,
+          },
+          o.label,
+        ),
+      ),
+    );
   }
 
   for (const g of byGroup.values()) {
     g.options = sortOptions(g.options);
   }
 
+  const groups: LayerLiveIndexSelectGroup[] = [];
+
+  const coreSorted = sortOptions(dedupeOptionsByAbbr(coreOptions));
+  if (coreSorted.length) {
+    groups.push({
+      key: SI_LAYER_LIVE_CORE_GROUP.key,
+      label: SI_LAYER_LIVE_CORE_GROUP.label,
+      order: SI_LAYER_LIVE_CORE_GROUP.order,
+      options: coreSorted,
+    });
+  }
+
   groups.push(...[...byGroup.values()].sort((a, b) => a.order - b.order));
+
+  const apiDeduped = dedupeOptionsByAbbr(apiOther);
+  if (apiDeduped.length) {
+    groups.push({
+      key: 'sentinel_api',
+      label: '🛰️ Sentinel (API)',
+      order: 50,
+      options: apiDeduped,
+    });
+  }
+
   return groups;
+}
+
+/** Remove picker rows whose layer id cannot render on the Map Canvas WMS stack. */
+export function filterLayerLiveIndexSelectGroupsForMapCanvas(
+  groups: readonly LayerLiveIndexSelectGroup[],
+  supportedLayerIds: ReadonlySet<string>,
+): LayerLiveIndexSelectGroup[] {
+  return groups
+    .map(g => ({
+      ...g,
+      options: g.options.filter(o => supportedLayerIds.has(o.id)),
+    }))
+    .filter(g => g.options.length > 0);
 }

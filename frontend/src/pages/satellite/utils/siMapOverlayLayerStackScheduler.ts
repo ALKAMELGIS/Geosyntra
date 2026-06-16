@@ -1,6 +1,6 @@
 import type { Map as MapboxMap } from 'mapbox-gl';
 import { syncSiMapOverlayLayerStack } from './siMapCustomVectorLayerStack';
-import { isSiMapCameraInteracting } from './siMapLayerCameraSyncGuard';
+import { isSiMapDataLayerMutationFrozen } from './siMapRasterPipelineGuard';
 
 const stackOrderSigByMap = new WeakMap<MapboxMap, string>();
 const rafHandleByMap = new WeakMap<MapboxMap, number>();
@@ -54,6 +54,11 @@ export function scheduleSiMapOverlayLayerStackSync(
 ): void {
   if (!map) return;
   if (opts?.immediate) {
+    if (isSiMapDataLayerMutationFrozen()) {
+      if (opts.force) pendingForceByMap.set(map, true);
+      scheduleSiMapOverlayLayerStackSync(map, { force: opts.force, deferMs: opts.deferMs ?? 48 });
+      return;
+    }
     cancelScheduledOverlayStackSync(map);
     pendingForceByMap.delete(map);
     flushOverlayLayerStackSync(map, opts.force === true);
@@ -64,18 +69,18 @@ export function scheduleSiMapOverlayLayerStackSync(
 
   if (rafHandleByMap.has(map)) return;
 
-  const deferMs = opts?.deferMs ?? (isSiMapCameraInteracting() ? 160 : 48);
+  const deferMs = opts?.deferMs ?? 48;
   const run = () => {
     rafHandleByMap.delete(map);
     const force = pendingForceByMap.get(map) === true;
     pendingForceByMap.delete(map);
 
-    if (isSiMapCameraInteracting() && !force) {
-      scheduleSiMapOverlayLayerStackSync(map, { force, deferMs: 140 });
+    if (isSiMapDataLayerMutationFrozen()) {
+      if (force) pendingForceByMap.set(map, true);
       return;
     }
 
-    if (typeof window !== 'undefined' && 'requestIdleCallback' in window && !force) {
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window && !force && !isSiMapDataLayerMutationFrozen()) {
       const idle = window.requestIdleCallback(
         () => {
           idleHandleByMap.delete(map);

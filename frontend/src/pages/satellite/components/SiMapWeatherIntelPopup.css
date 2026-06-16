@@ -292,6 +292,36 @@ body.si-map-wx-intel-resize-active * {
   box-shadow: 0 0 10px rgba(139, 92, 246, 0.32);
 }
 
+.si-map-wx-intel__icon-btn--date.is-active {
+  background: rgba(212, 175, 106, 0.28);
+  color: rgba(255, 248, 220, 0.98);
+  box-shadow: 0 0 8px rgba(212, 175, 106, 0.24);
+}
+
+.si-map-wx-intel__head-actions {
+  display: flex;
+  gap: 3px;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.si-map-wx-intel__head-date-wrap {
+  position: relative;
+  flex-shrink: 0;
+  display: inline-flex;
+}
+
+.si-map-wx-intel__head-date-input {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
 .si-map-wx-intel__scroll {
   flex: 1 1 auto;
   min-height: 0;
@@ -307,67 +337,116 @@ body.si-map-wx-intel-resize-active * {
 }
 
 .si-map-wx-intel__toolbar {
-  display: grid;
-  grid-template-columns: minmax(0, 1.55fr) 1px minmax(0, 1fr);
+  display: flex;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 0;
   flex-shrink: 0;
   min-width: 0;
-  padding: 3px 4px;
-  border-radius: 9px;
-  border: 1px solid var(--si-wx-border);
-  background: var(--si-wx-card);
-  box-shadow: inset 0 1px 0 var(--si-wx-inset);
-}
-
-.si-map-wx-intel__toolbar-divider {
-  grid-column: 2;
-  align-self: stretch;
-  width: 1px;
-  margin: 3px 4px;
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.si-map-wx-intel__search--toolbar {
-  grid-column: 1;
-  min-width: 0;
-  padding: 3px 5px 3px 7px;
+  padding: 0;
   border: none;
   background: transparent;
-  border-radius: 0;
   box-shadow: none;
-  gap: 5px;
 }
 
-.si-map-wx-intel__search--toolbar > i {
-  flex-shrink: 0;
-  font-size: 8px;
-  color: rgba(212, 175, 106, 0.75);
-}
-
-.si-map-wx-intel__search--toolbar input {
-  font-size: 9px;
+.si-map-wx-intel__toolbar-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  width: 100%;
   min-width: 0;
+  margin: 0;
 }
 
-.si-map-wx-intel__search--toolbar button {
-  padding: 2px 6px;
-  font-size: 7px;
-  border-radius: 4px;
+.si-map-wx-intel__toolbar-icon,
+.si-map-wx-hist__icon-slot {
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  background: rgba(212, 175, 106, 0.14);
+  color: rgba(212, 175, 106, 0.92);
+  font-size: 11px;
+  line-height: 1;
+  cursor: default;
+}
+
+.si-map-wx-hist__icon-slot {
+  cursor: pointer;
+  margin: 0;
+}
+
+.si-map-wx-intel__toolbar-search-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 7px;
+  border: 1px solid var(--si-wx-border, rgba(255, 255, 255, 0.1));
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--si-wx-text, rgba(248, 250, 252, 0.95));
+  font-family: inherit;
+  font-size: 10px;
+  line-height: 1.2;
+  outline: none;
+}
+
+.si-map-wx-intel__toolbar-search-input::placeholder {
+  color: rgba(148, 163, 184, 0.82);
+}
+
+.si-map-wx-intel__toolbar-search-input:focus-visible {
+  border-color: rgba(212, 175, 106, 0.45);
+  box-shadow: 0 0 0 1px rgba(212, 175, 106, 0.22);
+}
+
+.si-map-wx-intel__toolbar-go {
+  flex: 0 0 auto;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 7px;
+  border: 1px solid rgba(212, 175, 106, 0.35);
+  background: linear-gradient(135deg, #3f3f46, #18181b);
+  color: #fafaf9;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.si-map-wx-intel__toolbar-go:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .si-map-wx-hist--inline {
-  grid-column: 3;
-  max-width: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+
+.si-map-wx-intel--light .si-map-wx-intel__toolbar-icon,
+.si-map-wx-intel--light .si-map-wx-hist__icon-slot {
+  background: rgba(14, 165, 233, 0.12);
+  color: #0369a1;
+}
+
+.si-map-wx-intel--light .si-map-wx-intel__toolbar-search-input {
+  background: #fff;
+  color: #0f172a;
+  border-color: rgba(15, 23, 42, 0.12);
 }
 
 .si-map-wx-intel--light .si-map-wx-intel__toolbar {
-  background: rgba(241, 245, 249, 0.95);
-  border-color: rgba(15, 23, 42, 0.08);
-}
-
-.si-map-wx-intel--light .si-map-wx-intel__toolbar-divider {
-  background: rgba(15, 23, 42, 0.1);
+  background: transparent;
 }
 
 .si-map-wx-intel__search {

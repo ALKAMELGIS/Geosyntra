@@ -1,6 +1,8 @@
 import type { WmsAoiEvalProfile } from '../../../lib/sentinelHubWmsAoiClip';
+import { formatCciDecisionDisplay, isCciLayerId, SI_CCI_AGRICULTURAL_TIERS } from '../../../lib/siCciAgriculturalDecision';
 import type { IndexRampStop } from '../../../lib/siWmsIndexClassificationRamp';
 import { SI_NDWI_CLASS_LABELS } from '../../../lib/siWmsIndexClassificationRamp';
+import { SI_CCI_SPECTRAL_CLASS_COUNT } from '../../../lib/siLayerLiveCompositeEvalscript';
 import { SI_WMS_SPECTRAL_CLASS_COUNT } from './siWmsSpectralClassification';
 
 export type SiWmsIndexLegendInterpretation = {
@@ -32,8 +34,8 @@ function siWmsIndexInterpretationForRange(min: number, max: number): SiWmsIndexL
 }
 
 const INTERP_BY_PROFILE: Partial<Record<WmsAoiEvalProfile, SiWmsIndexLegendInterpretation>> = {
-  ndvi: { low: 'Low stress / bare', medium: 'Moderate canopy', high: 'Dense vegetation' },
-  ndwi: { low: 'Dry land', medium: 'Mixed moisture', high: 'Open water' },
+  ndvi: { low: 'Water / dry soil', medium: 'Moderate canopy', high: 'Dense vegetation' },
+  ndwi: { low: 'Dry land', medium: 'Shallow water', high: 'Deep water' },
   ndmi: { low: 'Dry canopy', medium: 'Moderate moisture', high: 'High moisture' },
   gndvi: { low: 'Low biomass', medium: 'Moderate green', high: 'High biomass' },
   evi: { low: 'Low vigor', medium: 'Moderate vigor', high: 'High vigor' },
@@ -47,7 +49,15 @@ const INTERP_BY_PROFILE: Partial<Record<WmsAoiEvalProfile, SiWmsIndexLegendInter
 export function siWmsIndexLegendInterpretation(
   profile: WmsAoiEvalProfile,
   stops: readonly IndexRampStop[],
+  layerId?: string,
 ): SiWmsIndexLegendInterpretation {
+  if (layerId && isCciLayerId(layerId)) {
+    return {
+      low: `خطر 🔴 · CCI < 0.00 · تدخل فوري`,
+      medium: `مراقبة 🟡 · CCI 0.20–0.60 · متابعة الري والتسميد`,
+      high: `جيد جدًا 🟢 · CCI ≥ 0.60 · لا يوجد تدخل`,
+    };
+  }
   const scale = siWmsIndexLegendScaleFromStops(stops);
   const preset = INTERP_BY_PROFILE[profile];
   if (preset && scale) {
@@ -65,8 +75,9 @@ export function siWmsIndexLegendHint(args: {
   classCount: number;
   customSymbology: boolean;
   mode: 'live' | 'scientific';
+  layerId?: string;
 }): string {
-  const { profile, classCount, customSymbology, mode } = args;
+  const { profile, classCount, customSymbology, mode, layerId } = args;
   const n = classCount;
   const live = mode === 'live';
 
@@ -76,15 +87,15 @@ export function siWmsIndexLegendHint(args: {
 
   switch (profile) {
     case 'ndwi':
-      return `Water index — ${n} classes: dry land (green) → neutral (white) → open water (blue).`;
+      return `Water index — ${n} classes: dry land (earth) → shallow cyan → deep navy blue.`;
     case 'ndmi':
       return `NDMI — ${n} classes: dry canopy → high plant water content.`;
     case 'lst':
       return `Land surface temperature — ${n} classes: cool (blue) → warm (yellow) → hot (red).`;
     case 'ndvi':
       return live
-        ? `Live NDVI — ${n} classes: low vegetation stress (grey) → dense canopy (green).`
-        : `Vegetation index — ${n} classes: bare soil / stress → dense healthy canopy.`;
+        ? `Live NDVI — ${n} classes: water (aqua/blue) → dry soil (brown) → dense canopy (green).`
+        : `Adaptive NDVI — ${n} classes: auto water (blue) → bare soil → dense vegetation.`;
     case 'gndvi':
       return `Green NDVI — ${n} classes; chlorophyll-sensitive vegetation ramp.`;
     case 'evi':
@@ -94,9 +105,11 @@ export function siWmsIndexLegendHint(args: {
     case 'ndbi':
       return `Built-up index — ${n} classes: natural → urbanized surfaces.`;
     case 'agro_composite':
-      return `Agro composite index — ${n} classes: low score / stress → healthy / high vigor.`;
+      return layerId && isCciLayerId(layerId)
+        ? `CCI — ${SI_CCI_SPECTRAL_CLASS_COUNT} classes: risk (red) → warning (orange) → monitoring (yellow) → excellent (green).`
+        : `Agricultural risk — ${n} discrete classes (low risk → high risk); ranges stretch to AOI min/max.`;
     case 'agro_delta':
-      return `Change detection (Δ) — ${n} classes: degradation (red) → stable (yellow) → improvement (green).`;
+      return `Agro change (Δ) — ${n} discrete classes; degradation (red) → improvement (green).`;
     default:
       return live
         ? `Live layer — ${n}-class spectral ramp by index type; matches map tiles inside AOI.`
@@ -108,7 +121,25 @@ export function siWmsIndexLegendHint(args: {
 export function siWmsIndexLegendClassLabels(
   profile: WmsAoiEvalProfile,
   rowCount: number,
+  layerId?: string,
 ): readonly string[] | null {
+  if (layerId && isCciLayerId(layerId)) {
+    const tiers = [...SI_CCI_AGRICULTURAL_TIERS].reverse();
+    const perTier = Math.max(1, Math.floor(rowCount / tiers.length));
+    const labels: string[] = [];
+    for (const tier of tiers) {
+      for (let i = 0; i < perTier && labels.length < rowCount; i++) {
+        labels.push(`${tier.statusAr} ${tier.emoji} · ${tier.decisionAr}`);
+      }
+    }
+    while (labels.length < rowCount) {
+      labels.push(`CCI class ${labels.length + 1}`);
+    }
+    return labels.slice(0, rowCount);
+  }
+  if (profile === 'agro_composite' || profile === 'agro_delta') {
+    return Array.from({ length: rowCount }, (_, i) => `Class ${rowCount - i}`);
+  }
   if (profile === 'ndwi' && SI_NDWI_CLASS_LABELS.length >= rowCount) {
     return SI_NDWI_CLASS_LABELS.slice(0, rowCount);
   }
@@ -146,17 +177,17 @@ export function siWmsIndexLegendClassLabels(
   }
   if (profile === 'ndvi' || profile === 'gndvi' || profile === 'evi' || profile === 'savi') {
     const labels = [
-      'No vegetation / bare',
+      'Deep water',
+      'Open water',
+      'Shallow water',
+      'Wet surface',
+      'Dry soil / bare',
       'Very sparse',
       'Sparse / stressed',
       'Low vigor',
-      'Moderate-low',
       'Moderate',
-      'Healthy',
-      'Dense',
-      'Very dense',
+      'Healthy / dense',
       'Peak biomass',
-      'Maximum vigor',
     ];
     return labels.slice(0, rowCount);
   }
@@ -164,3 +195,8 @@ export function siWmsIndexLegendClassLabels(
 }
 
 export const SI_WMS_LIVE_INDEX_DEFAULT_CLASS_COUNT = SI_WMS_SPECTRAL_CLASS_COUNT;
+
+/** CCI agricultural decision caption for hover / popup. */
+export function siWmsCciDecisionCaption(value: number): string {
+  return formatCciDecisionDisplay(value, 'both');
+}

@@ -1,11 +1,21 @@
 import type { Map as MapboxMap } from 'mapbox-gl';
 import {
-  computeSiMapSwipeClipLayout,
   filterSiMapSwipeComparableKeys,
   isSiMapSwipeContextMapboxLayerId,
+  isSiMapSwipeWmsLayerId,
+  resolveSiMapSwipeClipRect,
   resolveSiMapSwipeMapboxLayerIds,
+  SI_MAP_SWIPE_WMS_LAYER_A_ID,
+  SI_MAP_SWIPE_WMS_LAYER_B_ID,
   type SiMapSwipeLayerEntry,
+  type SiMapSwipeMode,
 } from './siMapLayerSwipeCatalog';
+import { isSiMapWmsRasterLayerId } from './siMapWmsRasterLayerStack';
+import {
+  removeSiMapSwipeGpuScissorLayers,
+  syncSiMapSwipeGpuScissor,
+} from './siMapSwipeGpuScissor';
+import { siMapSwipeCompareLayersReady, syncSiMapSwipeCompareLayerStack } from './siMapSwipeCompareLayerStack';
 
 export type SiMapLayerSwipeOrientation = 'vertical' | 'horizontal';
 
@@ -16,8 +26,12 @@ export type SiMapLayerSwipeInitOptions = {
 
 export type SiMapLayerSwipeState = {
   active: boolean;
+  mode: SiMapSwipeMode;
   position: number;
   orientation: SiMapLayerSwipeOrientation;
+  spyPosition: { x: number; y: number };
+  spyRadiusPct: number;
+  fullSide: 'a' | 'b';
   leadingKeys: string[];
   trailingKeys: string[];
   trailingOpacity: number;
@@ -28,8 +42,12 @@ export type SiMapLayerSwipeState = {
 
 export const DEFAULT_SI_MAP_LAYER_SWIPE_STATE: SiMapLayerSwipeState = {
   active: false,
+  mode: 'vertical',
   position: 50,
   orientation: 'vertical',
+  spyPosition: { x: 50, y: 50 },
+  spyRadiusPct: 18,
+  fullSide: 'b',
   leadingKeys: [],
   trailingKeys: [],
   trailingOpacity: 1,
@@ -37,64 +55,24 @@ export const DEFAULT_SI_MAP_LAYER_SWIPE_STATE: SiMapLayerSwipeState = {
   dividerVisible: true,
 };
 
-function waitForMapRender(map: MapboxMap, timeoutMs = 4000): Promise<void> {
-  return new Promise(resolve => {
-    let done = false;
-    const finish = () => {
-      if (done) return;
-      done = true;
-      window.clearTimeout(timer);
-      map.off('render', onRender);
-      resolve();
-    };
-    const onRender = () => finish();
-    const timer = window.setTimeout(finish, timeoutMs);
-    try {
-      map.once('render', onRender);
-      map.triggerRepaint?.();
-    } catch {
-      finish();
-    }
-  });
-}
-
-function copyCanvasContents(target: HTMLCanvasElement, source: HTMLCanvasElement): void {
-  const w = source.width;
-  const h = source.height;
-  if (!w || !h) return;
-  if (target.width !== w) target.width = w;
-  if (target.height !== h) target.height = h;
-  const ctx = target.getContext('2d');
-  if (!ctx) return;
-  ctx.clearRect(0, 0, w, h);
-  ctx.drawImage(source, 0, 0, w, h);
-}
-
 /**
- * ArcGIS Instant Apps-style layer swipe on a single Mapbox map.
- * Leading layers render live; trailing layers are captured into a clipped overlay (no second map).
+ * Single-map swipe runtime — one Mapbox GL map, one WebGL canvas, one render loop.
+ * Layer A/B are raster layers in the same style; trailing side B is GPU-scissored.
+ * No secondary maps, capture canvases, or synchronized views.
  */
 export class SiMapLayerSwipeRuntime {
   private map: MapboxMap | null = null;
   private mapContainer: HTMLElement | null = null;
-  private clipContainer: HTMLElement | null = null;
-  private captureCanvas: HTMLCanvasElement | null = null;
   private catalog: SiMapSwipeLayerEntry[] = [];
   private state: SiMapLayerSwipeState = { ...DEFAULT_SI_MAP_LAYER_SWIPE_STATE };
   private originalVisibility = new Map<string, string>();
   private originalOpacities = new Map<string, number>();
   private bounds = { width: 0, height: 0 };
   private destroyed = false;
-  private captureToken = 0;
-  private captureDebounceTimer: number | null = null;
-  private captureInFlight = false;
-  private captureVisibilityRestore = new Map<string, string>();
   private initOptions: SiMapLayerSwipeInitOptions = {};
   private layerPairSig = '';
 
-  private onMoveEndHandler: (() => void) | null = null;
   private onResizeHandler: (() => void) | null = null;
-  private onRotateEndHandler: (() => void) | null = null;
 
   setInitOptions(options: SiMapLayerSwipeInitOptions): void {
     this.initOptions = options;
@@ -105,7 +83,7 @@ export class SiMapLayerSwipeRuntime {
     this.detach();
     if (!map) return;
     this.map = map;
-    this.mapContainer = map.getContainer?.() ?? null;
+    this.mapContainer = map.getCanvasContainer?.() ?? map.getContainer?.() ?? null;
     this.updateBounds();
     this.bindMapEvents();
     this.apply();
@@ -113,14 +91,11 @@ export class SiMapLayerSwipeRuntime {
 
   detach(): void {
     this.unbindMapEvents();
-    this.cancelScheduledCapture();
     this.restoreAllVisibility();
-    this.removeTrailingOverlay();
+    removeSiMapSwipeGpuScissorLayers(this.map);
     this.map = null;
     this.mapContainer = null;
     this.bounds = { width: 0, height: 0 };
-    this.captureToken += 1;
-    this.captureInFlight = false;
   }
 
   destroy(): void {
@@ -134,8 +109,7 @@ export class SiMapLayerSwipeRuntime {
     const sig = this.buildLayerPairSig();
     if (sig !== this.layerPairSig) {
       this.layerPairSig = sig;
-      this.applyLayerVisibility('display');
-      this.scheduleTrailingCapture(true);
+      this.applyLayerVisibility();
     }
   }
 
@@ -150,22 +124,24 @@ export class SiMapLayerSwipeRuntime {
     const opacityChanged =
       prev.trailingOpacity !== this.state.trailingOpacity ||
       prev.leadingOpacity !== this.state.leadingOpacity;
-    const orientationChanged = prev.orientation !== this.state.orientation;
-    const positionChanged = prev.position !== this.state.position;
+    const clipChanged =
+      prev.mode !== this.state.mode ||
+      prev.orientation !== this.state.orientation ||
+      prev.position !== this.state.position ||
+      prev.spyPosition.x !== this.state.spyPosition.x ||
+      prev.spyPosition.y !== this.state.spyPosition.y ||
+      prev.spyRadiusPct !== this.state.spyRadiusPct ||
+      prev.fullSide !== this.state.fullSide;
     const activeChanged = prev.active !== this.state.active;
-    const dividerChanged = prev.dividerVisible !== this.state.dividerVisible;
 
     if (pairChanged) this.layerPairSig = this.buildLayerPairSig();
 
     this.apply();
 
     if (pairChanged || opacityChanged || activeChanged) {
-      this.scheduleTrailingCapture(true);
-    } else if (orientationChanged || positionChanged) {
-      this.updateClip();
-      if (positionChanged) this.scheduleTrailingCapture(false);
-    } else if (dividerChanged) {
-      /* divider visibility only — no capture */
+      this.applyLayerVisibility();
+    } else if (clipChanged) {
+      this.updateGpuClip();
     }
   }
 
@@ -175,20 +151,37 @@ export class SiMapLayerSwipeRuntime {
 
   setPosition(position: number): void {
     this.state.position = Math.max(0, Math.min(100, position));
-    this.updateClip();
+    this.updateGpuClip();
   }
 
-  /** Imperative clip update during divider drag (no React round-trip). */
   previewPosition(position: number): void {
     if (!this.state.active || !this.hasSwipePair()) return;
     this.state.position = Math.max(0, Math.min(100, position));
-    this.updateClip();
+    this.updateGpuClip();
+  }
+
+  previewSpyPosition(x: number, y: number): void {
+    if (!this.state.active || !this.hasSwipePair()) return;
+    this.state.spyPosition = {
+      x: Math.max(0, Math.min(100, x)),
+      y: Math.max(0, Math.min(100, y)),
+    };
+    this.updateGpuClip();
   }
 
   resetSwipe(): void {
     this.state.position = 50;
-    this.updateClip();
-    this.scheduleTrailingCapture(true);
+    this.state.spyPosition = { x: 50, y: 50 };
+    this.updateGpuClip();
+  }
+
+  refreshDisplay(): void {
+    if (!this.map || !this.state.active || !this.hasSwipePair()) return;
+    if (siMapSwipeCompareLayersReady(this.map)) {
+      syncSiMapSwipeCompareLayerStack(this.map);
+    }
+    this.applyLayerVisibility();
+    this.updateGpuClip();
   }
 
   private buildLayerPairSig(): string {
@@ -209,24 +202,22 @@ export class SiMapLayerSwipeRuntime {
     const active = this.state.active && this.hasSwipePair();
     this.initOptions.onSwipeProjectionLock?.(active);
     if (active) {
-      this.ensureTrailingOverlay();
-      this.applyLayerVisibility('display');
-      this.updateClip();
-      if (this.clipContainer) {
-        this.clipContainer.style.display = '';
-        this.clipContainer.style.opacity = '1';
-      }
-      this.scheduleTrailingCapture(false);
+      this.applyLayerVisibility();
+      this.updateGpuClip();
     } else {
-      this.cancelScheduledCapture();
       this.restoreAllVisibility();
-      this.removeTrailingOverlay();
+      removeSiMapSwipeGpuScissorLayers(this.map);
       this.initOptions.onSwipeProjectionLock?.(false);
     }
   }
 
   private hasSwipePair(): boolean {
     return this.normalizedLeadingKeys().length > 0 && this.normalizedTrailingKeys().length > 0;
+  }
+
+  private usesDedicatedSwipeSides(): boolean {
+    const trailing = resolveSiMapSwipeMapboxLayerIds(this.map, this.normalizedTrailingKeys(), this.catalog);
+    return trailing.some(id => isSiMapSwipeWmsLayerId(id));
   }
 
   private leadingIds(): string[] {
@@ -237,131 +228,19 @@ export class SiMapLayerSwipeRuntime {
     return resolveSiMapSwipeMapboxLayerIds(this.map, this.normalizedTrailingKeys(), this.catalog);
   }
 
-  private ensureTrailingOverlay(): void {
-    if (!this.mapContainer || this.clipContainer) return;
-
-    this.clipContainer = document.createElement('div');
-    this.clipContainer.className = 'si-map-layer-swipe-clip';
-    this.clipContainer.style.cssText =
-      'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:13;overflow:hidden;will-change:clip;';
-
-    this.captureCanvas = document.createElement('canvas');
-    this.captureCanvas.className = 'si-map-layer-swipe-trailing-capture';
-    this.captureCanvas.style.cssText =
-      'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;display:block;';
-
-    this.clipContainer.appendChild(this.captureCanvas);
-    this.mapContainer.appendChild(this.clipContainer);
-  }
-
-  private removeTrailingOverlay(): void {
-    this.clipContainer?.parentNode?.removeChild(this.clipContainer);
-    this.clipContainer = null;
-    this.captureCanvas = null;
-  }
-
   private bindMapEvents(): void {
     if (!this.map) return;
-    this.onMoveEndHandler = () => this.scheduleTrailingCapture(false);
     this.onResizeHandler = () => {
       this.updateBounds();
-      this.updateClip();
-      this.scheduleTrailingCapture(false);
+      this.updateGpuClip();
     };
-    this.onRotateEndHandler = () => this.scheduleTrailingCapture(false);
-
-    this.map.on('moveend', this.onMoveEndHandler);
     this.map.on('resize', this.onResizeHandler);
-    this.map.on('rotateend', this.onRotateEndHandler);
-    this.map.on('pitchend', this.onRotateEndHandler);
   }
 
   private unbindMapEvents(): void {
-    if (!this.map) return;
-    if (this.onMoveEndHandler) this.map.off('moveend', this.onMoveEndHandler);
-    if (this.onResizeHandler) this.map.off('resize', this.onResizeHandler);
-    if (this.onRotateEndHandler) {
-      this.map.off('rotateend', this.onRotateEndHandler);
-      this.map.off('pitchend', this.onRotateEndHandler);
-    }
-    this.onMoveEndHandler = null;
+    if (!this.map || !this.onResizeHandler) return;
+    this.map.off('resize', this.onResizeHandler);
     this.onResizeHandler = null;
-    this.onRotateEndHandler = null;
-  }
-
-  private cancelScheduledCapture(): void {
-    if (this.captureDebounceTimer != null) {
-      window.clearTimeout(this.captureDebounceTimer);
-      this.captureDebounceTimer = null;
-    }
-  }
-
-  private scheduleTrailingCapture(immediate: boolean): void {
-    if (!this.state.active || !this.hasSwipePair() || !this.map) return;
-    this.cancelScheduledCapture();
-    const delay = immediate ? 0 : 120;
-    this.captureDebounceTimer = window.setTimeout(() => {
-      this.captureDebounceTimer = null;
-      void this.captureTrailingOverlay();
-    }, delay);
-  }
-
-  private async captureTrailingOverlay(): Promise<void> {
-    if (!this.map || !this.captureCanvas || !this.state.active || !this.hasSwipePair()) return;
-    if (this.captureInFlight) {
-      this.scheduleTrailingCapture(false);
-      return;
-    }
-
-    this.captureInFlight = true;
-    const token = ++this.captureToken;
-
-    try {
-      this.applyLayerVisibility('capture');
-      await waitForMapRender(this.map, 4500);
-      await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
-      if (token !== this.captureToken || !this.map || !this.captureCanvas) return;
-
-      const sourceCanvas = this.map.getCanvas();
-      if (sourceCanvas?.width && sourceCanvas?.height) {
-        copyCanvasContents(this.captureCanvas, sourceCanvas);
-      }
-    } catch {
-      /* map mid-teardown */
-    } finally {
-      if (token === this.captureToken) {
-        this.restoreCaptureVisibility();
-        this.applyLayerVisibility('display');
-      }
-      this.captureInFlight = false;
-    }
-  }
-
-  private hideLayerForCapture(layerId: string): void {
-    if (!this.map?.getLayer(layerId)) return;
-    try {
-      const current = (this.map.getLayoutProperty(layerId, 'visibility') as string) ?? 'visible';
-      if (current === 'none') return;
-      this.captureVisibilityRestore.set(layerId, current);
-      this.map.setLayoutProperty(layerId, 'visibility', 'none');
-    } catch {
-      /* layer mid-rebuild */
-    }
-  }
-
-  private restoreCaptureVisibility(): void {
-    if (!this.map) {
-      this.captureVisibilityRestore.clear();
-      return;
-    }
-    for (const [id, vis] of this.captureVisibilityRestore) {
-      try {
-        if (this.map.getLayer(id)) this.map.setLayoutProperty(id, 'visibility', vis);
-      } catch {
-        /* ignore */
-      }
-    }
-    this.captureVisibilityRestore.clear();
   }
 
   private updateBounds(): void {
@@ -370,25 +249,65 @@ export class SiMapLayerSwipeRuntime {
     this.bounds = { width: el.clientWidth, height: el.clientHeight };
   }
 
-  private updateClip(): void {
-    if (!this.clipContainer || !this.captureCanvas || !this.state.active) return;
+  private resolveClipMode(): SiMapSwipeMode {
+    return this.state.mode === 'split' ? 'vertical' : this.state.mode;
+  }
+
+  private updateGpuClip(): void {
+    if (!this.map || !this.state.active || !this.hasSwipePair()) {
+      removeSiMapSwipeGpuScissorLayers(this.map);
+      return;
+    }
+
+    const mode = this.resolveClipMode();
+    if (mode === 'full') {
+      removeSiMapSwipeGpuScissorLayers(this.map);
+      try {
+        this.map.triggerRepaint?.();
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
+
+    if (!this.usesDedicatedSwipeSides() || !this.map.getLayer(SI_MAP_SWIPE_WMS_LAYER_B_ID)) {
+      removeSiMapSwipeGpuScissorLayers(this.map);
+      return;
+    }
+
     const { width, height } = this.bounds;
     if (width <= 0 || height <= 0) return;
 
-    const layout = computeSiMapSwipeClipLayout(
+    const layout = resolveSiMapSwipeClipRect(
       { width, height },
+      mode,
       this.state.position,
-      this.state.orientation,
+      this.state.spyPosition,
+      this.state.spyRadiusPct,
+      this.state.fullSide,
     );
 
-    this.clipContainer.style.left = `${layout.clipLeft}px`;
-    this.clipContainer.style.top = `${layout.clipTop}px`;
-    this.clipContainer.style.width = `${layout.clipWidth}px`;
-    this.clipContainer.style.height = `${layout.clipHeight}px`;
-    this.captureCanvas.style.left = `${layout.innerLeft}px`;
-    this.captureCanvas.style.top = `${layout.innerTop}px`;
-    this.captureCanvas.style.width = `${layout.innerWidth}px`;
-    this.captureCanvas.style.height = `${layout.innerHeight}px`;
+    syncSiMapSwipeGpuScissor(this.map, layout, width, height, layout.clipWidth > 0 && layout.clipHeight > 0);
+    syncSiMapSwipeCompareLayerStack(this.map);
+  }
+
+  private hideLayerLiveWhileSwipe(): void {
+    if (!this.map?.getStyle?.()) return;
+    if (!siMapSwipeCompareLayersReady(this.map)) return;
+    for (const layer of this.map.getStyle()?.layers ?? []) {
+      const id = layer.id;
+      if (!isSiMapWmsRasterLayerId(id) || isSiMapSwipeWmsLayerId(id)) continue;
+      try {
+        if (!this.map.getLayer(id)) continue;
+        if (!this.originalVisibility.has(id)) {
+          const vis = this.map.getLayoutProperty(id, 'visibility');
+          this.originalVisibility.set(id, (vis as string) ?? 'visible');
+        }
+        this.map.setLayoutProperty(id, 'visibility', 'none');
+      } catch {
+        /* layer mid-rebuild */
+      }
+    }
   }
 
   private applyOpacity(map: MapboxMap, layerId: string, opacity: number): void {
@@ -467,13 +386,21 @@ export class SiMapLayerSwipeRuntime {
     }
   }
 
-  private applyLayerVisibility(mode: 'display' | 'capture'): void {
+  private applyLayerVisibility(): void {
     if (!this.map || !this.state.active || !this.hasSwipePair()) return;
 
     const leading = new Set(this.leadingIds());
     const trailing = new Set(this.trailingIds());
     const style = this.map.getStyle();
     if (!style?.layers) return;
+
+    const mode = this.resolveClipMode();
+    const fullShowLeading = mode === 'full' && this.state.fullSide === 'a';
+    const fullShowTrailing = mode === 'full' && this.state.fullSide === 'b';
+
+    if (this.usesDedicatedSwipeSides()) {
+      this.hideLayerLiveWhileSwipe();
+    }
 
     for (const layer of style.layers) {
       const id = layer.id;
@@ -482,54 +409,58 @@ export class SiMapLayerSwipeRuntime {
       const isLeading = leading.has(id);
       const isTrailing = trailing.has(id);
       const isSwipeParticipant = isLeading || isTrailing;
+      if (!isSwipeParticipant) continue;
+
+      // Dedicated swipe rasters: tile URL, opacity, and visibility are owned by SiMapSwipeRasterLayers.
+      if (this.usesDedicatedSwipeSides() && isSiMapSwipeWmsLayerId(id) && mode !== 'full') {
+        continue;
+      }
 
       try {
-        if (mode === 'capture') {
-          if (isLeading && !isTrailing) {
-            this.hideLayerForCapture(id);
-          } else {
-            if (!this.originalVisibility.has(id)) {
-              const vis = this.map.getLayoutProperty(id, 'visibility');
-              this.originalVisibility.set(id, (vis as string) ?? 'visible');
-            }
-            this.map.setLayoutProperty(id, 'visibility', 'visible');
-            if (isTrailing) this.applyOpacity(this.map, id, this.state.trailingOpacity);
-          }
-          continue;
-        }
-
-        if (!isSwipeParticipant) continue;
-
         if (!this.originalVisibility.has(id)) {
           const vis = this.map.getLayoutProperty(id, 'visibility');
           this.originalVisibility.set(id, (vis as string) ?? 'visible');
         }
 
-        if (isLeading && !isTrailing) {
+        if (mode === 'full') {
+          if (fullShowLeading && isLeading) {
+            this.map.setLayoutProperty(id, 'visibility', 'visible');
+            this.applyOpacity(this.map, id, this.state.leadingOpacity);
+          } else if (fullShowTrailing && isTrailing) {
+            this.map.setLayoutProperty(id, 'visibility', 'visible');
+            this.applyOpacity(this.map, id, this.state.trailingOpacity);
+          } else {
+            this.map.setLayoutProperty(id, 'visibility', 'none');
+          }
+          continue;
+        }
+
+        if (isLeading) {
           this.map.setLayoutProperty(id, 'visibility', 'visible');
           this.applyOpacity(this.map, id, this.state.leadingOpacity);
         } else if (isTrailing) {
-          this.map.setLayoutProperty(id, 'visibility', 'none');
+          this.map.setLayoutProperty(id, 'visibility', 'visible');
+          this.applyOpacity(this.map, id, this.state.trailingOpacity);
         }
       } catch {
         /* layer removed mid-style rebuild */
       }
     }
 
-    if (mode === 'display') {
-      for (const layer of style.layers) {
-        const id = layer.id;
-        if (leading.has(id) || trailing.has(id)) continue;
-        if (!this.originalVisibility.has(id)) continue;
-        try {
-          this.map.setLayoutProperty(id, 'visibility', this.originalVisibility.get(id)!);
-          this.restoreOpacity(this.map, id);
-          this.originalVisibility.delete(id);
-        } catch {
-          /* ignore */
-        }
+    for (const layer of style.layers) {
+      const id = layer.id;
+      if (leading.has(id) || trailing.has(id)) continue;
+      if (!this.originalVisibility.has(id)) continue;
+      try {
+        this.map.setLayoutProperty(id, 'visibility', this.originalVisibility.get(id)!);
+        this.restoreOpacity(this.map, id);
+        this.originalVisibility.delete(id);
+      } catch {
+        /* ignore */
       }
     }
+
+    this.updateGpuClip();
   }
 
   private restoreAllVisibility(): void {
@@ -552,6 +483,9 @@ export class SiMapLayerSwipeRuntime {
     }
     this.originalVisibility.clear();
     this.originalOpacities.clear();
-    this.initOptions.onSwipeProjectionLock?.(false);
   }
+}
+
+export function siMapSwipeSideLayerId(side: 'a' | 'b'): string {
+  return side === 'a' ? SI_MAP_SWIPE_WMS_LAYER_A_ID : SI_MAP_SWIPE_WMS_LAYER_B_ID;
 }

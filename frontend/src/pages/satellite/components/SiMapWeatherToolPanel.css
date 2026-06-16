@@ -1303,20 +1303,23 @@
 
 .si-basemap-toggle .si-layer-live-button.si-basemap-button,
 .si-basemap-toggle .si-weather-button.si-basemap-button,
-.si-basemap-toggle .si-weather-intel-button.si-basemap-button {
+.si-basemap-toggle .si-weather-intel-button.si-basemap-button,
+.si-basemap-toggle .si-swipe-compare-button.si-basemap-button {
   font-size: 11px;
 }
 
 .si-basemap-toggle .si-layer-live-button.si-basemap-button i,
 .si-basemap-toggle .si-weather-button.si-basemap-button i,
-.si-basemap-toggle .si-weather-intel-button.si-basemap-button i {
+.si-basemap-toggle .si-weather-intel-button.si-basemap-button i,
+.si-basemap-toggle .si-swipe-compare-button.si-basemap-button i {
   font-size: 13px;
   line-height: 1;
 }
 
 .si-basemap-toggle .si-layer-live-button.si-basemap-button.active i,
 .si-basemap-toggle .si-weather-button.si-basemap-button.active i,
-.si-basemap-toggle .si-weather-intel-button.si-basemap-button.active i {
+.si-basemap-toggle .si-weather-intel-button.si-basemap-button.active i,
+.si-basemap-toggle .si-swipe-compare-button.si-basemap-button.active i {
   color: #f9fafb;
   filter: none;
   opacity: 1;
@@ -1324,9 +1327,19 @@
 
 .si-layer-live-button:focus-visible,
 .si-weather-button:focus-visible,
-.si-weather-intel-button:focus-visible {
+.si-weather-intel-button:focus-visible,
+.si-swipe-compare-button:focus-visible {
   outline: 2px solid rgba(255, 255, 255, 0.35);
   outline-offset: 3px;
+}
+
+.si-basemap-toggle .si-swipe-compare-button.si-basemap-button i {
+  color: #93c5fd;
+}
+
+.si-basemap-toggle .si-swipe-compare-button.si-basemap-button.active {
+  border-color: rgba(59, 130, 246, 0.55);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.35);
 }
 
 @media (prefers-reduced-motion: reduce) {

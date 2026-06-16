@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { Map as MapboxMap } from 'mapbox-gl';
+import { formatCciDecisionDisplay, isCciLayerId } from '../../../lib/siCciAgriculturalDecision';
 import { liveAoiStatsStatusHint, type LiveAoiStatsViewModel } from '../utils/liveAoiStatsView';
 import { SiStatDashboardIcon } from './SiStatDashboardIcon';
 import { SiWeatherColoredIcon, SiWeatherColoredIconFromMetric } from './SiWeatherColoredIcon';
@@ -204,13 +205,22 @@ function WmsRampClassLegend({ classes }: { classes: SiIndexClassRow[] }) {
               title={c.colorHex}
               aria-hidden
             />
-            <span className="si-live-aoi-stats__ndvi-band-label">{c.condition}</span>
-            <span className="si-live-aoi-stats__ndvi-band-range" dir="ltr">
-              {c.label}
-            </span>
-            <span className="si-live-aoi-stats__ndvi-band-area" dir="ltr">
-              {formatLegendAreaHa(c.areaHa)} ha · {formatLegendAreaM2(c.areaM2)} m²
-            </span>
+            <div className="si-live-aoi-stats__ndvi-band-main">
+              <span className="si-live-aoi-stats__ndvi-band-label">{c.condition}</span>
+              <span className="si-live-aoi-stats__ndvi-band-range" dir="ltr">
+                {c.label}
+              </span>
+            </div>
+            <div className="si-live-aoi-stats__ndvi-band-areas" dir="ltr">
+              <span className="si-live-aoi-stats__ndvi-area-cell">
+                <span className="si-live-aoi-stats__ndvi-area-k">HA</span>
+                <span className="si-live-aoi-stats__ndvi-area-v">{formatLegendAreaHa(c.areaHa)}</span>
+              </span>
+              <span className="si-live-aoi-stats__ndvi-area-cell">
+                <span className="si-live-aoi-stats__ndvi-area-k">M²</span>
+                <span className="si-live-aoi-stats__ndvi-area-v">{formatLegendAreaM2(c.areaM2)}</span>
+              </span>
+            </div>
           </li>
         ))}
       </ul>
@@ -504,6 +514,7 @@ export function SiLiveAoiStatsPopup({
   const indexAnalysis = model.indexAnalysis;
   const coverLabels = coverDisplayLabelsForLayer(model.layerId);
   const indexIcon = indexIconForLayer(model.layerId);
+  const isCci = isCciLayerId(model.layerId) || isCciLayerId(model.layerName);
   const statusHint =
     liveAoiStatsStatusHint(model.status, loading) ??
     (model.status === 'error' && analysisError?.trim() ? analysisError.trim() : null);
@@ -587,11 +598,18 @@ export function SiLiveAoiStatsPopup({
 
               {!loading && model.mean != null ? (
                 <div className="si-live-aoi-stats__hero" dir="ltr">
-                  <span className="si-live-aoi-stats__hero-k">Average {model.layerId}</span>
+                  <span className="si-live-aoi-stats__hero-k">
+                    {isCci ? 'CCI — Composite Crop Index' : `Average ${model.layerId}`}
+                  </span>
                   <strong className="si-live-aoi-stats__hero-v">{stat(model.mean)}</strong>
                   <span className="si-live-aoi-stats__hero-range">
                     {stat(model.min)} – {stat(model.max)}
                   </span>
+                  {isCci ? (
+                    <p className="si-live-aoi-stats__interpretation" dir="auto">
+                      {formatCciDecisionDisplay(model.mean, 'both')}
+                    </p>
+                  ) : null}
                 </div>
               ) : null}
 
@@ -715,9 +733,13 @@ export function SiLiveAoiStatsPopup({
           {click && !loading ? (
             <div className="si-live-aoi-stats__class-hit" role="status">
               <span className="si-live-aoi-stats__section-k">Click sample</span>
-              <strong className="si-live-aoi-stats__class-name">{click.condition}</strong>
+              <strong className="si-live-aoi-stats__class-name">
+                {isCci ? formatCciDecisionDisplay(click.pixelValue, 'both') : click.condition}
+              </strong>
               <span className="si-live-aoi-stats__class-range" dir="ltr">
-                {click.label} · index {stat(click.pixelValue)}
+                {isCci
+                  ? `CCI ${stat(click.pixelValue)}`
+                  : `${click.label} · index ${stat(click.pixelValue)}`}
               </span>
               <span className="si-live-aoi-stats__class-area" dir="ltr">
                 {click.pct.toFixed(1)}% · {formatHa(click.areaHa)} ha

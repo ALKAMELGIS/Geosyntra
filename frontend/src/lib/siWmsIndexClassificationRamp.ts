@@ -1,107 +1,147 @@
 /**
- * Sentinel Hub WMS AOI EVALSCRIPT: discrete color ramps (piecewise linear between stops).
- * NDVI ramp matches common McFeeters-style classified visualization (Sentinel Playground / EO Browser style).
+ * Sentinel Hub WMS AOI EVALSCRIPT: adaptive spectral color ramps (piecewise linear between stops).
+ * NDVI: water (negative) → aqua/blue; dry soil → brown/yellow; vegetation → green gradient.
+ * NDWI: dry land → earth tones; water → cyan → deep blue with high contrast.
  */
 
 /** [threshold, 0xRRGGBB] — thresholds ascending; color is anchor at each stop (lerp between). */
 export type IndexRampStop = readonly [threshold: number, rgbHex: number]
 
 /**
- * NDVI (B08/B04) — negative / stress: graduated red; positive: yellow → dense green.
- * Matches Sentinel Hub ColorRampVisualizer semantics (piecewise linear between stops).
+ * NDVI (B08/B04) — Adaptive Spectral Color Ramp:
+ * • Water (idx < 0): aqua → deep blue by depth (auto-detected within NDVI)
+ * • Dry soil / bare: brown / sandy yellow (idx ≈ 0 … 0.15)
+ * • Vegetation: smooth yellow-green → dense forest green (idx > 0.15)
  */
 export const SI_NDVI_CLASSIFICATION_STOPS: readonly IndexRampStop[] = [
-  [-0.5, 0x1a0505],
-  [-0.2, 0x8b0000],
-  [-0.1, 0xcd5c5c],
-  [0, 0xff8c69],
-  [0.025, 0xfff9cc],
-  [0.05, 0xede8b5],
-  [0.075, 0xddd89b],
-  [0.1, 0xccc682],
-  [0.125, 0xbcb76b],
-  [0.15, 0xafc160],
-  [0.175, 0xa3cc59],
-  [0.2, 0x91bf51],
-  [0.25, 0x7fb247],
-  [0.3, 0x70a33f],
-  [0.35, 0x609635],
-  [0.4, 0x4f892d],
-  [0.45, 0x3f7c23],
-  [0.5, 0x306d1c],
-  [0.55, 0x216011],
-  [0.6, 0x0f540a],
-  [1, 0x004400],
+  [-0.5, 0x0c4a6e],
+  [-0.42, 0x075985],
+  [-0.35, 0x0369a1],
+  [-0.28, 0x0284c7],
+  [-0.2, 0x0ea5e9],
+  [-0.15, 0x22d3ee],
+  [-0.1, 0x67e8f9],
+  [-0.05, 0x7dd3fc],
+  [-0.02, 0x9ecae6],
+  [0, 0xc4a574],
+  [0.05, 0xb8956b],
+  [0.1, 0xd4a574],
+  [0.15, 0xe8c872],
+  [0.2, 0xc5d86a],
+  [0.25, 0xa3c451],
+  [0.3, 0x7cb342],
+  [0.35, 0x66bb6a],
+  [0.4, 0x4caf50],
+  [0.45, 0x43a047],
+  [0.5, 0x388e3c],
+  [0.55, 0x2e7d32],
+  [0.6, 0x27632a],
+  [0.7, 0x1b5e20],
+  [0.85, 0x14532d],
+  [1, 0x0a3d1a],
 ] as const
 
 /**
- * NDWI (B03/B08) — dry land (green) → neutral (white) → open water (blue).
+ * NDWI (B03/B08) — Water Spectrum Color Ramp:
+ * • Dry land: brown / grey earth tones
+ * • Shallow water: light cyan
+ * • Medium water: medium blue
+ * • Deep water: dark navy blue (enhanced edge contrast)
  */
 export const SI_NDWI_CLASSIFICATION_STOPS: readonly IndexRampStop[] = [
-  [-0.8, 0x008000],
-  [0, 0xffffff],
-  [0.8, 0x0000cc],
+  [-0.8, 0x3d2817],
+  [-0.6, 0x6b4423],
+  [-0.4, 0x8b7355],
+  [-0.2, 0xa89f8f],
+  [0, 0xc8c4b8],
+  [0.1, 0x9ecae6],
+  [0.2, 0x7dd3fc],
+  [0.3, 0x38bdf8],
+  [0.4, 0x0ea5e9],
+  [0.5, 0x0284c7],
+  [0.6, 0x0369a1],
+  [0.7, 0x1d4ed8],
+  [0.8, 0x1e3a8a],
+  [1, 0x0c1929],
 ] as const
 
-/** Human-readable bins for NDWI legend rows (dry → open water). */
+/** Human-readable bins for NDWI legend rows (dry land → deep water). */
 export const SI_NDWI_CLASS_LABELS: readonly string[] = [
-  'Very dry / bare surface',
-  'Dry soil / sparse cover',
-  'Low moisture vegetation',
-  'Moisture-stressed canopy',
-  'Transition / mixed pixel',
-  'Shallow water (deep blue)',
-  'Open water (blue)',
-  'Turbid / bright water (cyan)',
-  'Clear shallow water (teal)',
-  'High water signal (green)',
-  'Open water / glint (white)',
+  'Very dry / bare land',
+  'Dry soil',
+  'Semi-arid surface',
+  'Low moisture land',
+  'Transition / mixed',
+  'Wetland fringe',
+  'Shallow water (cyan)',
+  'Shallow-medium water',
+  'Medium water (blue)',
+  'Deep water',
+  'Very deep water (navy)',
 ]
 
-/** GNDVI (B03/B08) — chlorophyll-sensitive: red stress → lime → forest green. */
+/**
+ * GNDVI — adaptive: water blues (negative) → soil ochre → chlorophyll greens.
+ */
 export const SI_GNDVI_CLASSIFICATION_STOPS: readonly IndexRampStop[] = [
-  [-0.5, 0x450a0a],
-  [-0.2, 0xb91c1c],
-  [0, 0xfacc15],
-  [0.2, 0xa3e635],
-  [0.4, 0x4ade80],
-  [0.6, 0x16a34a],
-  [1, 0x14532d],
+  [-0.5, 0x0c4a6e],
+  [-0.3, 0x0284c7],
+  [-0.15, 0x22d3ee],
+  [-0.05, 0x9ecae6],
+  [0, 0xc4a574],
+  [0.1, 0xd4a574],
+  [0.2, 0xc5d86a],
+  [0.35, 0x7cb342],
+  [0.5, 0x43a047],
+  [0.7, 0x1b5e20],
+  [1, 0x0a3d1a],
 ] as const
 
-/** NDMI (NIR–SWIR moisture): dry red-brown → yellow → moist green. */
+/**
+ * NDMI — moisture: deep water blue (very dry/water bodies) → dry red-brown → moist green.
+ */
 export const SI_NDMI_CLASSIFICATION_STOPS: readonly IndexRampStop[] = [
-  [-0.6, 0x2d0a0a],
+  [-0.6, 0x0c4a6e],
+  [-0.45, 0x0369a1],
   [-0.3, 0x6b2f12],
-  [0.0, 0xb8892e],
-  [0.15, 0xd9c96a],
-  [0.3, 0xa8c878],
-  [0.45, 0x5ea86a],
-  [0.6, 0x2d7a4e],
-  [0.75, 0x1a5a3c],
-  [1.0, 0x0d3a28],
+  [-0.15, 0xb8892e],
+  [0.0, 0xd9c96a],
+  [0.15, 0xa8c878],
+  [0.3, 0x5ea86a],
+  [0.45, 0x2d7a4e],
+  [0.6, 0x1a5a3c],
+  [0.75, 0x14532d],
+  [1.0, 0x0a3d1a],
 ] as const
 
-/** EVI — high dynamic range: deep red low → teal mid → emerald high. */
+/**
+ * EVI — water blues (low) → soil yellow → teal → emerald canopy.
+ */
 export const SI_EVI_CLASSIFICATION_STOPS: readonly IndexRampStop[] = [
-  [-0.5, 0x4c0519],
-  [-0.2, 0xbe123c],
-  [0, 0xfde68a],
+  [-0.5, 0x0c4a6e],
+  [-0.25, 0x0284c7],
+  [-0.1, 0x67e8f9],
+  [0, 0xd4a574],
+  [0.1, 0xe8c872],
   [0.2, 0x5eead4],
   [0.4, 0x14b8a6],
   [0.6, 0x059669],
   [1, 0x064e3b],
 ] as const
 
-/** SAVI — soil-adjusted: red bare soil → ochre → olive → canopy green. */
+/**
+ * SAVI — soil-adjusted: water blues → bare ochre → olive → canopy green.
+ */
 export const SI_SAVI_CLASSIFICATION_STOPS: readonly IndexRampStop[] = [
-  [-0.5, 0x7f1d1d],
-  [-0.2, 0xea580c],
-  [0, 0xd97706],
-  [0.15, 0xca8a04],
-  [0.3, 0x84cc16],
-  [0.45, 0x65a30d],
-  [0.6, 0x3f6212],
+  [-0.5, 0x0c4a6e],
+  [-0.25, 0x0ea5e9],
+  [-0.05, 0x9ecae6],
+  [0, 0xc4a574],
+  [0.1, 0xd97706],
+  [0.2, 0xca8a04],
+  [0.35, 0x84cc16],
+  [0.5, 0x65a30d],
+  [0.65, 0x3f6212],
   [0.8, 0x166534],
   [1, 0x052e16],
 ] as const

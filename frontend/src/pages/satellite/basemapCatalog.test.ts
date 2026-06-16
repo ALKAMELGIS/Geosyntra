@@ -26,11 +26,12 @@ describe('buildBasemapCatalog', () => {
     expect(ids).toContain('esri-imagery-hybrid')
   })
 
-  it('includes esri-world-terrain basemap from World_Terrain_Base MapServer', () => {
+  it('excludes World Terrain (Esri) from the gallery catalog', () => {
     const catalog = buildBasemapCatalog()
-    expect(catalog.some(e => e.id === 'esri-world-terrain')).toBe(true)
-    const entry = catalog.find(e => e.id === 'esri-world-terrain')!
-    expect(entry.leafletLayers?.[0]?.url).toContain('World_Terrain_Base')
+    expect(catalog.some(e => e.id === 'esri-world-terrain')).toBe(false)
+    expect(catalog.some(e => e.id === 'esri-terrain-labels')).toBe(true)
+    const terrainLabels = catalog.find(e => e.id === 'esri-terrain-labels')!
+    expect(terrainLabels.leafletLayers?.[0]?.url).toContain('World_Terrain_Base')
   })
 
   it('maps legacy esri-world-elevation-terrain id to Esri World Imagery', () => {
@@ -79,6 +80,12 @@ describe('buildBasemapCatalog', () => {
     const catalog = buildBasemapCatalog()
     expect(resolveStartupBasemapId(false, catalog)).toBe('esri')
     expect(resolveStartupBasemapId(true, catalog)).toBe('esri')
+  })
+
+  it('maps legacy world-terrain ids to Terrain with labels (Esri)', () => {
+    expect(resolveBasemapId('terrain')).toBe('esri-terrain-labels')
+    expect(resolveBasemapId('world-terrain')).toBe('esri-terrain-labels')
+    expect(resolveBasemapId('esri-world-terrain')).toBe('esri-terrain-labels')
   })
 
   it('maps removed Mapbox basemap ids to Esri equivalents', () => {

@@ -1,6 +1,7 @@
 import type { SentinelHubWmsLayerInfo } from '../../../../lib/sentinelHubWmsCapabilities';
 import {
   SI_LAYER_LIVE_COMPOSITE_CATALOG,
+  SI_LAYER_LIVE_CORE_GROUP,
   isLayerLiveCompositeLayerId,
 } from '../../../../lib/siLayerLiveCompositeCatalog';
 import {
@@ -12,6 +13,7 @@ import {
   resolveSentinel1GrdWmsTileLayerName,
   resolveSentinel1NativeWmsTileLayerName,
 } from '../../../../lib/siSentinel1InsarLayerCatalog';
+import { siWmsSymbologySupportsLayer } from '../siWmsSymbologyModel';
 import {
   getSatelliteProvider,
   isSentinelHubProvider,
@@ -60,9 +62,9 @@ export const SI_LAYER_LIVE_EVAL_LAYER_DEFS: readonly LayerLiveEvalLayerDef[] = [
     label: 'SAVI',
     catalogId: 'savi',
     groupKey: 'core',
-    groupLabel: '📊 Core indices',
-    groupOrder: 0.5,
-    layerOrder: 4,
+    groupLabel: SI_LAYER_LIVE_CORE_GROUP.label,
+    groupOrder: 0,
+    layerOrder: 5,
     tileFallbackKeywords: ['TRUE_COLOR', 'SENTINEL-2', 'L2A', 'NDVI'],
   },
 ];
@@ -72,6 +74,49 @@ export function isLayerLiveEvalOnlyLayerId(id: string): boolean {
   if (isLayerLiveCompositeLayerId(u)) return true;
   if (isSentinel1InsarLayerId(u)) return true;
   return SI_LAYER_LIVE_EVAL_LAYER_DEFS.some(d => d.id.toUpperCase() === u);
+}
+
+/**
+ * Layer Live picker + Map Canvas WMS — only indices with a working evalscript profile
+ * and a resolvable WMS tile source for the active collection.
+ */
+export function isLayerLiveMapCanvasSupported(
+  layerId: string,
+  wmsLayers: readonly SentinelHubWmsLayerInfo[],
+  collectionId?: string,
+): boolean {
+  const id = String(layerId || '').trim();
+  if (!id || !siWmsSymbologySupportsLayer(id)) return false;
+
+  const scoped =
+    collectionId && isSentinel1GrdCollection(collectionId)
+      ? filterWmsLayersForSatelliteCollection(wmsLayers, collectionId)
+      : wmsLayers.filter(l => !isSentinel1NativeWmsLayerName(l.name));
+
+  if (isSentinel1InsarLayerId(id)) {
+    if (!isSentinel1GrdCollection(collectionId ?? '')) return false;
+    return resolveSentinel1GrdWmsTileLayerName(scoped).length > 0;
+  }
+
+  if (
+    isLayerLiveCompositeLayerId(id) ||
+    SI_LAYER_LIVE_EVAL_LAYER_DEFS.some(d => d.id.toUpperCase() === id.toUpperCase())
+  ) {
+    if (isSentinel1GrdCollection(collectionId ?? '')) return false;
+    return resolveWmsTileLayerName(id, scoped).length > 0;
+  }
+
+  if (scoped.some(l => l.name === id)) return true;
+  return resolveWmsTileLayerName(id, scoped).length > 0;
+}
+
+/** Drop Layer Live groups/options that cannot paint on the Mapbox canvas. */
+export function filterRemoteSensingLayerOptionsForMapCanvas(
+  options: readonly RemoteSensingLayerOption[],
+  wmsLayers: readonly SentinelHubWmsLayerInfo[],
+  collectionId?: string,
+): RemoteSensingLayerOption[] {
+  return options.filter(o => isLayerLiveMapCanvasSupported(o.id, wmsLayers, collectionId));
 }
 
 /** Filter GetCapabilities to the active sensor collection. */

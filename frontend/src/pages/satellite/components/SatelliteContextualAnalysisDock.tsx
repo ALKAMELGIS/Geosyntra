@@ -14,7 +14,9 @@ import type { SiGeoAiIndexAnalyticalExportContext } from '../utils/siGeoAiIndexA
 import type { SmartProcessingSectionId } from './SmartProcessingWorkflowPanel';
 import { SiChatAiAgentIcon } from './SiChatAiAgentIcon';
 import { SiStatDashboardIcon } from './SiStatDashboardIcon';
-import { SiMapLayerControlIcon } from './SiMapLayerControlIcon';
+import { SiSmartToolboxTooltip } from './SiSmartToolboxTooltip';
+import { useLuxuryToolboxDock } from '../hooks/useLuxuryToolboxDock';
+import './siLuxuryFloatingToolbox.css';
 import { formatStatFixed } from '../utils/weeklyCompositeStats';
 import { SiAoiObjectsPanel } from './aoi/SiAoiObjectsPanel';
 import type { AoiGeometryEditSubTool, MapDrawTool, SiAoiDrawnStats, SiAoiWorkspaceRow } from './aoi/siAoiModuleTypes';
@@ -158,12 +160,12 @@ export type SatelliteContextualAnalysisDockProps = {
   /** GraphHopper Route Map — street routing panel on map canvas. */
   routeMapOpen?: boolean;
   onToggleRouteMap?: () => void;
-  /** ArcGIS-style layer swipe — compare two existing map layers. */
-  mapLayerSwipeOpen?: boolean;
-  onToggleMapLayerSwipe?: () => void;
   /** Ground elevation profile along a sketched line (ArcGIS-style). */
   elevProfileOpen?: boolean;
   onToggleElevProfile?: () => void;
+  /** Layer swipe comparison — single-map GPU clip. */
+  mapLayerSwipeOpen?: boolean;
+  onToggleMapLayerSwipe?: () => void;
   /** Open-Meteo weather intelligence at map point / feature / search. */
   mapWeatherIntelActive?: boolean;
   onToggleMapWeatherIntel?: () => void;
@@ -172,9 +174,9 @@ export type SatelliteContextualAnalysisDockProps = {
   /** Quick Dashboard — instant layer analytics panel. */
   quickDashboardOpen?: boolean;
   onToggleQuickDashboard?: () => void;
-  /** MapLibre Layer Control — visibility, opacity & style for map layers. */
-  mapLayerControlOpen?: boolean;
-  onToggleMapLayerControl?: () => void;
+  /** Explore Indexes — spectral band cards (Layer Live companion). */
+  exploreIndexesOpen?: boolean;
+  onToggleExploreIndexes?: () => void;
 };
 
 const RAIL: Array<{ id: SatelliteContextPanelId; icon: string; label: string; title: string; hint: string }> = [
@@ -387,17 +389,17 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
     onOpenMapPrint,
     routeMapOpen = false,
     onToggleRouteMap,
-    mapLayerSwipeOpen = false,
-    onToggleMapLayerSwipe,
     elevProfileOpen = false,
     onToggleElevProfile,
+    mapLayerSwipeOpen = false,
+    onToggleMapLayerSwipe,
     mapWeatherIntelActive = false,
     onToggleMapWeatherIntel,
     mapAnalysisToolsLockedByPopups = false,
     quickDashboardOpen = false,
     onToggleQuickDashboard,
-    mapLayerControlOpen = false,
-    onToggleMapLayerControl,
+    exploreIndexesOpen = false,
+    onToggleExploreIndexes,
   } = props;
 
   const popupsToolLockTitle =
@@ -634,6 +636,9 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
   const maxBar = aoiBarRows.length ? Math.max(...aoiBarRows.map(p => Math.abs(p.value)), 1e-9) : 1;
 
   const isMap = isMapVariant;
+  const luxuryDock = useLuxuryToolboxDock(isMap);
+  const [analysisGroupOpen, setAnalysisGroupOpen] = useState(true);
+  const [intelGroupOpen, setIntelGroupOpen] = useState(true);
   const panelLayoutOpen = panelOpen;
   /** Map toolbox: compact icon rail only (collapse/expand controls removed). */
   const railWide = isMap ? false : railLabeled;
@@ -642,7 +647,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
 
   const rootClass = [
     'si-sat-ctx-dock',
-    isMap ? 'si-sat-ctx-dock--map si-sat-ctx-dock--map-tall si-sat-ctx-dock--map-toolbox' : 'si-sat-ctx-dock--embedded',
+    isMap ? 'si-sat-ctx-dock--map si-sat-ctx-dock--luxury-float si-sat-ctx-dock--map-toolbox' : 'si-sat-ctx-dock--embedded',
     panelLayoutOpen ? 'si-sat-ctx-dock--open' : 'si-sat-ctx-dock--closed',
     dockMode === 'float' ? 'si-sat-ctx-dock--float-mode' : '',
     surface === 'light' ? 'si-sat-ctx-dock--light' : 'si-sat-ctx-dock--dark',
@@ -656,12 +661,85 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
     railWide ? item.title : item.hint ? `${item.title} — ${item.hint}` : item.title;
 
   return (
+    <>
+      {isMap ? (
+        <button
+          type="button"
+          className={
+            'si-lux-tb-edge-tab' +
+            (luxuryDock.edgeNear ? ' si-lux-tb-edge-tab--near' : '') +
+            (luxuryDock.isHidden ? ' si-lux-tb-edge-tab--dock-hidden' : '') +
+            (luxuryDock.pinned ? ' si-lux-tb-edge-tab--pinned' : '')
+          }
+          aria-label={language === 'ar' ? 'إظهار صندوق الأدوات' : 'Show map toolbox'}
+          title={language === 'ar' ? 'صندوق الأدوات' : 'Map toolbox'}
+          onPointerEnter={() => luxuryDock.reveal()}
+          onClick={() => luxuryDock.reveal()}
+        >
+          <i
+            className={`fa-solid fa-chevron-${direction === 'rtl' ? 'right' : 'left'}`}
+            aria-hidden
+          />
+        </button>
+      ) : null}
+      <div
+        ref={luxuryDock.dockRef}
+        className={
+          'si-lux-tb-shell' +
+          (isMap
+            ? luxuryDock.isVisible
+              ? ' si-lux-tb-shell--visible'
+              : luxuryDock.isPeek
+                ? ' si-lux-tb-shell--peek'
+                : ' si-lux-tb-shell--hidden'
+            : ' si-lux-tb-shell--visible')
+        }
+        onPointerEnter={isMap ? luxuryDock.onDockEnter : undefined}
+        onPointerLeave={isMap ? luxuryDock.onDockLeave : undefined}
+      >
     <div className={rootClass} role="presentation" dir={direction}>
       <nav
         className={'si-sat-ctx-rail' + (railWide ? ' si-sat-ctx-rail--labeled' : '')}
         aria-label={isMap ? 'Map toolbox' : 'Analysis contextual tools'}
         data-toolbox-density={isMap ? (railWide ? 'labels' : 'icons') : undefined}
       >
+        {isMap ? (
+          <div className="si-lux-tb-pin-wrap">
+            <SiSmartToolboxTooltip
+              title={language === 'ar' ? 'تثبيت صندوق الأدوات' : 'Pin toolbox'}
+              hint={
+                luxuryDock.pinned
+                  ? language === 'ar'
+                    ? 'إلغاء التثبيت — يختفي تلقائيًا'
+                    : 'Unpin — auto-hide on mouse leave'
+                  : language === 'ar'
+                    ? 'تثبيت — يبقى ظاهرًا'
+                    : 'Pin — keep toolbox visible'
+              }
+              side={direction === 'rtl' ? 'start' : 'end'}
+            >
+              <button
+                type="button"
+                className={
+                  'si-lux-tb-pin' + (luxuryDock.pinned ? ' si-lux-tb-pin--on' : '')
+                }
+                aria-label={
+                  luxuryDock.pinned
+                    ? language === 'ar'
+                      ? 'إلغاء تثبيت صندوق الأدوات'
+                      : 'Unpin map toolbox'
+                    : language === 'ar'
+                      ? 'تثبيت صندوق الأدوات'
+                      : 'Pin map toolbox'
+                }
+                aria-pressed={luxuryDock.pinned}
+                onClick={() => luxuryDock.togglePin()}
+              >
+                <i className="fa-solid fa-thumbtack" aria-hidden />
+              </button>
+            </SiSmartToolboxTooltip>
+          </div>
+        ) : null}
         <div className="si-sat-ctx-rail__scroll">
         {isMap && onMapToolboxAddData ? (
           <button
@@ -695,9 +773,8 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                 (item.id === 'table-geo-ai' && geoAiFloatingOpen) ||
                 (activeId === item.id &&
                   (MAP_RAIL_FLOAT_IDS.has(item.id) ? !panelOpen : panelOpen));
-              return (
+              const railBtn = (
                 <button
-                  key={item.id}
                   type="button"
                   className={
                     'si-sat-ctx-rail-btn' +
@@ -707,7 +784,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                     (!isMap && railWide ? ' si-sat-ctx-rail-btn--row' : '') +
                     (railPressed ? ' si-sat-ctx-rail-btn--active' : '')
                   }
-                  title={railHintTitle(item)}
+                  title={isMap ? undefined : railHintTitle(item)}
                   aria-label={railWide ? item.label : railHintTitle(item)}
                   aria-pressed={railPressed}
                   onClick={() => toggleRail(item.id)}
@@ -724,12 +801,6 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                       {item.hint ? <span className="si-sat-ctx-rail-label-desc">{item.hint}</span> : null}
                     </span>
                   ) : null}
-                  {/* Fields rail badge — same convention as the GIS Map's
-                   * `gis-sidebar-rail-btn__badge`: shows the saved-fields
-                   * count on the icon so the user knows "you already have
-                   * N fields" without opening the panel. Only renders for
-                   * the `fields` rail item and only when there's at least
-                   * one saved field. */}
                   {item.id === 'fields' && fieldsCount > 0 ? (
                     <span
                       className="si-sat-ctx-rail-btn__badge"
@@ -740,6 +811,18 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                   ) : null}
                 </button>
               );
+              return isMap ? (
+                <SiSmartToolboxTooltip
+                  key={item.id}
+                  title={item.title}
+                  hint={item.hint}
+                  side={direction === 'rtl' ? 'start' : 'end'}
+                >
+                  {railBtn}
+                </SiSmartToolboxTooltip>
+              ) : (
+                <Fragment key={item.id}>{railBtn}</Fragment>
+              );
             })}
             {gi < railMenuGroups.length - 1 ? (
               <div className="si-sat-ctx-rail-sep" role="separator" aria-hidden />
@@ -747,10 +830,34 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
           </Fragment>
         ))}
         {isMap && mapSymbologyToolbarSlot ? (
-          <div className="si-sat-ctx-rail-sym-wrap" role="group" aria-label="Symbology">
+          <div className="si-sat-ctx-rail-sym-wrap" role="group" aria-label={language === 'ar' ? 'أدوات الخريطة' : 'Map tools'}>
             {mapSymbologyToolbarSlot}
           </div>
         ) : null}
+        {isMap ? (
+          <SiSmartToolboxTooltip
+            title={language === 'ar' ? 'أدوات التحليل' : 'Analysis tools'}
+            hint={language === 'ar' ? 'إظهار/إخفاء مجموعة التحليل' : 'Expand or collapse analysis tools'}
+            side={direction === 'rtl' ? 'start' : 'end'}
+          >
+            <button
+              type="button"
+              className={
+                'si-lux-tb-group-toggle' + (analysisGroupOpen ? ' si-lux-tb-group-toggle--open' : '')
+              }
+              aria-expanded={analysisGroupOpen}
+              aria-label={language === 'ar' ? 'أدوات التحليل' : 'Analysis tools'}
+              onClick={() => setAnalysisGroupOpen(o => !o)}
+            >
+              <i className="fa-solid fa-chart-line" aria-hidden />
+            </button>
+          </SiSmartToolboxTooltip>
+        ) : null}
+        <div
+          className={
+            'si-lux-tb-group-panel' + (isMap && analysisGroupOpen ? ' si-lux-tb-group-panel--open' : isMap ? '' : ' si-lux-tb-group-panel--open')
+          }
+        >
         {isMap && mapSpectralLegendAvailable && onToggleMapSpectralLegend ? (
           <button
             type="button"
@@ -781,86 +888,6 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                 <span className="si-sat-ctx-rail-label-title">{language === 'ar' ? 'إيضاح' : 'Legend'}</span>
                 <span className="si-sat-ctx-rail-label-desc">
                   {language === 'ar' ? 'عرض مفتاح الطبقة على الخريطة' : 'Layer key on map'}
-                </span>
-              </span>
-            ) : null}
-          </button>
-        ) : null}
-        {isMap && onToggleMapLayerSwipe ? (
-          <button
-            type="button"
-            className={
-              'si-sat-ctx-rail-btn si-sat-ctx-rail-btn--map si-sat-ctx-rail-btn--swipe-tool' +
-              (railWide ? ' si-sat-ctx-rail-btn--row si-sat-ctx-rail-btn--map-expanded' : '') +
-              (isMap && !railWide ? ' si-sat-ctx-rail-btn--map-collapsed' : '') +
-              (mapLayerSwipeOpen ? ' si-sat-ctx-rail-btn--active' : '') +
-              (mapAnalysisToolsLockedByPopups && !mapLayerSwipeOpen ? ' si-sat-ctx-rail-btn--locked' : '')
-            }
-            title={
-              mapAnalysisToolsLockedByPopups && !mapLayerSwipeOpen
-                ? popupsToolLockTitle
-                : language === 'ar'
-                  ? mapLayerSwipeOpen
-                    ? 'إغلاق سحب الطبقات'
-                    : 'سحب الطبقات — قارن طبقتين موجودتين'
-                  : mapLayerSwipeOpen
-                    ? 'Close layer swipe'
-                    : 'Layer swipe — compare two existing layers'
-            }
-            aria-label={language === 'ar' ? 'سحب الطبقات' : 'Layer swipe tool'}
-            aria-pressed={mapLayerSwipeOpen}
-            disabled={mapAnalysisToolsLockedByPopups && !mapLayerSwipeOpen}
-            onClick={() => onToggleMapLayerSwipe()}
-          >
-            <span className="si-sat-ctx-rail-swipe-glyph" aria-hidden>
-              <i className="fa-solid fa-arrows-left-right-to-line" />
-            </span>
-            {isMap ? (
-              <span className="si-sat-ctx-rail-label" aria-hidden={!railWide}>
-                <span className="si-sat-ctx-rail-label-title">{language === 'ar' ? 'سحب' : 'Swipe'}</span>
-                <span className="si-sat-ctx-rail-label-desc">
-                  {language === 'ar' ? 'مقارنة طبقتين' : 'Compare layers'}
-                </span>
-              </span>
-            ) : null}
-          </button>
-        ) : null}
-        {isMap && onToggleMapLayerControl ? (
-          <button
-            type="button"
-            className={
-              'si-sat-ctx-rail-btn si-sat-ctx-rail-btn--map si-sat-ctx-rail-btn--layer-control-tool' +
-              (railWide ? ' si-sat-ctx-rail-btn--row si-sat-ctx-rail-btn--map-expanded' : '') +
-              (isMap && !railWide ? ' si-sat-ctx-rail-btn--map-collapsed' : '') +
-              (mapLayerControlOpen ? ' si-sat-ctx-rail-btn--active' : '') +
-              (mapAnalysisToolsLockedByPopups && !mapLayerControlOpen ? ' si-sat-ctx-rail-btn--locked' : '')
-            }
-            title={
-              mapAnalysisToolsLockedByPopups && !mapLayerControlOpen
-                ? popupsToolLockTitle
-                : language === 'ar'
-                  ? mapLayerControlOpen
-                    ? 'إغلاق تحكم الطبقات'
-                    : 'تحكم الطبقات — الظهور والشفافية والأنماط'
-                  : mapLayerControlOpen
-                    ? 'Close layer control'
-                    : 'Layer control — visibility, opacity & styles'
-            }
-            aria-label={language === 'ar' ? 'تحكم الطبقات' : 'Layer control'}
-            aria-pressed={mapLayerControlOpen}
-            disabled={mapAnalysisToolsLockedByPopups && !mapLayerControlOpen}
-            onClick={() => onToggleMapLayerControl()}
-          >
-            <span className="si-sat-ctx-rail-layer-control-glyph" aria-hidden>
-              <SiMapLayerControlIcon size={15} />
-            </span>
-            {isMap ? (
-              <span className="si-sat-ctx-rail-label" aria-hidden={!railWide}>
-                <span className="si-sat-ctx-rail-label-title">
-                  {language === 'ar' ? 'طبقات' : 'Layers ctrl'}
-                </span>
-                <span className="si-sat-ctx-rail-label-desc">
-                  {language === 'ar' ? 'ظهور وأنماط' : 'Stack & styles'}
                 </span>
               </span>
             ) : null}
@@ -944,6 +971,45 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
             ) : null}
           </button>
         ) : null}
+        {isMap && onToggleMapLayerSwipe ? (
+          <button
+            type="button"
+            className={
+              'si-sat-ctx-rail-btn si-sat-ctx-rail-btn--map si-sat-ctx-rail-btn--swipe-tool' +
+              (railWide ? ' si-sat-ctx-rail-btn--row si-sat-ctx-rail-btn--map-expanded' : '') +
+              (isMap && !railWide ? ' si-sat-ctx-rail-btn--map-collapsed' : '') +
+              (mapLayerSwipeOpen ? ' si-sat-ctx-rail-btn--active' : '') +
+              (mapAnalysisToolsLockedByPopups && !mapLayerSwipeOpen ? ' si-sat-ctx-rail-btn--locked' : '')
+            }
+            title={
+              mapAnalysisToolsLockedByPopups && !mapLayerSwipeOpen
+                ? popupsToolLockTitle
+                : language === 'ar'
+                  ? mapLayerSwipeOpen
+                    ? 'إغلاق مقارنة السحب'
+                    : 'مقارنة الطبقات — سحب'
+                  : mapLayerSwipeOpen
+                    ? 'Close swipe compare'
+                    : 'Swipe compare — Layer A vs B'
+            }
+            aria-label={language === 'ar' ? 'مقارنة السحب' : 'Swipe compare'}
+            aria-pressed={mapLayerSwipeOpen}
+            disabled={mapAnalysisToolsLockedByPopups && !mapLayerSwipeOpen}
+            onClick={() => onToggleMapLayerSwipe()}
+          >
+            <span className="si-sat-ctx-rail-swipe-glyph" aria-hidden>
+              <i className="fa-solid fa-arrows-left-right" />
+            </span>
+            {isMap ? (
+              <span className="si-sat-ctx-rail-label" aria-hidden={!railWide}>
+                <span className="si-sat-ctx-rail-label-title">{language === 'ar' ? 'سحب' : 'Swipe'}</span>
+                <span className="si-sat-ctx-rail-label-desc">
+                  {language === 'ar' ? 'مقارنة الطبقات' : 'Layer compare'}
+                </span>
+              </span>
+            ) : null}
+          </button>
+        ) : null}
         {isMap && onToggleMapWeatherIntel ? (
           <button
             type="button"
@@ -978,6 +1044,66 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                 <span className="si-sat-ctx-rail-label-title">{language === 'ar' ? 'طقس' : 'Weather'}</span>
                 <span className="si-sat-ctx-rail-label-desc">
                   {language === 'ar' ? 'Open-Meteo' : 'Open-Meteo intel'}
+                </span>
+              </span>
+            ) : null}
+          </button>
+        ) : null}
+        </div>
+        {isMap ? (
+          <SiSmartToolboxTooltip
+            title={language === 'ar' ? 'أدوات الذكاء' : 'Intelligence tools'}
+            hint={language === 'ar' ? 'إظهار/إخفاء مجموعة الذكاء' : 'Expand or collapse intelligence tools'}
+            side={direction === 'rtl' ? 'start' : 'end'}
+          >
+            <button
+              type="button"
+              className={
+                'si-lux-tb-group-toggle' + (intelGroupOpen ? ' si-lux-tb-group-toggle--open' : '')
+              }
+              aria-expanded={intelGroupOpen}
+              aria-label={language === 'ar' ? 'أدوات الذكاء' : 'Intelligence tools'}
+              onClick={() => setIntelGroupOpen(o => !o)}
+            >
+              <i className="fa-solid fa-wand-magic-sparkles" aria-hidden />
+            </button>
+          </SiSmartToolboxTooltip>
+        ) : null}
+        <div
+          className={
+            'si-lux-tb-group-panel' + (isMap && intelGroupOpen ? ' si-lux-tb-group-panel--open' : isMap ? '' : ' si-lux-tb-group-panel--open')
+          }
+        >
+        {isMap && onToggleExploreIndexes ? (
+          <button
+            type="button"
+            className={
+              'si-sat-ctx-rail-btn si-sat-ctx-rail-btn--map si-sat-ctx-rail-btn--explore-indexes-tool' +
+              (railWide ? ' si-sat-ctx-rail-btn--row si-sat-ctx-rail-btn--map-expanded' : '') +
+              (isMap && !railWide ? ' si-sat-ctx-rail-btn--map-collapsed' : '') +
+              (exploreIndexesOpen ? ' si-sat-ctx-rail-btn--active' : '')
+            }
+            title={
+              language === 'ar'
+                ? exploreIndexesOpen
+                  ? 'إغلاق استكشاف المؤشرات'
+                  : 'استكشاف المؤشرات — بطاقات الطيف لـ Layer Live'
+                : exploreIndexesOpen
+                  ? 'Close Explore Indexes'
+                  : 'Explore Indexes — spectral band cards for Layer Live'
+            }
+            aria-label={language === 'ar' ? 'استكشاف المؤشرات' : 'Explore Indexes'}
+            aria-pressed={exploreIndexesOpen}
+            onClick={() => onToggleExploreIndexes()}
+          >
+            <span className="si-sat-ctx-rail-explore-indexes-glyph" aria-hidden>
+              <i className="fa-solid fa-puzzle-piece" />
+            </span>
+            {isMap ? (
+              <span className="si-sat-ctx-rail-label" aria-hidden={!railWide}>
+                <span className="si-sat-ctx-rail-label-title">Explore Indexes</span>
+                <span className="si-sat-ctx-rail-label-desc">
+                  {language === 'ar' ? 'بطاقات الطيف' : 'Spectral band cards'}
                 </span>
               </span>
             ) : null}
@@ -1018,6 +1144,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
             ) : null}
           </button>
         ) : null}
+        </div>
         {isMap && onOpenMapPrint ? (
           <button
             type="button"
@@ -1485,5 +1612,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
         </aside>
       </div>
     </div>
+      </div>
+    </>
   );
 }

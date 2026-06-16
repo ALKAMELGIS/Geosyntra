@@ -9,7 +9,6 @@ import { lazyRoute } from './lazyRoute'
 import { OwnerOnlyGate } from '../components/OwnerOnlyGate'
 import { ProtectedRoute } from '../components/ProtectedRoute'
 const LearnMore = lazy(() => import('../pages/LearnMore'))
-const SatelliteIntelligence = lazyRoute(() => import('../pages/satellite/SatelliteIntelligenceMain'))
 const SatelliteMultidimensional = lazyRoute(() => import('../pages/satellite/Multidimensional'))
 const DataEntryFertigationRecords = lazy(() => import('../pages/data-entry/FertigationRecords'))
 const DataEntryRecipes = lazy(() => import('../pages/data-entry/Recipes'))
@@ -64,14 +63,7 @@ export default function AppRoutes() {
         <Route path="/data/fertigation" element={<Navigate to="/data/fertigation-records" replace />} />
         <Route path="/data/fertigation-records" element={<DataEntryFertigationRecords />} />
         <Route path="/data/recipes/:formSlug" element={<DataEntryRecipes />} />
-        <Route
-          path="/satellite/indices"
-          element={
-            <ProtectedRoute>
-              <SatelliteIntelligence />
-            </ProtectedRoute>
-          }
-        />
+        {/* /satellite/indices — persistent Mapbox instance lives in AppShell (PersistentSatelliteMapHost). */}
         <Route
           path="/satellite/multidimensional"
           element={

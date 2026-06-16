@@ -1749,7 +1749,7 @@
   }
 }
 
-/* Portal host: .si-map-container — above swipe overlay (12–14), below fixed timeline (95) */
+/* Portal host: .si-map-container — below fixed timeline (95) */
 .si-map-tools-dock-host {
   position: absolute;
   inset: 0;
@@ -2145,8 +2145,10 @@ body:has(.si-page.si-page--map-canvas)
 .si-sat-ctx-rail-sym-wrap {
   flex-shrink: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 2px;
   padding: 4px 0 2px;
 }
 
@@ -2177,6 +2179,15 @@ body:has(.si-page.si-page--map-canvas)
 .si-sat-ctx-rail-sym-tool--on {
   color: #bbf7d0;
   background: rgba(52, 211, 153, 0.14);
+}
+
+.si-sat-ctx-rail-sym-tool--swipe.si-sat-ctx-rail-sym-tool--on {
+  color: #93c5fd;
+  background: rgba(59, 130, 246, 0.16);
+}
+
+.si-sat-ctx-rail-sym-tool--swipe:hover:not(:disabled) {
+  color: #bfdbfe;
 }
 
 .si-sat-ctx-rail-sym-tool:disabled {

@@ -40,7 +40,10 @@
 }
 
 /* Portaled map canvas: rail glass is painted by map-toolbox-rail-spine.css host ::before */
-html[data-si-map-toolbox-page] .si-map-tools-dock-host .si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail {
+html[data-si-map-toolbox-page]
+  .si-map-tools-dock-host
+  .si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox:not(.si-sat-ctx-dock--luxury-float)
+  .si-sat-ctx-rail {
   background: transparent !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
@@ -348,7 +351,10 @@ html[data-si-map-toolbox-page] .si-map-tools-dock-host .si-sat-ctx-dock--dark.si
     inset -1px 0 0 rgba(255, 255, 255, 0.04);
 }
 
-html[data-si-map-toolbox-page] .si-map-tools-dock-host .si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--map .si-sat-ctx-rail {
+html[data-si-map-toolbox-page]
+  .si-map-tools-dock-host
+  .si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--map:not(.si-sat-ctx-dock--luxury-float)
+  .si-sat-ctx-rail {
   box-shadow: none;
 }
 
@@ -446,7 +452,10 @@ html[data-theme='light'] .si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si
   box-shadow: var(--si-glass-shadow);
 }
 
-html[data-theme='light'][data-si-map-toolbox-page] .si-map-tools-dock-host .si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail {
+html[data-theme='light'][data-si-map-toolbox-page]
+  .si-map-tools-dock-host
+  .si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox:not(.si-sat-ctx-dock--luxury-float)
+  .si-sat-ctx-rail {
   background: transparent !important;
   box-shadow: none;
 }

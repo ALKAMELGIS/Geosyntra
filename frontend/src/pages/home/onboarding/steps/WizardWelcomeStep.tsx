@@ -22,6 +22,7 @@ import { SaasButton } from '../../../../components/saas/SaasEntryShell'
 import { isPlatformOwnerUser } from '../../../../lib/auth'
 import {
   readKeepSignedInPreference,
+  readSavedLoginCredentials,
   writeKeepSignedInPreference,
 } from '../../../../lib/authKeepSignedIn'
 import {
@@ -44,6 +45,14 @@ import { WizardPlanSelect } from '../WizardPlanSelect'
 import { OAuthGlassPanel } from '../../../../components/auth/OAuthGlassPanel'
 
 const RESEND_SECONDS = 60
+
+function readInitialSignInFields(): { email: string; password: string } {
+  const saved = readSavedLoginCredentials()
+  return {
+    email: saved?.email ?? '',
+    password: saved?.password ?? '',
+  }
+}
 
 function readAdminUsers(): Array<Record<string, unknown>> {
   try {
@@ -68,9 +77,10 @@ export function WizardWelcomeStep() {
   const [phase, setPhase] = useState<'form' | 'check-email' | 'forgot-username' | 'forgot-password'>('form')
   const [resetDevLink, setResetDevLink] = useState<string | null>(null)
   const [mode, setMode] = useState<'signup' | 'signin'>(authMode)
+  const initialSignInFields = readInitialSignInFields()
   const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  const [email, setEmail] = useState(initialSignInFields.email)
+  const [password, setPassword] = useState(initialSignInFields.password)
   const [showPassword, setShowPassword] = useState(false)
   const [keepSignedIn, setKeepSignedIn] = useState(() => readKeepSignedInPreference())
   const [planId, setPlanId] = useState<BillingPlanId>(DEFAULT_SIGNUP_PLAN_ID)
@@ -318,6 +328,7 @@ export function WizardWelcomeStep() {
   const onKeepSignedInChange = (next: boolean) => {
     setKeepSignedIn(next)
     writeKeepSignedInPreference(next)
+    if (!next) setPassword('')
   }
 
   const onRecoveryKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -548,7 +559,7 @@ export function WizardWelcomeStep() {
                       type="email"
                       value={email}
                       onChange={e => setEmail(e.target.value)}
-                      autoComplete="email"
+                      autoComplete={mode === 'signup' ? 'email' : 'username'}
                       placeholder="Email"
                       required
                     />

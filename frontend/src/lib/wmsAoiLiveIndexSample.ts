@@ -23,7 +23,9 @@ export type WmsAoiLiveIndexSampleOpts = {
   wmsAccessToken?: string | null;
   /** WMS `LAYERS=` tile name (e.g. Sentinel-2 L2A), not eval-only logical id. */
   layerName: string;
-  /** Spectral index for evalscript decode — defaults from layerName when omitted. */
+  /** Eval-only index id (NDVI, VHS, …) when layerName is the WMS collection. */
+  logicalLayerId?: string;
+  /** Spectral index for evalscript decode — defaults from logicalLayerId / layerName when omitted. */
   chartLayerId?: StaticAoiChartLayerId;
   timeStart: string;
   timeEnd: string;
@@ -212,7 +214,7 @@ export async function fetchWmsClippedIndexRaster(opts: {
   if (!geom || (geom.type !== 'Polygon' && geom.type !== 'MultiPolygon')) return null;
 
   const profile = inferWmsEvalProfile(opts.logicalLayerId);
-  const decodeRange = wmsIndexStatsDecodeRange(profile);
+  const decodeRange = wmsIndexStatsDecodeRange(profile, opts.logicalLayerId);
   const evalPlain = buildWmsIndexStatsEvalscript(profile, opts.logicalLayerId);
   if (!decodeRange || !evalPlain) return null;
 
@@ -340,7 +342,7 @@ async function fetchWmsIndexGridValues(opts: {
   geometryWkt3857?: string | null;
 }): Promise<{ grid: Array<{ lng: number; lat: number }>; values: number[] } | null> {
   const profile = inferWmsEvalProfile(opts.chartLayerId);
-  const decodeRange = wmsIndexStatsDecodeRange(profile);
+  const decodeRange = wmsIndexStatsDecodeRange(profile, opts.chartLayerId);
   const evalPlain = buildWmsIndexStatsEvalscript(profile, opts.chartLayerId);
   if (!decodeRange || !evalPlain) return null;
 
@@ -489,7 +491,12 @@ export async function fetchWmsAoiLiveIndexSample(
   const geom = opts.feature.geometry;
   if (!geom || (geom.type !== 'Polygon' && geom.type !== 'MultiPolygon')) return null;
 
-  const layerId = opts.chartLayerId ?? inferStaticAoiChartLayerFromWmsName(opts.layerName);
+  const logicalName = (opts.logicalLayerId ?? opts.layerName).trim();
+  const profile = inferWmsEvalProfile(logicalName);
+  const layerId =
+    profile === 'agro_composite' || profile === 'agro_delta'
+      ? (logicalName as StaticAoiChartLayerId)
+      : (opts.chartLayerId ?? inferStaticAoiChartLayerFromWmsName(logicalName));
   const bbox3857 = bbox3857FromFeature(opts.feature);
   if (!bbox3857) return null;
 

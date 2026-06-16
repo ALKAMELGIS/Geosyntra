@@ -8,6 +8,30 @@ import {
 import { isSiMapBasemapMapboxLayerId } from './siMapCustomVectorLayerStack';
 import { isSiMapWmsRasterLayerId } from './siMapWmsRasterLayerStack';
 import { BUILDINGS_LAYER_ID, HILLSHADE_LAYER_ID } from './siMapProjectionTerrain';
+import {
+  SI_MAP_SWIPE_LAYER_LIVE_KEY,
+  SI_MAP_SWIPE_SIDE_A_KEY,
+  SI_MAP_SWIPE_SIDE_B_KEY,
+} from './siMapSwipeKeys';
+import {
+  computeSiMapFullCompareClipLayout,
+  computeSiMapSpyglassClipLayout,
+  computeSiMapSwipeClipLayout,
+  type SiMapSwipeClipRect,
+} from './siMapSwipeClipLayout';
+
+export {
+  computeSiMapSwipeClipLayout,
+  computeSiMapSpyglassClipLayout,
+  computeSiMapFullCompareClipLayout,
+};
+export type { SiMapSwipeClipRect };
+
+export {
+  SI_MAP_SWIPE_LAYER_LIVE_KEY,
+  SI_MAP_SWIPE_SIDE_A_KEY,
+  SI_MAP_SWIPE_SIDE_B_KEY,
+} from './siMapSwipeKeys';
 
 function isSiMapEarthHybridUnderlayLayerId(layerId: string): boolean {
   return (
@@ -16,10 +40,9 @@ function isSiMapEarthHybridUnderlayLayerId(layerId: string): boolean {
   );
 }
 
-export type SiMapSwipeLayerKind = 'basemap' | 'wms' | 'custom';
+export type SiMapSwipeLayerKind = 'basemap' | 'wms' | 'custom' | 'swipe-side';
 
 export type SiMapSwipeLayerEntry = {
-  /** Stable logical key — never a Mapbox layer id. */
   key: string;
   label: string;
   kind: SiMapSwipeLayerKind;
@@ -27,7 +50,15 @@ export type SiMapSwipeLayerEntry = {
 };
 
 export const SI_MAP_SWIPE_BASEMAP_KEY = 'basemap';
-export const SI_MAP_SWIPE_LAYER_LIVE_KEY = 'layer-live';
+
+export const SI_MAP_SWIPE_WMS_LAYER_A_ID = 'si-swipe-wms-layer-a';
+export const SI_MAP_SWIPE_WMS_LAYER_B_ID = 'si-swipe-wms-layer-b';
+export const SI_MAP_SWIPE_WMS_SOURCE_A_ID = 'si-swipe-wms-src-a';
+export const SI_MAP_SWIPE_WMS_SOURCE_B_ID = 'si-swipe-wms-src-b';
+
+export function isSiMapSwipeWmsLayerId(layerId: string): boolean {
+  return layerId === SI_MAP_SWIPE_WMS_LAYER_A_ID || layerId === SI_MAP_SWIPE_WMS_LAYER_B_ID;
+}
 
 /** Basemap + scene context layers stay visible on both sides of the swipe divider. */
 export function isSiMapSwipeContextMapboxLayerId(layerId: string): boolean {
@@ -40,7 +71,6 @@ export function isSiMapSwipeContextMapboxLayerId(layerId: string): boolean {
   );
 }
 
-/** Swipe compares operational layers only — basemap is always-on background. */
 export function isSiMapSwipeComparableCatalogEntry(entry: SiMapSwipeLayerEntry): boolean {
   return entry.kind !== 'basemap';
 }
@@ -61,7 +91,6 @@ export function siMapSwipeKeyForWmsLayer(mapboxLayerId: string): string {
   return `wms:${mapboxLayerId}`;
 }
 
-/** Resolve catalog keys to Mapbox style layer ids (no layers are added). */
 export function resolveSiMapSwipeMapboxLayerIds(
   map: MapboxMap | null,
   keys: string[],
@@ -82,6 +111,15 @@ export function resolveSiMapSwipeMapboxLayerIds(
     }
     if (key === SI_MAP_SWIPE_LAYER_LIVE_KEY) {
       for (const id of listSiMapLayerLiveLayerIds(map)) out.add(id);
+      continue;
+    }
+    if (key === SI_MAP_SWIPE_SIDE_A_KEY) {
+      out.add(SI_MAP_SWIPE_WMS_LAYER_A_ID);
+      continue;
+    }
+    if (key === SI_MAP_SWIPE_SIDE_B_KEY) {
+      out.add(SI_MAP_SWIPE_WMS_LAYER_B_ID);
+      continue;
     }
   }
   return [...out];
@@ -89,9 +127,7 @@ export function resolveSiMapSwipeMapboxLayerIds(
 
 function listSiMapLayerLiveLayerIds(map: MapboxMap): string[] {
   try {
-    return (map.getStyle()?.layers ?? [])
-      .map(l => l.id)
-      .filter(isSiMapWmsRasterLayerId);
+    return (map.getStyle()?.layers ?? []).map(l => l.id).filter(isSiMapWmsRasterLayerId);
   } catch {
     return [];
   }
@@ -99,40 +135,61 @@ function listSiMapLayerLiveLayerIds(map: MapboxMap): string[] {
 
 function listSiMapBasemapLayerIds(map: MapboxMap): string[] {
   try {
-    return (map.getStyle()?.layers ?? [])
-      .map(l => l.id)
-      .filter(id => isSiMapBasemapMapboxLayerId(id));
+    return (map.getStyle()?.layers ?? []).map(l => l.id).filter(id => isSiMapBasemapMapboxLayerId(id));
   } catch {
     return [];
   }
 }
 
-/** Build swipe catalog from layers already mounted on the map — never imports or adds layers. */
-function collectCustomLayerMapboxIds(
-  styleLayerIds: string[],
-  layer: SiCustomLayerRegistryFields,
-): string[] {
+function collectCustomLayerMapboxIds(styleLayerIds: string[], layer: SiCustomLayerRegistryFields): string[] {
   const prefix = `${customLayerMapboxSourceId(layer)}-`;
   const ids = styleLayerIds.filter(id => id.startsWith(prefix));
   const rasterId = `${layer.id}-raster`;
-  if (!ids.includes(rasterId) && styleLayerIds.includes(rasterId)) {
-    ids.push(rasterId);
-  }
+  if (!ids.includes(rasterId) && styleLayerIds.includes(rasterId)) ids.push(rasterId);
   const extentId = `${layer.id}-extent-line`;
-  if (!ids.includes(extentId) && styleLayerIds.includes(extentId)) {
-    ids.push(extentId);
-  }
+  if (!ids.includes(extentId) && styleLayerIds.includes(extentId)) ids.push(extentId);
   return ids;
+}
+
+/** Dedicated swipe A/B raster layers in the same Mapbox style (mounted by SiMapSwipeRasterLayers). */
+export function buildSiMapSwipeSideCatalogEntries(opts?: {
+  layerALabel?: string;
+  layerBLabel?: string;
+}): SiMapSwipeLayerEntry[] {
+  return [
+    {
+      key: SI_MAP_SWIPE_SIDE_A_KEY,
+      label: opts?.layerALabel?.trim() || 'Layer A',
+      kind: 'swipe-side',
+      mapboxLayerIds: [SI_MAP_SWIPE_WMS_LAYER_A_ID],
+    },
+    {
+      key: SI_MAP_SWIPE_SIDE_B_KEY,
+      label: opts?.layerBLabel?.trim() || 'Layer B',
+      kind: 'swipe-side',
+      mapboxLayerIds: [SI_MAP_SWIPE_WMS_LAYER_B_ID],
+    },
+  ];
 }
 
 export function buildSiMapSwipeLayerCatalog(
   map: MapboxMap | null,
   customLayers: SiCustomLayerRegistryFields[],
-  opts?: { basemapLabel?: string; layerLiveLabel?: string; elevation3d?: boolean },
+  opts?: {
+    basemapLabel?: string;
+    layerLiveLabel?: string;
+    layerALabel?: string;
+    layerBLabel?: string;
+    includeSwipeSides?: boolean;
+  },
 ): SiMapSwipeLayerEntry[] {
-  if (!map?.getStyle?.()) return [];
-
   const entries: SiMapSwipeLayerEntry[] = [];
+  if (opts?.includeSwipeSides !== false) {
+    entries.push(...buildSiMapSwipeSideCatalogEntries(opts));
+  }
+
+  if (!map?.getStyle?.()) return entries;
+
   const styleLayerIds = (map.getStyle()?.layers ?? []).map(l => l.id);
 
   const basemapIds = styleLayerIds.filter(isSiMapBasemapMapboxLayerId);
@@ -180,50 +237,18 @@ export function buildSiMapSwipeLayerCatalog(
   return entries;
 }
 
-/** Clip layout for comparison map overlay (screen-space swipe divider). */
-export function computeSiMapSwipeClipLayout(
+export type SiMapSwipeMode = 'vertical' | 'horizontal' | 'spyglass' | 'split' | 'full';
+
+export function resolveSiMapSwipeClipRect(
   bounds: { width: number; height: number },
-  positionPct: number,
-  orientation: 'vertical' | 'horizontal',
-): {
-  clipLeft: number;
-  clipTop: number;
-  clipWidth: number;
-  clipHeight: number;
-  innerLeft: number;
-  innerTop: number;
-  innerWidth: number;
-  innerHeight: number;
-} {
-  const width = Math.max(0, bounds.width);
-  const height = Math.max(0, bounds.height);
-  const ratio = Math.max(0, Math.min(100, positionPct)) / 100;
-
-  if (orientation === 'vertical') {
-    const left = Math.max(0, Math.min(width, ratio * width));
-    const visibleWidth = Math.max(0, width - left);
-    return {
-      clipLeft: left,
-      clipTop: 0,
-      clipWidth: visibleWidth,
-      clipHeight: height,
-      innerLeft: -left,
-      innerTop: 0,
-      innerWidth: width,
-      innerHeight: height,
-    };
-  }
-
-  const top = Math.max(0, Math.min(height, ratio * height));
-  const visibleHeight = Math.max(0, height - top);
-  return {
-    clipLeft: 0,
-    clipTop: top,
-    clipWidth: width,
-    clipHeight: visibleHeight,
-    innerLeft: 0,
-    innerTop: -top,
-    innerWidth: width,
-    innerHeight: height,
-  };
+  mode: SiMapSwipeMode,
+  position: number,
+  spyPosition: { x: number; y: number },
+  spyRadiusPct: number,
+  fullSide: 'a' | 'b',
+): SiMapSwipeClipRect {
+  if (mode === 'full') return computeSiMapFullCompareClipLayout(bounds, fullSide);
+  if (mode === 'spyglass') return computeSiMapSpyglassClipLayout(bounds, spyPosition, spyRadiusPct);
+  const orientation = mode === 'horizontal' ? 'horizontal' : 'vertical';
+  return computeSiMapSwipeClipLayout(bounds, position, orientation);
 }

@@ -19,10 +19,10 @@ import {
 describe('Esri World Terrain hybrid basemap helpers', () => {
   const catalog = buildBasemapCatalog();
 
-  it('includes esri-world-terrain basemap entry', () => {
-    const entry = catalogEntryById(catalog, 'esri-world-terrain');
-    expect(entry?.label).toContain('World Terrain');
-    expect(entry?.leafletLayers?.some(L => /World_Terrain_Base/i.test(L.url))).toBe(true);
+  it('excludes esri-world-terrain from the gallery catalog', () => {
+    expect(catalogEntryById(catalog, 'esri-world-terrain')).toBeUndefined();
+    const terrainLabels = catalogEntryById(catalog, 'esri-terrain-labels');
+    expect(terrainLabels?.leafletLayers?.some(L => /World_Terrain_Base/i.test(L.url))).toBe(true);
   });
 
   it('treats imagery basemaps as imagery-forward for hybrid underlay', () => {
@@ -37,7 +37,7 @@ describe('Esri World Terrain hybrid basemap helpers', () => {
       mapboxStyle: {},
       googlePhotorealistic3d: true,
     } as const;
-    expect(isImageryForwardBasemapEntry(catalogEntryById(catalog, 'esri-world-terrain'))).toBe(false);
+    expect(isImageryForwardBasemapEntry(catalogEntryById(catalog, 'esri-terrain-labels'))).toBe(false);
     expect(isImageryForwardBasemapEntry(google3d)).toBe(false);
     expect(isImageryForwardBasemapEntry(catalogEntryById(catalog, 'terrain-opentopo'))).toBe(false);
   });
@@ -54,7 +54,7 @@ describe('Esri World Terrain hybrid basemap helpers', () => {
     const esriImagery = catalogEntryById(catalog, 'esri');
     expect(shouldMountEarthHybridUnderlayStack(esriImagery, { elevation3d: false })).toBe(false);
     expect(shouldMountEarthHybridUnderlayStack(esriImagery, { elevation3d: true })).toBe(true);
-    expect(shouldMountEarthHybridUnderlayStack(catalogEntryById(catalog, 'esri-world-terrain'), { elevation3d: true })).toBe(
+    expect(shouldMountEarthHybridUnderlayStack(catalogEntryById(catalog, 'esri-terrain-labels'), { elevation3d: true })).toBe(
       false,
     );
   });

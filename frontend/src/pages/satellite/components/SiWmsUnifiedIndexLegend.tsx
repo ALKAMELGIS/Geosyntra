@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import type { WmsAoiEvalProfile } from '../../../lib/sentinelHubWmsAoiClip';
 import { siStopsToVerticalCssGradient, type IndexRampStop } from '../../../lib/siWmsIndexClassificationRamp';
 import { clampLeftDockLegendOffset, siMapLeftPopoutFixedPosition } from '../utils/siMapFloatingPanelLayout';
+import { siMapDynamicLegendStackPosition } from '../utils/siMapDynamicLegendLayout';
 import { SI_WMS_SPECTRAL_CLASS_COUNT, siWmsLegendRowsFromStops } from '../utils/siWmsSpectralClassification';
 import {
   siWmsIndexLegendClassLabels,
@@ -63,6 +64,7 @@ function formatRange(from: number, to: number): string {
 export type SiWmsUnifiedIndexLegendProps = {
   mode: SiWmsUnifiedIndexLegendMode;
   profile: WmsAoiEvalProfile;
+  layerId?: string;
   layerLabel: string;
   context: SiWmsSpectralLegendContext;
   classifiedStops: readonly IndexRampStop[] | null;
@@ -72,11 +74,16 @@ export type SiWmsUnifiedIndexLegendProps = {
   ariaLabel?: string;
   /** AOI pixel-class areas aligned to legend rows (optional). */
   classAnalytics?: SiIndexClassAnalytics | null;
+  /** Vertical stack index when multiple layer legends are open. */
+  stackIndex?: number;
+  /** Prefer numeric class ranges from stops instead of preset semantic labels. */
+  dataDrivenLabels?: boolean;
 };
 
 export function SiWmsUnifiedIndexLegend({
   mode,
   profile,
+  layerId,
   layerLabel,
   context,
   classifiedStops,
@@ -85,6 +92,8 @@ export function SiWmsUnifiedIndexLegend({
   offsetStorageKey,
   ariaLabel = 'Spectral layer legend',
   classAnalytics = null,
+  stackIndex,
+  dataDrivenLabels = false,
 }: SiWmsUnifiedIndexLegendProps) {
   const dockRef = useRef<HTMLDivElement | null>(null);
   const offsetRef = useRef({ x: 0, y: 0 });
@@ -116,10 +125,13 @@ export function SiWmsUnifiedIndexLegend({
   useLayoutEffect(() => {
     const dock = dockRef.current;
     if (!dock) return;
-    const fixed = siMapLeftPopoutFixedPosition('spectral-legend', 300);
+    const fixed =
+      stackIndex != null
+        ? siMapDynamicLegendStackPosition(stackIndex)
+        : siMapLeftPopoutFixedPosition('spectral-legend', 300);
     dock.style.top = `${fixed.top}px`;
     dock.style.left = `${fixed.left}px`;
-  }, [profile, layerLabel, mode]);
+  }, [profile, layerLabel, mode, stackIndex]);
 
   const onLegendHeadPointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
@@ -179,12 +191,15 @@ export function SiWmsUnifiedIndexLegend({
     [classifiedStops],
   );
   const rows = useMemo(
-    () => (classifiedStops ? siWmsLegendRowsFromStops(classifiedStops, maxRows) : []),
-    [classifiedStops, maxRows],
+    () => (classifiedStops ? siWmsLegendRowsFromStops(classifiedStops, maxRows, layerId) : []),
+    [classifiedStops, maxRows, layerId],
   );
   const classLabels = useMemo(
-    () => (classifiedStops ? siWmsIndexLegendClassLabels(profile, rows.length) : null),
-    [profile, rows.length, classifiedStops],
+    () =>
+      classifiedStops && !dataDrivenLabels && !customSymbology
+        ? siWmsIndexLegendClassLabels(profile, rows.length, layerId)
+        : null,
+    [profile, rows.length, classifiedStops, dataDrivenLabels, customSymbology, layerId],
   );
   const hint = useMemo(
     () =>
@@ -193,12 +208,13 @@ export function SiWmsUnifiedIndexLegend({
         classCount: maxRows,
         customSymbology,
         mode,
+        layerId,
       }),
-    [profile, maxRows, customSymbology, mode],
+    [profile, maxRows, customSymbology, mode, layerId],
   );
   const interpretation = useMemo(
-    () => (classifiedStops ? siWmsIndexLegendInterpretation(profile, classifiedStops) : null),
-    [profile, classifiedStops],
+    () => (classifiedStops ? siWmsIndexLegendInterpretation(profile, classifiedStops, layerId) : null),
+    [profile, classifiedStops, layerId],
   );
   const scale = useMemo(
     () => (classifiedStops ? siWmsIndexLegendScaleFromStops(classifiedStops) : null),
@@ -231,6 +247,7 @@ export function SiWmsUnifiedIndexLegend({
         role="region"
         aria-label={ariaLabel}
         style={{ transform: `translate(${legendOffset.x}px, ${legendOffset.y}px)` }}
+        data-si-map-layer-legend=""
       >
         <div
           className="si-wms-index-class-legend__head si-wms-index-class-legend__head--draggable"
@@ -361,13 +378,13 @@ export function SiWmsUnifiedIndexLegend({
                       </div>
                       <div className="si-wms-index-class-legend__row-areas" dir="ltr">
                         <span className="si-wms-index-class-legend__area-cell">
-                          <span className="si-wms-index-class-legend__area-k">ha</span>
+                          <span className="si-wms-index-class-legend__area-k">HA</span>
                           <span className="si-wms-index-class-legend__area-v">
                             {formatLegendAreaHa(areas?.areaHa)}
                           </span>
                         </span>
                         <span className="si-wms-index-class-legend__area-cell">
-                          <span className="si-wms-index-class-legend__area-k">m²</span>
+                          <span className="si-wms-index-class-legend__area-k">M²</span>
                           <span className="si-wms-index-class-legend__area-v">
                             {formatLegendAreaM2(areas?.areaM2)}
                           </span>

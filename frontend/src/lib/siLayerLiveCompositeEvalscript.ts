@@ -14,22 +14,13 @@ const EVAL_CLASSIFIED_RAMP_HELPERS = `
 function __hexRgb(h) {
   return [((h >> 16) & 255) / 255.0, ((h >> 8) & 255) / 255.0, (h & 255) / 255.0];
 }
-function __lerp3(a, b, t) {
-  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
-}
-function __rampRgb(t, stops) {
+/** Discrete classified raster — one flat color per class interval (analytical only). */
+function __classifiedRampRgb(t, stops) {
   var n = stops.length;
+  if (n < 2) return __hexRgb(stops[0][1]);
   if (t <= stops[0][0]) return __hexRgb(stops[0][1]);
-  if (t >= stops[n - 1][0]) return __hexRgb(stops[n - 1][1]);
   for (var i = 1; i < n; i++) {
-    if (t <= stops[i][0]) {
-      var t0 = stops[i - 1][0];
-      var t1 = stops[i][0];
-      var f = (t - t0) / (t1 - t0 + 1e-12);
-      if (f < 0) f = 0;
-      if (f > 1) f = 1;
-      return __lerp3(__hexRgb(stops[i - 1][1]), __hexRgb(stops[i][1]), f);
-    }
+    if (t <= stops[i][0]) return __hexRgb(stops[i][1]);
   }
   return __hexRgb(stops[n - 1][1]);
 }
@@ -57,15 +48,86 @@ function __clampIdx(v) {
   if (v > 1) return 1;
   return v;
 }
+function __normIdx(v) {
+  return (__clampIdx(v) + 1) / 2;
+}
 `;
 
+/** Diverging 10-class delta ramp — degradation (red) → stable (amber) → improvement (green). */
 export const SI_AGRO_DELTA_STOPS: readonly IndexRampStop[] = [
-  [-1, 0xdc2626],
-  [-0.25, 0xf97316],
-  [0, 0xfbbf24],
-  [0.25, 0x84cc16],
-  [1, 0x16a34a],
+  [-1, 0x7f1d1d],
+  [-0.75, 0xb91c1c],
+  [-0.5, 0xdc2626],
+  [-0.35, 0xea580c],
+  [-0.2, 0xf97316],
+  [-0.05, 0xfbbf24],
+  [0.05, 0xa3e635],
+  [0.2, 0x84cc16],
+  [0.35, 0x22c55e],
+  [0.5, 0x15803d],
+  [1, 0x14532d],
 ];
+
+/** Agricultural Risk Index — 10 visually distinct risk classes (low → high). */
+export const SI_ARI_CLASSIFICATION_STOPS: readonly IndexRampStop[] = [
+  [0, 0x14532d],
+  [0.1, 0x15803d],
+  [0.2, 0x22c55e],
+  [0.3, 0x84cc16],
+  [0.4, 0xeab308],
+  [0.5, 0xf59e0b],
+  [0.6, 0xf97316],
+  [0.7, 0xea580c],
+  [0.8, 0xdc2626],
+  [0.9, 0xb91c1c],
+  [1, 0x7f1d1d],
+];
+
+/** Composite Crop Index — 20 agricultural decision classes (risk → excellent). */
+export const SI_CCI_CLASSIFICATION_STOPS: readonly IndexRampStop[] = [
+  [-0.2, 0x450a0a],
+  [-0.16, 0x7f1d1d],
+  [-0.12, 0xb91c1c],
+  [-0.08, 0xdc2626],
+  [-0.04, 0xef4444],
+  [0, 0xea580c],
+  [0.05, 0xf97316],
+  [0.1, 0xfb923c],
+  [0.15, 0xfdba74],
+  [0.2, 0xfbbf24],
+  [0.25, 0xfacc15],
+  [0.3, 0xeab308],
+  [0.35, 0xd9f99d],
+  [0.4, 0xa3e635],
+  [0.45, 0x84cc16],
+  [0.5, 0x65a30d],
+  [0.55, 0x4ade80],
+  [0.6, 0x22c55e],
+  [0.73, 0x16a34a],
+  [0.87, 0x15803d],
+  [1, 0x14532d],
+];
+
+/** CCI uses 20 discrete classes on the map and in legends. */
+export const SI_CCI_SPECTRAL_CLASS_COUNT = 20;
+
+export function getAgroCompositeDefaultStops(def: {
+  formula: AgroCompositeFormula;
+  isDelta: boolean;
+}): readonly IndexRampStop[] {
+  if (def.isDelta) return SI_AGRO_DELTA_STOPS;
+  switch (def.formula) {
+    case 'cci':
+      return SI_CCI_CLASSIFICATION_STOPS;
+    case 'ari':
+    case 'chs':
+    case 'cps':
+    case 'fpr':
+      return SI_ARI_CLASSIFICATION_STOPS;
+    default:
+      return SI_NDVI_CLASSIFICATION_STOPS;
+  }
+}
 
 function formulaIndexExpr(formula: AgroCompositeFormula, sampleVar: string): string {
   const ndvi = `__ndvi(${sampleVar})`;
@@ -116,6 +178,13 @@ function formulaIndexExpr(formula: AgroCompositeFormula, sampleVar: string): str
       return `1 - ((${ndvi}) + (${ndmi}) + (${ndwi}) + (${savi})) / 4`;
     case 'chs':
       return `((${ndvi}) + (${ndmi}) + (${ndwi}) + (${savi})) / 4`;
+    case 'cci': {
+      const ndviN = `__normIdx(${ndvi})`;
+      const saviN = `__normIdx(${savi})`;
+      const ndmiN = `__normIdx(${ndmi})`;
+      const ndwiN = `__normIdx(${ndwi})`;
+      return `0.3 * (${ndviN}) + 0.2 * (${saviN}) + 0.3 * (${ndmiN}) - 0.2 * (${ndwiN})`;
+    }
     default:
       return '0';
   }
@@ -153,9 +222,7 @@ export function buildAgroCompositeEvalscript(
   const stops = classifiedStopsLiteral(
     classifiedStopsOverride && classifiedStopsOverride.length >= 2
       ? classifiedStopsOverride
-      : def.isDelta
-        ? SI_AGRO_DELTA_STOPS
-        : SI_NDVI_CLASSIFICATION_STOPS,
+      : getAgroCompositeDefaultStops(def),
   );
 
   if (def.isDelta) {
@@ -180,12 +247,13 @@ function evaluatePixel(samples) {
   var idx = __clampIdx(idx2 - idx1);
   ${alphaFromIndexDelta('idx', thr)}
   var stops = ${stops};
-  var c = __rampRgb(idx, stops);
+  var c = __classifiedRampRgb(idx, stops);
   return [c[0], c[1], c[2], __a];
 }`;
   }
 
   const idxExpr = formulaIndexExpr(def.formula, 's');
+  const idxVar = def.formula === 'cci' ? idxExpr : `__clampIdx(${idxExpr})`;
   return `//VERSION=3
 function setup() {
   return {
@@ -196,20 +264,34 @@ function setup() {
 ${EVAL_CLASSIFIED_RAMP_HELPERS}
 ${AGRO_BAND_HELPERS}
 function evaluatePixel(s) {
-  var idx = __clampIdx(${idxExpr});
+  var idx = ${idxVar};
   ${alphaFromIndex('idx', thr)}
   var stops = ${stops};
-  var c = __rampRgb(idx, stops);
+  var c = __classifiedRampRgb(idx, stops);
   return [c[0], c[1], c[2], __a];
 }`;
+}
+
+function agroCompositeStatsEncode(formula: AgroCompositeFormula): string {
+  if (formula === 'cci') {
+    return 'var t = (idx + 0.2) / 1.2; if (t < 0) t = 0; if (t > 1) t = 1; return [t, 0, 0, s.dataMask];';
+  }
+  return 'var t = (idx + 1) / 2; if (t < 0) t = 0; if (t > 1) t = 1; return [t, 0, 0, s.dataMask];';
+}
+
+function agroCompositeStatsEncodeDelta(formula: AgroCompositeFormula): string {
+  if (formula === 'cci') {
+    return 'var t = (idx + 0.2) / 1.2; if (t < 0) t = 0; if (t > 1) t = 1; return [t, 0, 0, s2.dataMask * s1.dataMask];';
+  }
+  return 'var t = (idx + 1) / 2; if (t < 0) t = 0; if (t > 1) t = 1; return [t, 0, 0, s2.dataMask * s1.dataMask];';
 }
 
 /** Stats evalscript — encodes composite index in R channel for AOI zonal stats. */
 export function buildAgroCompositeStatsEvalscript(layerId: string): string {
   const def = getLayerLiveCompositeDef(layerId);
   if (!def) return '';
-  const encode = `var t = (idx + 1) / 2; if (t < 0) t = 0; if (t > 1) t = 1; return [t, 0, 0, s.dataMask];`;
-  const encodeDelta = `var t = (idx + 1) / 2; if (t < 0) t = 0; if (t > 1) t = 1; return [t, 0, 0, s2.dataMask * s1.dataMask];`;
+  const encode = agroCompositeStatsEncode(def.formula);
+  const encodeDelta = agroCompositeStatsEncodeDelta(def.formula);
 
   if (def.isDelta) {
     const idx1 = formulaIndexExpr(def.formula, 's1');
@@ -235,6 +317,7 @@ function evaluatePixel(samples) {
   }
 
   const idxExpr = formulaIndexExpr(def.formula, 's');
+  const idxVar = def.formula === 'cci' ? idxExpr : `__clampIdx(${idxExpr})`;
   return `//VERSION=3
 function setup() {
   return {
@@ -244,7 +327,7 @@ function setup() {
 }
 ${AGRO_BAND_HELPERS}
 function evaluatePixel(s) {
-  var idx = __clampIdx(${idxExpr});
+  var idx = ${idxVar};
   ${encode}
 }`;
 }

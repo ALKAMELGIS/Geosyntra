@@ -90,8 +90,8 @@ export function SiAoiDrawingToolbar({
           <button
             type="button"
             className="si-aoi-draw-tool si-aoi-draw-tool--danger"
-            title="Clear AOI"
-            aria-label="Clear AOI"
+            title="Clear all drawings"
+            aria-label="Clear all drawings"
             disabled={!hasClearableDrawing}
             onClick={onClearDrawing}
           >

@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
 import type { WmsAoiEvalProfile } from '../../../lib/sentinelHubWmsAoiClip';
+import type { IndexRampStop } from '../../../lib/siWmsIndexClassificationRamp';
 import { mergeSymbologyUi, type SiWmsSymbologyUiState } from '../utils/siWmsSymbologyModel';
 import type { SiIndexClassAnalytics } from '../utils/siIndexClassAnalytics';
-import { siWmsResolveCanonicalStops } from '../utils/siWmsSpectralClassification';
+import { siWmsResolveCanonicalStops, siWmsSpectralClassCountForLayer } from '../utils/siWmsSpectralClassification';
 import {
   clearSpectralLegendDockOffset,
   type SiWmsSpectralLegendContext,
@@ -30,7 +31,12 @@ export type SiWmsLiveLayerLegendProps = {
   context: SiWmsSpectralLegendContext;
   symbologyUi: SiWmsSymbologyUiState;
   symbologyPartial?: Partial<SiWmsSymbologyUiState>;
+  aoiFiniteValues?: readonly number[] | null;
+  classifiedStopsOverride?: readonly IndexRampStop[] | null;
   classAnalytics?: SiIndexClassAnalytics | null;
+  dataDrivenLabels?: boolean;
+  stackIndex?: number;
+  offsetStorageKey?: string;
 };
 
 export function SiWmsLiveLayerLegend({
@@ -40,13 +46,20 @@ export function SiWmsLiveLayerLegend({
   context,
   symbologyUi,
   symbologyPartial,
+  aoiFiniteValues = null,
+  classifiedStopsOverride = null,
   classAnalytics = null,
+  dataDrivenLabels = false,
+  stackIndex,
+  offsetStorageKey = SI_WMS_LIVE_LEGEND_OFFSET_LS,
 }: SiWmsLiveLayerLegendProps) {
   const ui = useMemo(() => mergeSymbologyUi(symbologyUi), [symbologyUi]);
-  const stops = useMemo(
-    () => siWmsResolveCanonicalStops(layerId, symbologyPartial),
-    [layerId, symbologyPartial],
-  );
+  const stops = useMemo(() => {
+    if (classifiedStopsOverride && classifiedStopsOverride.length >= 2) {
+      return classifiedStopsOverride;
+    }
+    return siWmsResolveCanonicalStops(layerId, symbologyPartial, aoiFiniteValues);
+  }, [layerId, symbologyPartial, aoiFiniteValues, classifiedStopsOverride]);
   const customSymbology =
     symbologyPartial != null &&
     Object.keys(symbologyPartial).length > 0 &&
@@ -58,17 +71,23 @@ export function SiWmsLiveLayerLegend({
   const isComposite =
     profile === 'true_color' || profile === 'false_color' || profile === 'swir' || profile === 'generic_rgb';
 
+  const maxRows = siWmsSpectralClassCountForLayer(layerId);
+
   return (
     <SiWmsUnifiedIndexLegend
       mode="live"
       profile={profile}
+      layerId={layerId}
       layerLabel={layerLabel}
       context={context}
       classifiedStops={isComposite ? null : stops}
+      maxRows={maxRows}
       customSymbology={customSymbology}
-      offsetStorageKey={SI_WMS_LIVE_LEGEND_OFFSET_LS}
+      offsetStorageKey={offsetStorageKey}
       ariaLabel="Live index layer legend"
       classAnalytics={classAnalytics}
+      stackIndex={stackIndex}
+      dataDrivenLabels={dataDrivenLabels || Boolean(aoiFiniteValues?.length)}
     />
   );
 }

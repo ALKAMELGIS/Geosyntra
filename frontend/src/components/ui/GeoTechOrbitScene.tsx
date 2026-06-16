@@ -41,6 +41,8 @@ export type GeoTechOrbitSceneProps = {
   size?: number
   satellites?: number
   live?: boolean
+  /** Multiplier for orbit ring spin duration (e.g. 1.38 = medium-relaxed). */
+  orbitPace?: number
   className?: string
   children?: React.ReactNode
 }
@@ -49,6 +51,7 @@ export function GeoTechOrbitScene({
   size = 280,
   satellites = 6,
   live = false,
+  orbitPace = 1,
   className,
   children,
 }: GeoTechOrbitSceneProps) {
@@ -79,7 +82,7 @@ export function GeoTechOrbitScene({
                 style={{
                   width: `calc(${px} * ${orbit.rx})`,
                   height: `calc(${px} * ${orbit.ry})`,
-                  ['--gs-orbit-duration' as string]: `${orbit.duration}s`,
+                  ['--gs-orbit-duration' as string]: `${orbit.duration * orbitPace}s`,
                   ['--gs-orbit-delay' as string]: `${orbit.delay}s`,
                 }}
               >

@@ -5,7 +5,7 @@ import {
   isSiMapOperationalMapboxLayerId,
   isSiMapUiOverlayLayerId,
 } from './siMapCustomVectorLayerStack';
-import { isSiMapWmsRasterLayerId } from './siMapWmsRasterLayerStack';
+import { isSiMapWmsRasterLayerId, refreshSiMapWmsRasterPaint } from './siMapWmsRasterLayerStack';
 import {
   buildCustomLayerMapboxStyleKey,
   buildSiLayerMapDiagnosticRow,
@@ -35,14 +35,15 @@ import {
 } from './siMapLayerReconcile';
 import { removeStaleMapboxMountsForInstance } from './siMapLayerMapboxMountCleanup';
 import {
-  shouldPauseSiCustomLayerMapSync,
+  shouldDeferSiCustomLayerStructuralSync,
 } from './siMapLayerCameraSyncGuard';
+import { scheduleSiMapOverlayLayerStackSync } from './siMapOverlayLayerStackScheduler';
 import {
   bindSiMapLayerSyncElevation3dRef,
   siMapLayerSyncElevation3dActive,
   withSiMapLayerMountElevation3d,
 } from './siMapLayerElevation3dState';
-import { isSiMapElevationTransitionActive } from './siMapLayerTransitionGuard';
+import { isSiMapViewTransitionActive, getSiMapLayerTransitionBlendToward3d } from './siMapLayerTransitionGuard';
 
 export { bindSiMapLayerSyncElevation3dRef, siMapLayerSyncElevation3dActive };
 
@@ -105,7 +106,9 @@ export function syncAllCustomLayersOnMap(
   };
   if (!map || !map.getStyle?.()) return { mounted: 0, missing: [], reconcile: emptyReconcile };
 
-  const reconcile = reconcileLayerManagerWithMapCanvas(map, appLayers, withSiMapLayerMountElevation3d(mountOpts));
+  const reconcile = shouldDeferSiCustomLayerStructuralSync(appLayers)
+    ? emptyReconcile
+    : reconcileLayerManagerWithMapCanvas(map, appLayers, withSiMapLayerMountElevation3d(mountOpts));
   const missing = [...reconcile.stillMissing];
   let mounted = 0;
   for (const layer of appLayers) {
@@ -133,7 +136,7 @@ export function syncSiElevationViewLayersOnMap(
     if (fc === 0 && layer.renderMode !== 'raster' && layer.renderMode !== 'bim') continue;
     flushSiCustomLayerOnMapCanvas(map, layer, mountOpts);
   }
-  if (!opts?.skipReconcile && !isSiMapElevationTransitionActive()) {
+  if (!opts?.skipReconcile && !isSiMapViewTransitionActive()) {
     syncAllCustomLayersOnMap(map, appLayers, mountOpts);
   }
   triggerSiMapLayerRenderSync(map);
@@ -250,6 +253,47 @@ export function scheduleSyncSiElevationViewLayersOnMap(
   }
 }
 
+/** Paint + Z-order only — no reconcile/remount while the camera moves. */
+export function persistOperationalLayersOnMapDuringCameraMotion(
+  map: MapboxMap | null | undefined,
+  appLayers: SiCustomLayerRegistryFields[],
+  mountOpts?: SiCustomLayerMapMountOptions,
+): void {
+  if (!map?.getStyle?.()) return;
+  if (isSiMapViewTransitionActive()) {
+    syncSiMapLayersElevationBlend(map, appLayers, getSiMapLayerTransitionBlendToward3d());
+    try {
+      refreshSiMapWmsRasterPaint(map);
+    } catch {
+      /* WMS stack not mounted */
+    }
+    triggerSiMapLayerRenderSync(map);
+    try {
+      map.triggerRepaint?.();
+    } catch {
+      /* ignore */
+    }
+    return;
+  }
+  for (const layer of appLayers) {
+    if (layer.visible === false || isSiCustomLayerMapRefreshInFlight(layer)) continue;
+    const fc = countGeoJsonFeatures(layer.geojson);
+    if (fc === 0 && layer.renderMode !== 'raster' && layer.renderMode !== 'bim') continue;
+    flushSiCustomLayerOnMapCanvas(map, layer, mountOpts);
+  }
+  try {
+    refreshSiMapWmsRasterPaint(map);
+  } catch {
+    /* WMS stack not mounted */
+  }
+  triggerSiMapLayerRenderSync(map);
+  try {
+    map.triggerRepaint?.();
+  } catch {
+    /* ignore */
+  }
+}
+
 /**
  * Aggressive paint burst after add / catalog change — forces visible symbology and
  * re-stacks layers above basemap until Mapbox idles (ArcGIS view.requestRender loop).
@@ -264,7 +308,10 @@ export function burstForceCustomLayersOnMap(
   const resolvedMountOpts = withSiMapLayerMountElevation3d(mountOpts);
 
   const run = () => {
-    if (shouldPauseSiCustomLayerMapSync(appLayers) && !siMapLayerSyncElevation3dActive()) return;
+    if (shouldDeferSiCustomLayerStructuralSync(appLayers) && !siMapLayerSyncElevation3dActive()) {
+      persistOperationalLayersOnMapDuringCameraMotion(map, appLayers, resolvedMountOpts);
+      return;
+    }
     for (const layer of appLayers) {
       if (layer.visible === false) continue;
       if (isSiCustomLayerMapRefreshInFlight(layer)) continue;
@@ -272,7 +319,9 @@ export function burstForceCustomLayersOnMap(
       if (fc === 0 && layer.renderMode !== 'raster' && layer.renderMode !== 'bim') continue;
       flushSiCustomLayerOnMapCanvas(map, layer, resolvedMountOpts);
     }
-    syncAllCustomLayersOnMap(map, appLayers, resolvedMountOpts);
+    if (!shouldDeferSiCustomLayerStructuralSync(appLayers)) {
+      syncAllCustomLayersOnMap(map, appLayers, resolvedMountOpts);
+    }
     try {
       map.triggerRepaint?.();
     } catch {
@@ -387,15 +436,9 @@ export function scheduleGentleCustomLayersMapSync(
   debounceMs = 120,
 ): void {
   if (!map?.getStyle?.()) return;
-  if (shouldPauseSiCustomLayerMapSync(layers)) {
+  if (shouldDeferSiCustomLayerStructuralSync(layers)) {
     pendingGentleSync = { map, layers, mountOpts };
-    if (gentleSyncTimer != null) window.clearTimeout(gentleSyncTimer);
-    gentleSyncTimer = window.setTimeout(() => {
-      gentleSyncTimer = null;
-      const pending = pendingGentleSync;
-      if (!pending) return;
-      scheduleGentleCustomLayersMapSync(pending.map, pending.layers, pending.mountOpts, debounceMs);
-    }, Math.max(debounceMs, 180));
+    persistOperationalLayersOnMapDuringCameraMotion(map, layers, mountOpts);
     return;
   }
   pendingGentleSync = { map, layers, mountOpts };
@@ -405,8 +448,8 @@ export function scheduleGentleCustomLayersMapSync(
     const pending = pendingGentleSync;
     pendingGentleSync = null;
     if (!pending?.map.getStyle?.()) return;
-    if (shouldPauseSiCustomLayerMapSync(pending.layers)) {
-      scheduleGentleCustomLayersMapSync(pending.map, pending.layers, pending.mountOpts, debounceMs);
+    if (shouldDeferSiCustomLayerStructuralSync(pending.layers)) {
+      persistOperationalLayersOnMapDuringCameraMotion(pending.map, pending.layers, pending.mountOpts);
       return;
     }
     const mountOpts = withSiMapLayerMountElevation3d(pending.mountOpts);
@@ -424,6 +467,35 @@ export function cancelScheduledGentleCustomLayersMapSync(): void {
   if (gentleSyncTimer != null) window.clearTimeout(gentleSyncTimer);
   gentleSyncTimer = null;
   pendingGentleSync = null;
+}
+
+let cameraIdleFinalizeTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Single debounced pass after camera settles — avoids duplicate stack bursts on moveend. */
+export function scheduleSiMapLayersFinalizeAfterCameraIdle(
+  map: MapboxMap | null | undefined,
+  layers: SiCustomLayerRegistryFields[],
+  mountOpts?: SiCustomLayerMapMountOptions,
+  debounceMs = 32,
+): void {
+  if (!map?.getStyle?.()) return;
+  if (cameraIdleFinalizeTimer != null) window.clearTimeout(cameraIdleFinalizeTimer);
+  cameraIdleFinalizeTimer = window.setTimeout(() => {
+    cameraIdleFinalizeTimer = null;
+    if (!map.getStyle?.() || shouldDeferSiCustomLayerStructuralSync(layers)) return;
+    scheduleGentleCustomLayersMapSync(map, layers, { ...mountOpts, aggressive: false }, 0);
+    scheduleSiMapOverlayLayerStackSync(map, { force: true, immediate: true });
+    try {
+      map.triggerRepaint?.();
+    } catch {
+      /* ignore */
+    }
+  }, debounceMs);
+}
+
+export function cancelScheduledSiMapLayersFinalizeAfterCameraIdle(): void {
+  if (cameraIdleFinalizeTimer != null) window.clearTimeout(cameraIdleFinalizeTimer);
+  cameraIdleFinalizeTimer = null;
 }
 
 export function logSiMapLayerRuntimeReport(

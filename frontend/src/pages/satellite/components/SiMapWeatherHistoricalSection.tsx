@@ -47,13 +47,11 @@ export function SiMapWeatherHistoricalSection({
   if (inline) {
     return (
       <div className="si-map-wx-hist si-map-wx-hist--inline" aria-label="Historical weather">
-        <div className="si-map-wx-hist__picker-row">
-          <label className="si-map-wx-hist__date-field" htmlFor="si-map-wx-hist-date" title="Historical date">
-            <i className="fa-regular fa-calendar" aria-hidden />
-            {dateInput}
-          </label>
-          {todayBtn}
-        </div>
+        <label className="si-map-wx-hist__icon-slot" htmlFor="si-map-wx-hist-date" title="Historical date">
+          <i className="fa-regular fa-calendar" aria-hidden />
+        </label>
+        {dateInput}
+        {todayBtn}
       </div>
     );
   }

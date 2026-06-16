@@ -2,7 +2,13 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { Map as MapboxMap, MapMouseEvent } from 'mapbox-gl';
 import { applyAgroCloudMapboxBranding } from '../utils/agroCloudMapboxMouseBranding';
 import { attachSiMapGlobeElevationZoomWheel } from '../utils/siMapGlobeZoom';
-import { SI_MAP_RIGHT_DRAG_ELEVATION_COMMIT_PITCH } from '../utils/siMapRightDragElevation';
+import {
+  SI_MAP_RIGHT_DRAG_ELEVATION_COMMIT_PITCH,
+  siMapApplyRightDragElevationTiltOr3d,
+  siMapBeginRightDragElevationTilt,
+  siMapShouldStartRightDragElevationTilt,
+} from '../utils/siMapRightDragElevation';
+import { siElevationCrossfadeOpacity } from '../utils/siMapElevationTransition';
 import type { SiMapTerrainSettings } from '../utils/siMapProjectionTerrain';
 import { siMapView3dOrbitModeActive, SI_GLOBE_FREE_CAMERA_TERRAIN_PITCH } from '../utils/siMapGlobeFreeCamera';
 import { attachSiMapGisCameraController } from '../utils/siMapGisCameraController';
@@ -17,7 +23,7 @@ type SiRightDragElevationReleaseAction =
   | { type: 'snap2d-flat' }
   | { type: 'finalize3d-orbit' };
 
-function resolveSiRightDragElevationReleaseAction(opts: {
+export function resolveSiRightDragElevationReleaseAction(opts: {
   startedFrom2dDock: boolean;
   elevation3dActive: boolean;
   moved: boolean;
@@ -49,7 +55,6 @@ import {
   clampSiViewStateForProjection,
   configureSiMapCameraControlsForView,
   readSiMapCamera,
-  siMapApplyCameraOrbitDrag,
   siMapBeginCameraOrbitDragRight3d,
   siMapEndCameraOrbitDrag,
   siMapShouldStartCameraOrbitDragRight3d,
@@ -184,6 +189,8 @@ export function useAgroCloudMapboxMouseHost(options: AgroCloudMapboxMouseHostOpt
   const siRightDragMovedRef = useRef(false);
   /** 3D right-drag orbit (bearing + pitch + viewing angle). */
   const siRightOrbit3dRef = useRef(false);
+  /** Fired once per 2D right-drag when movement auto-enables the 3D elevation dock. */
+  const siRightDragAutoElevatedRef = useRef(false);
 
   const isCameraOrbitActive = useCallback(() => siCameraOrbitDragRef.current !== null, []);
 
@@ -219,52 +226,83 @@ export function useAgroCloudMapboxMouseHost(options: AgroCloudMapboxMouseHostOpt
     }
   }, []);
 
+  const captureRightDragPointer = useCallback((map: MapboxMap, orig: MouseEvent) => {
+    try {
+      const canvas = map.getCanvas?.() as HTMLElement | undefined;
+      if (canvas && orig.pointerId != null) {
+        canvas.setPointerCapture(orig.pointerId);
+        siRightDragCaptureElRef.current = canvas;
+        siRightDragPointerIdRef.current = orig.pointerId;
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   const beginRight3dOrbitDrag = useCallback(
     (map: MapboxMap, orig: MouseEvent) => {
       onClearIdentifyPointer?.();
       setCameraOrbitDraggingActive(true);
       siRightOrbit3dRef.current = true;
-      siRightDragTilt2dRef.current = !elevationViewActiveRef.current;
+      siRightDragTilt2dRef.current = false;
+      siRightDragAutoElevatedRef.current = false;
       siCameraOrbitDragRef.current = siMapBeginCameraOrbitDragRight3d(
         map,
         orig.clientX,
         orig.clientY,
       );
-      try {
-        const canvas = map.getCanvas?.() as HTMLElement | undefined;
-        if (canvas && orig.pointerId != null) {
-          canvas.setPointerCapture(orig.pointerId);
-          siRightDragCaptureElRef.current = canvas;
-          siRightDragPointerIdRef.current = orig.pointerId;
-        }
-      } catch {
-        /* ignore */
-      }
+      captureRightDragPointer(map, orig);
     },
-    [elevationViewActiveRef, onClearIdentifyPointer, setCameraOrbitDraggingActive],
+    [captureRightDragPointer, onClearIdentifyPointer, setCameraOrbitDraggingActive],
+  );
+
+  const beginRight2dTiltDrag = useCallback(
+    (map: MapboxMap, orig: MouseEvent) => {
+      onClearIdentifyPointer?.();
+      setCameraOrbitDraggingActive(true);
+      siRightOrbit3dRef.current = false;
+      siRightDragTilt2dRef.current = true;
+      siRightDragAutoElevatedRef.current = false;
+      mapElevationTransitioningRef.current = true;
+      siCameraOrbitDragRef.current = siMapBeginRightDragElevationTilt(
+        map,
+        orig.clientX,
+        orig.clientY,
+      );
+      captureRightDragPointer(map, orig);
+    },
+    [
+      captureRightDragPointer,
+      mapElevationTransitioningRef,
+      onClearIdentifyPointer,
+      setCameraOrbitDraggingActive,
+    ],
   );
 
   const tryStartCameraPointerDown = useCallback(
     (orig: MouseEvent | undefined, map: MapboxMap): boolean => {
       if (!orig || !('button' in orig)) return false;
       const guards = getDrawToolGuards();
-      if (
-        orig.button === 2 &&
-        siMapShouldStartCameraOrbitDragRight3d({
-          button: orig.button,
-          shiftKey: orig.shiftKey,
-          elevation3d: elevationViewActiveRef.current,
-          ...guards,
-        })
-      ) {
+      const startOpts = {
+        button: orig.button,
+        shiftKey: orig.shiftKey,
+        elevation3d: elevationViewActiveRef.current,
+        ...guards,
+      };
+      if (orig.button === 2 && elevationViewActiveRef.current && siMapShouldStartCameraOrbitDragRight3d(startOpts)) {
         beginRight3dOrbitDrag(map, orig);
+        preventMapEvent(orig);
+        return true;
+      }
+      if (orig.button === 2 && siMapShouldStartRightDragElevationTilt(startOpts)) {
+        beginRight2dTiltDrag(map, orig);
         preventMapEvent(orig);
         return true;
       }
 
       return false;
     },
-    [beginRight3dOrbitDrag, elevationViewActiveRef, getDrawToolGuards, mapProjectionModeRef],
+    [beginRight2dTiltDrag, beginRight3dOrbitDrag, elevationViewActiveRef, getDrawToolGuards],
   );
 
   const applySiCameraOrbitFromClient = useCallback(
@@ -274,11 +312,41 @@ export function useAgroCloudMapboxMouseHost(options: AgroCloudMapboxMouseHostOpt
       const map = getMapInstance();
       if (!map) return;
 
-      siMapApplyCameraOrbitDrag(map, session, clientX, clientY);
+      const elevation3d = elevationViewActiveRef.current;
+      const result = siMapApplyRightDragElevationTiltOr3d(
+        map,
+        session,
+        clientX,
+        clientY,
+        elevation3d,
+        siTerrainSettingsRef.current,
+      );
+
+      if (
+        siRightDragTilt2dRef.current &&
+        session.moved &&
+        !siRightDragAutoElevatedRef.current &&
+        !elevationViewActiveRef.current
+      ) {
+        siRightDragAutoElevatedRef.current = true;
+        applyMapElevationViewRef.current(true, { fromInteractiveTilt: true });
+      }
+
+      if (siRightDragTilt2dRef.current && !elevationViewActiveRef.current) {
+        applySiElevationCrossfadeVeil(siElevationCrossfadeOpacity(result.tiltT));
+      }
+
       commitSiMapUserCameraFromMap(map, 'orbit-drag');
       syncViewStateFromMapCamera();
     },
-    [getMapInstance, syncViewStateFromMapCamera],
+    [
+      applyMapElevationViewRef,
+      applySiElevationCrossfadeVeil,
+      elevationViewActiveRef,
+      getMapInstance,
+      siTerrainSettingsRef,
+      syncViewStateFromMapCamera,
+    ],
   );
 
   const endCameraOrbitDrag = useCallback(
@@ -291,6 +359,7 @@ export function useAgroCloudMapboxMouseHost(options: AgroCloudMapboxMouseHostOpt
       siCameraOrbitDragRef.current = null;
       siRightDragTilt2dRef.current = false;
       siRightOrbit3dRef.current = false;
+      siRightDragAutoElevatedRef.current = false;
       releaseRightDragPointerCapture();
       setCameraOrbitDraggingActive(false);
       if (siCameraOrbitSkyRafRef.current != null) {

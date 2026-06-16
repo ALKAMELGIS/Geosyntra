@@ -48,7 +48,7 @@ export function siMapFeaturePopupsEngaged(s: SiMapInteractiveToolSnapshot): bool
 }
 
 /**
- * True when route / weather / swipe / elevation / crop tools must not be opened
+ * True when route / weather / elevation / crop tools must not be opened
  * (feature pop-ups own map clicks).
  */
 export function siMapInteractiveToolOpenBlockedByFeaturePopups(s: SiMapInteractiveToolSnapshot): boolean {

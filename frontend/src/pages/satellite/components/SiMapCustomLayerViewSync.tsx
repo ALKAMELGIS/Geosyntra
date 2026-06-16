@@ -10,9 +10,8 @@ import {
   resolveSiCustomLayerMountOpts,
   type SiCustomLayerRegistryFields,
 } from '../utils/siMapCustomLayerRegistry';
-import { isSiMapCameraInteracting } from '../utils/siMapLayerCameraSyncGuard';
-import { siMapLayerSyncElevation3dActive } from '../utils/siMapLayerElevation3dState';
 import { resolveSiCustomLayerMapDisplayLayer } from '../utils/siMapLayerRefreshBuffer';
+import { isSiMapViewTransitionActive } from '../utils/siMapLayerTransitionGuard';
 
 type Props = {
   layer: SiCustomLayerRegistryFields;
@@ -24,7 +23,7 @@ type Props = {
 
 /**
  * Pins custom GeoJSON above basemap/WMS once per stable render signature.
- * Does NOT listen to map idle/move/zoom — camera interaction must not refresh layers.
+ * Keeps paints mounted during pan/zoom so AOI vectors and alerts stay visible.
  */
 export function SiMapCustomLayerViewSync({ layer, elevation3d = false, onViewReady }: Props) {
   const { current: mapRef } = useMap();
@@ -33,17 +32,17 @@ export function SiMapCustomLayerViewSync({ layer, elevation3d = false, onViewRea
   layerRef.current = layer;
 
   const displayLayer = resolveSiCustomLayerMapDisplayLayer(layer);
-  const renderSig = `${displayLayer.id}:${customLayerMapboxStyleKey(displayLayer)}:${displayLayer.visible !== false ? '1' : '0'}:${elevation3d ? '3d' : '2d'}`;
+  const renderSig = `${displayLayer.id}:${customLayerMapboxStyleKey(displayLayer)}:${displayLayer.visible !== false ? '1' : '0'}`;
 
   useLayoutEffect(() => {
     if (displayLayer.visible === false) return;
+    if (isSiMapViewTransitionActive()) return;
     const map = (mapRef?.getMap?.() ?? mapRef) as MapboxMap | undefined;
     if (!map) return;
 
     const flushOnce = () => {
       const current = layerRef.current;
       if (isSiCustomLayerMapRefreshInFlight(current) && current.mapCommittedGeojson) return;
-      if (isSiMapCameraInteracting() && !siMapLayerSyncElevation3dActive()) return;
       const display = resolveSiCustomLayerMapDisplayLayer(current);
       const mountOpts = resolveSiCustomLayerMountOpts(display, { elevation3d });
       flushSiCustomLayerOnMapCanvas(map, display, mountOpts);
@@ -54,6 +53,7 @@ export function SiMapCustomLayerViewSync({ layer, elevation3d = false, onViewRea
 
   useEffect(() => {
     if (displayLayer.visible === false || !onViewReady) return;
+    if (isSiMapViewTransitionActive()) return;
     const map = (mapRef?.getMap?.() ?? mapRef) as MapboxMap | undefined;
     if (!map) return;
 
@@ -61,7 +61,6 @@ export function SiMapCustomLayerViewSync({ layer, elevation3d = false, onViewRea
     let cancelled = false;
 
     void (async () => {
-      if (isSiMapCameraInteracting() && !siMapLayerSyncElevation3dActive()) return;
       const display = resolveSiCustomLayerMapDisplayLayer(layerRef.current);
       const mountOpts = resolveSiCustomLayerMountOpts(display, { elevation3d });
       const result = await awaitSiCustomLayerMapViewReady(map, display, mountOpts);

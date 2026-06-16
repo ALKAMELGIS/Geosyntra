@@ -1,6 +1,7 @@
 import { inferWmsEvalProfile, type WmsAoiEvalProfile } from '../../../lib/sentinelHubWmsAoiClip';
-import { SI_AGRO_DELTA_STOPS } from '../../../lib/siLayerLiveCompositeEvalscript';
+import { SI_AGRO_DELTA_STOPS, getAgroCompositeDefaultStops, SI_CCI_SPECTRAL_CLASS_COUNT } from '../../../lib/siLayerLiveCompositeEvalscript';
 import { getLayerLiveCompositeDef } from '../../../lib/siLayerLiveCompositeCatalog';
+import { isCciLayerId } from '../../../lib/siCciAgriculturalDecision';
 import { getSentinel1InsarLayerDef } from '../../../lib/siSentinel1InsarLayerCatalog';
 import { stopsForSentinel1SarFormula } from '../../../lib/siSentinel1SarEvalscript';
 import type { IndexRampStop } from '../../../lib/siWmsIndexClassificationRamp';
@@ -39,24 +40,29 @@ export const SI_WMS_SYMBOLOGY_DEFAULT_UI: SiWmsSymbologyUiState = {
 /** Sparse anchor ramps for WMS symbology (piecewise-linear in evalscript). */
 export const SI_SYM_PRESET_STOPS: Record<SiSymbologyRampPresetId, readonly IndexRampStop[]> = {
   vegetation: [
-    [-1, 0x0a0f0a],
-    [-0.25, 0x3d3d3d],
-    [0, 0xd6d6c3],
-    [0.2, 0x9acd32],
-    [0.45, 0x2e8b57],
-    [0.7, 0x14532d],
-    [1, 0x052e16],
+    [-1, 0x0c4a6e],
+    [-0.3, 0x0284c7],
+    [-0.1, 0x67e8f9],
+    [-0.02, 0x9ecae6],
+    [0, 0xc4a574],
+    [0.15, 0xe8c872],
+    [0.3, 0x7cb342],
+    [0.5, 0x388e3c],
+    [0.7, 0x1b5e20],
+    [1, 0x0a3d1a],
   ],
   water: [
-    [-1, 0x1c1917],
-    [-0.25, 0x78716c],
-    [0, 0x64748b],
-    [0.2, 0x1e40af],
-    [0.4, 0x2563eb],
-    [0.55, 0x06b6d4],
-    [0.7, 0x2dd4bf],
-    [0.85, 0x22c55e],
-    [1, 0xffffff],
+    [-1, 0x3d2817],
+    [-0.5, 0x8b7355],
+    [-0.2, 0xc8c4b8],
+    [0, 0x9ecae6],
+    [0.15, 0x7dd3fc],
+    [0.3, 0x38bdf8],
+    [0.45, 0x0ea5e9],
+    [0.6, 0x0284c7],
+    [0.75, 0x1d4ed8],
+    [0.9, 0x1e3a8a],
+    [1, 0x0c1929],
   ],
   thermal: [
     [-1, 0x1a0a2e],
@@ -127,8 +133,10 @@ export function siWmsDefaultStopsForProfile(profile: WmsAoiEvalProfile): readonl
       return SI_NDBI_CLASSIFICATION_STOPS;
     case 'lst':
       return SI_LST_CLASSIFICATION_STOPS;
-    case 'agro_composite':
-      return SI_NDVI_CLASSIFICATION_STOPS;
+    case 'agro_composite': {
+      const def = getLayerLiveCompositeDef(layerName);
+      return def ? getAgroCompositeDefaultStops(def) : SI_NDVI_CLASSIFICATION_STOPS;
+    }
     case 'agro_delta':
       return SI_AGRO_DELTA_STOPS;
     case 'sar_insar':
@@ -244,15 +252,22 @@ function buildQuantitativeStops(domain: readonly IndexRampStop[], preset: readon
 export function siWmsDefaultStopsForLayer(layerName: string): readonly IndexRampStop[] | null {
   const s1 = getSentinel1InsarLayerDef(layerName);
   if (s1) return stopsForSentinel1SarFormula(s1.formula);
+  const composite = getLayerLiveCompositeDef(layerName);
+  if (composite) return getAgroCompositeDefaultStops(composite);
   return siWmsDefaultStopsForProfile(inferWmsEvalProfile(layerName));
 }
 
 export function siComputeSymbologyStops(layerName: string, ui: SiWmsSymbologyUiState): readonly IndexRampStop[] | null {
   if (!siWmsSymbologySupportsLayer(layerName)) return null;
+  const composite = getLayerLiveCompositeDef(layerName);
+  if (composite?.formula === 'cci' && ui.autoScientific) {
+    return getAgroCompositeDefaultStops(composite);
+  }
   const base = siWmsDefaultStopsForLayer(layerName);
   if (!base?.length) return null;
   const classCount = Number.isFinite(ui.numClasses) ? ui.numClasses : SI_WMS_SYMBOLOGY_DEFAULT_UI.numClasses;
-  const k = Math.max(3, Math.min(16, Math.round(classCount)));
+  const layerClassCount = isCciLayerId(layerName) ? SI_CCI_SPECTRAL_CLASS_COUNT : classCount;
+  const k = Math.max(3, Math.min(isCciLayerId(layerName) ? 20 : 16, Math.round(layerClassCount)));
   const stopCount = k + 1;
 
   /** Live auto mode: 10 classes from the scientific ramp for this index type. */

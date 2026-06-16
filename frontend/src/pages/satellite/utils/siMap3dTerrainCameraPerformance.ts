@@ -4,6 +4,8 @@ import {
   isSiMap3dTerrainCameraMoving,
   setSiMap3dTerrainCameraMoving,
 } from './siMap3dTerrainCameraMoving';
+import { isSiMapDataLayerMutationFrozen } from './siMapRasterPipelineGuard';
+import { flushDeferredSiMapWmsRasterSourceTiles } from './siMapWmsRasterLayerStack';
 
 export { isSiMap3dTerrainCameraMoving };
 
@@ -17,13 +19,13 @@ export { isSiMap3dTerrainCameraMoving };
 
 /** Esri I3S / ArcGIS 3D — idle quality (Cesium `maximumScreenSpaceError = 8`). */
 export const SI_ESRI_3D_TERRAIN_SSE_IDLE = 8;
-/** Esri I3S — fast navigation quality (Cesium moveStart ≈ 12). */
-export const SI_ESRI_3D_TERRAIN_SSE_MOVING = 12;
+/** Esri I3S — kept equal to idle so parent tiles stay visible while navigating. */
+export const SI_ESRI_3D_TERRAIN_SSE_MOVING = SI_ESRI_3D_TERRAIN_SSE_IDLE;
 
 /** Google photorealistic 3D tiles — idle. */
 export const SI_GOOGLE_3D_TERRAIN_SSE_IDLE = 6;
-/** Google photorealistic 3D tiles — while moving. */
-export const SI_GOOGLE_3D_TERRAIN_SSE_MOVING = 10;
+/** Google photorealistic 3D tiles — kept equal to idle during navigation. */
+export const SI_GOOGLE_3D_TERRAIN_SSE_MOVING = SI_GOOGLE_3D_TERRAIN_SSE_IDLE;
 
 export type SiMap3dTerrainOverlayKind = 'esri' | 'google';
 
@@ -39,6 +41,7 @@ type BoundHandlers = {
 
 const overlaysByMap = new WeakMap<MapboxMap, Set<SiMap3dTerrainOverlayHandle>>();
 const handlersByMap = new WeakMap<MapboxMap, BoundHandlers>();
+const repaintHandlerByMap = new WeakMap<MapboxMap, () => void>();
 const pendingWmsSyncByMap = new WeakMap<
   MapboxMap,
   { runs: SiSentinelHubRasterRunLite[] | null; legacyTileUrl?: string | null }
@@ -106,14 +109,17 @@ export function siMap3dTerrainDeferWmsRasterSync(
   legacyTileUrl: string | null | undefined,
   apply: PendingWmsSync['apply'],
 ): void {
-  if (!isSiMap3dTerrainCameraMoving()) {
-    pendingWmsSync = null;
-    pendingWmsSyncByMap.delete(map);
-    apply(map, runs ?? null, legacyTileUrl ?? null);
+  const payload: PendingWmsSync = {
+    runs: runs ?? null,
+    legacyTileUrl: legacyTileUrl ?? null,
+    apply,
+  };
+  if (isSiMapDataLayerMutationFrozen()) {
+    pendingWmsSync = payload;
+    pendingWmsSyncByMap.set(map, { runs: payload.runs, legacyTileUrl: payload.legacyTileUrl });
     return;
   }
-  pendingWmsSync = { runs: runs ?? null, legacyTileUrl: legacyTileUrl ?? null, apply };
-  pendingWmsSyncByMap.set(map, { runs: runs ?? null, legacyTileUrl: legacyTileUrl ?? null });
+  apply(map, payload.runs, payload.legacyTileUrl ?? null);
 }
 
 /** Apply WMS tiles immediately (timeline date / end-date changes must not wait for moveend). */
@@ -157,17 +163,43 @@ export function registerSiMap3dTerrainOverlay(
   };
 }
 
+function startContinuousMapRepaint(map: MapboxMap): void {
+  if (repaintHandlerByMap.has(map)) return;
+  const onRender = () => {
+    if (!isSiMap3dTerrainCameraMoving()) return;
+    try {
+      map.triggerRepaint?.();
+    } catch {
+      /* map destroyed */
+    }
+  };
+  repaintHandlerByMap.set(map, onRender);
+  map.on('render', onRender);
+}
+
+function stopContinuousMapRepaint(map: MapboxMap): void {
+  const onRender = repaintHandlerByMap.get(map);
+  if (!onRender) return;
+  try {
+    map.off('render', onRender);
+  } catch {
+    /* map destroyed */
+  }
+  repaintHandlerByMap.delete(map);
+}
+
 function onCameraMoveStart(map: MapboxMap): void {
   if (isSiMap3dTerrainCameraMoving()) return;
   setSiMap3dTerrainCameraMoving(true);
-  applySseForMap(map, true);
+  startContinuousMapRepaint(map);
 }
 
 function onCameraMoveEnd(map: MapboxMap): void {
   if (!isSiMap3dTerrainCameraMoving()) return;
   setSiMap3dTerrainCameraMoving(false);
-  applySseForMap(map, false);
+  stopContinuousMapRepaint(map);
   flushPendingWmsSync(map);
+  flushDeferredSiMapWmsRasterSourceTiles(map);
   if (idleCallbackScheduled) return;
   idleCallbackScheduled = true;
   window.requestAnimationFrame(() => {
@@ -181,9 +213,9 @@ function onCameraMoveEnd(map: MapboxMap): void {
   });
 }
 
-/** Mapbox `requestRenderMode` equivalent — skip explicit repaints during camera motion. */
+/** Keep explicit repaints enabled during camera motion so deck.gl / WMS stay visible. */
 export function siMap3dTerrainShouldTriggerRepaint(): boolean {
-  return !isSiMap3dTerrainCameraMoving();
+  return true;
 }
 
 /** Bind movestart/moveend SSE switching — idempotent per map instance. */
@@ -237,6 +269,7 @@ export function uninstallSiMap3dTerrainCameraPerformance(map?: MapboxMap | null)
     handlersByMap.delete(target);
   }
   overlaysByMap.delete(target);
+  stopContinuousMapRepaint(target);
   if (performanceBoundFor === target) {
     performanceBoundFor = null;
     setSiMap3dTerrainCameraMoving(false);

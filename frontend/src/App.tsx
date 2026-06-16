@@ -5,6 +5,8 @@ import HeaderBar from './components/HeaderBar'
 import PlatformEnvironmentBanner from './components/PlatformEnvironmentBanner'
 import NavMenu from './components/NavMenu'
 import AppRoutes from './routes/AppRoutes'
+import PersistentSatelliteMapHost from './pages/satellite/PersistentSatelliteMapHost'
+import { isSiPersistentMapRoute } from './pages/satellite/utils/siPersistentMapRoute'
 import { stashHomeStartScroll } from './lib/hashRouterInPageNav'
 import { homeWizardSearch, stashHomeWizardIntent } from './lib/homeWizardEntry'
 import { isBenignMapboxSerializeError, isRecoverableMapboxMapError } from './lib/mapboxWorkerErrorGuard'
@@ -207,10 +209,12 @@ function AppShell() {
   const showChrome = !!user && !isOnAuth && !isPublicSurface
   /** Fertigation records is the only remaining `/data/*` route — keep its tight layout class. */
   const isOperationsDataPage = location.pathname.startsWith('/data/')
+  const isSatelliteMapActive = showChrome && isSiPersistentMapRoute(location.pathname)
   const mainContentClass = [
     'content',
     isOperationsDataPage && 'content--operations-fit',
     isOnHome && 'content--landing-fullbleed',
+    isSatelliteMapActive && 'content--satellite-map-active',
   ]
     .filter(Boolean)
     .join(' ')
@@ -241,7 +245,12 @@ function AppShell() {
       <div className={layoutShellClass}>
         {showChrome ? <NavMenu onLogout={handleLogout} /> : null}
         <main className={mainContentClass}>
-          <AppRoutes />
+          {showChrome ? <PersistentSatelliteMapHost active={isSatelliteMapActive} /> : null}
+          {!isSatelliteMapActive ? (
+            <div className="geosyntra-route-layer">
+              <AppRoutes />
+            </div>
+          ) : null}
         </main>
       </div>
     </>

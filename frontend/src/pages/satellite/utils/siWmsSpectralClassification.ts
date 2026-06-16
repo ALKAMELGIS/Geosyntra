@@ -1,6 +1,9 @@
 import { inferWmsEvalProfile, type WmsAoiEvalProfile } from '../../../lib/sentinelHubWmsAoiClip';
+import { isCciLayerId } from '../../../lib/siCciAgriculturalDecision';
+import { SI_CCI_SPECTRAL_CLASS_COUNT } from '../../../lib/siLayerLiveCompositeEvalscript';
 import type { IndexRampStop } from '../../../lib/siWmsIndexClassificationRamp';
 import { siRampLegendSegments, siThinLegendSegments } from '../../../lib/siWmsIndexClassificationRamp';
+import { siWmsApplyDynamicAoiStretch } from './siWmsDynamicPixelClassification';
 import {
   SI_WMS_SYMBOLOGY_DEFAULT_UI,
   siAutoRampPresetForLayerName,
@@ -14,6 +17,12 @@ import {
 /** Number of discrete color classes shown in Live / Scientific legend and WMS evalscript. */
 export const SI_WMS_SPECTRAL_CLASS_COUNT = 10;
 
+/** Per-layer class count — CCI uses 20 agricultural decision classes. */
+export function siWmsSpectralClassCountForLayer(layerId: string): number {
+  if (isCciLayerId(layerId)) return SI_CCI_SPECTRAL_CLASS_COUNT;
+  return SI_WMS_SPECTRAL_CLASS_COUNT;
+}
+
 /** Threshold anchors: N classes ⇒ N+1 stops ⇒ N legend intervals. */
 export const SI_WMS_SPECTRAL_STOP_COUNT = SI_WMS_SPECTRAL_CLASS_COUNT + 1;
 
@@ -26,6 +35,8 @@ const CLASSIFIED_PROFILES = new Set<WmsAoiEvalProfile>([
   'savi',
   'ndbi',
   'lst',
+  'agro_composite',
+  'agro_delta',
 ]);
 
 export function isSpectralClassifiedProfile(profile: WmsAoiEvalProfile): boolean {
@@ -57,26 +68,35 @@ function symbologyDiffersFromDefaults(merged: SiWmsSymbologyUiState): boolean {
 export function siWmsResolveCanonicalStops(
   layerId: string,
   symbologyPartial?: Partial<SiWmsSymbologyUiState>,
+  /** Masked AOI pixel values — enables histogram stretch in auto symbology mode. */
+  aoiFiniteValues?: readonly number[] | null,
 ): readonly IndexRampStop[] | null {
   if (!siWmsLayerSupportsSpectralClassification(layerId)) return null;
 
   const merged = mergeSymbologyUi(symbologyPartial);
   const hasCustom = symbologyPartial != null && Object.keys(symbologyPartial).length > 0 && symbologyDiffersFromDefaults(merged);
 
+  let stops: readonly IndexRampStop[] | null;
   if (hasCustom) {
     const computed = siComputeSymbologyStops(layerId, merged);
-    if (computed && computed.length >= 2) return computed;
+    stops = computed && computed.length >= 2 ? computed : siWmsAutoSpectralStops(layerId);
+  } else {
+    stops = siWmsAutoSpectralStops(layerId);
   }
 
-  return siWmsAutoSpectralStops(layerId);
+  if (!hasCustom && aoiFiniteValues?.length) {
+    return siWmsApplyDynamicAoiStretch(layerId, stops, aoiFiniteValues);
+  }
+  return stops;
 }
 
 /** 10-class spectral ramp from layer type (NDVI / NDWI / SAVI / LST / …). */
 export function siWmsAutoSpectralStops(layerId: string): readonly IndexRampStop[] | null {
+  const classCount = siWmsSpectralClassCountForLayer(layerId);
   const ui: SiWmsSymbologyUiState = {
     ...SI_WMS_SYMBOLOGY_DEFAULT_UI,
     autoScientific: true,
-    numClasses: SI_WMS_SPECTRAL_CLASS_COUNT,
+    numClasses: classCount,
     classificationType: 'quantitative',
     rampPreset: siAutoRampPresetForLayerName(layerId),
   };
@@ -100,9 +120,11 @@ export function siWmsRampClassIntervals(
 /** Legend rows — colors are taken directly from `stops` (no semantic overrides). */
 export function siWmsLegendRowsFromStops(
   stops: readonly IndexRampStop[] | null | undefined,
-  maxRows = SI_WMS_SPECTRAL_CLASS_COUNT,
+  maxRows?: number,
+  layerId?: string,
 ): Array<{ from: number; to: number; color: string }> {
-  return siWmsRampClassIntervals(stops, maxRows);
+  const rows = maxRows ?? (layerId ? siWmsSpectralClassCountForLayer(layerId) : SI_WMS_SPECTRAL_CLASS_COUNT);
+  return siWmsRampClassIntervals(stops, rows);
 }
 
 /** Canonical 10-class stops for live layer legend — kept here so legend mode never imports this module back. */

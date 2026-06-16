@@ -192,11 +192,11 @@ export function formatExtractMaskExportError(err: unknown): ExtractMaskExportErr
   const raw = err instanceof Error ? err.message : String(err ?? 'Extract by Mask export failed.');
   const lower = raw.toLowerCase();
 
-  if (/aoi|draw.*polygon|select an aoi|no aoi/.test(lower)) {
+  if (/aoi|no aoi/.test(lower)) {
     return {
       category: 'aoi-not-selected',
-      message: 'AOI not selected.',
-      recovery: 'Draw a polygon, pick a workspace AOI, or use a layer feature as the mask.',
+      message: 'AOI not defined.',
+      recovery: 'Draw or select an existing AOI before exporting.',
     };
   }
   if (/failed to fetch|networkerror|network error|load failed|cors|aborted/.test(lower)) {

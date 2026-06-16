@@ -10,7 +10,10 @@ import {
 import { devMapboxProxyRewrite } from '../../../lib/mapboxProxyUrl';
 import { isMapboxStyleReady } from './mapboxStyleReady';
 import { siMapboxStyleWithGlyphs } from './siMap3DLabels';
+import { prefetchBasemapTilePyramid } from './siMapBasemapTilePyramid';
 import { syncSiMapOverlayLayerStack } from './siMapCustomVectorLayerStack';
+import { isSiMapCameraInteracting } from './siMapLayerCameraSyncGuard';
+import { scheduleSiMapOverlayLayerStackSync } from './siMapOverlayLayerStackScheduler';
 import {
   raiseSiMapTerrainContourLayersAboveWms,
   siMapTerrainContourLayersMounted,
@@ -29,6 +32,14 @@ export const SI_BASEMAP_LAYER_PREFIX = 'si-basemap-layer';
 /** Tracks mounted raster stacks per catalog entry id (active basemap only — lazy loaded). */
 const mountedBasemapLayerCounts = new Map<string, number>();
 let lastVisibleBasemapEntryId: string | null = null;
+
+function syncOrDeferSiMapOverlayLayerStack(map: MapboxMap, force = false): void {
+  if (isSiMapCameraInteracting()) {
+    scheduleSiMapOverlayLayerStackSync(map, { force });
+    return;
+  }
+  syncSiMapOverlayLayerStack(map);
+}
 
 export function isSiMapBasemapEntryMounted(entryId: string): boolean {
   return mountedBasemapLayerCounts.has(entryId) && lastVisibleBasemapEntryId === entryId;
@@ -279,7 +290,7 @@ export function syncSiMapBasemapOnStyleReady(map: MapboxMap, entry: BasemapCatal
   if (mapHasInitialBasemapStyleForEntry(map, entry)) {
     registerSiMapBasemapMounted(entry);
     try {
-      syncSiMapOverlayLayerStack(map);
+      syncOrDeferSiMapOverlayLayerStack(map);
     } catch {
       /* ignore */
     }
@@ -421,7 +432,7 @@ export function applySiMapBasemap(
 
   if (isSiMapBasemapEntryMounted(entry.id) && mapHasInitialBasemapStyleForEntry(map, entry)) {
     try {
-      syncSiMapOverlayLayerStack(map);
+      syncOrDeferSiMapOverlayLayerStack(map);
       if (siMapTerrainContourLayersMounted(map)) {
         raiseSiMapTerrainContourLayersAboveWms(map, { force: true });
       }
@@ -452,7 +463,7 @@ export function applySiMapBasemap(
     mountedBasemapLayerCounts.set(entry.id, layers.length);
     lastVisibleBasemapEntryId = entry.id;
     try {
-      syncSiMapOverlayLayerStack(map);
+      syncOrDeferSiMapOverlayLayerStack(map);
       if (siMapTerrainContourLayersMounted(map)) {
         raiseSiMapTerrainContourLayersAboveWms(map, { force: true });
       }
@@ -471,7 +482,7 @@ export function ensureSiMapBasemapVisible(map: MapboxMap, entry: BasemapCatalogE
   if (!entry || !isMapboxStyleReady(map)) return;
   try {
     syncSiMapBasemapOnStyleReady(map, entry);
-    syncSiMapOverlayLayerStack(map);
+    syncOrDeferSiMapOverlayLayerStack(map);
     map.triggerRepaint?.();
   } catch {
     /* style mid-reload */
@@ -495,12 +506,14 @@ export function prefetchStartupBasemap(
 /** Optional low-zoom tile warm-up for the **selected** basemap only. */
 export function prefetchActiveBasemapTiles(
   entry: BasemapCatalogEntry,
-  view?: { lng: number; lat: number; zoom: number },
+  view?: { lng: number; lat: number; zoom: number; bearing?: number },
 ): void {
-  prefetchBasemapTiles(entry, 2);
-  if (view && Number.isFinite(view.lng) && Number.isFinite(view.lat)) {
-    prefetchBasemapTilesNearView(entry, view);
-  }
+  prefetchBasemapTilePyramid(entry, view, {
+    radius: 2,
+    progressive: true,
+    lookaheadRing: 1,
+    maxZoomOffset: 1,
+  });
 }
 
 /** Lazy warm-up: fetch low-zoom tiles for a single entry (no map mount). */

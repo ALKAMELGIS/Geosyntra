@@ -3,7 +3,9 @@ import {
   appendCollectionLayerLiveOptions,
   appendLayerLiveEvalLayerOptions,
   buildProviderLayerOptions,
+  filterRemoteSensingLayerOptionsForMapCanvas,
   isLayerLiveEvalOnlyLayerId,
+  isLayerLiveMapCanvasSupported,
   normalizeWmsLayerDisplayTitle,
   resolveDefaultAoiDrawWmsLayerId,
   resolveWmsTileLayerName,
@@ -148,16 +150,51 @@ describe('buildProviderLayerOptions', () => {
     expect(opts.some(o => o.id === 'DEFO')).toBe(true);
   });
 
-  it('appends all agro composite and delta layers for Layer Live', () => {
+  it('appends agro composite layers for Layer Live (no delta change layers)', () => {
     const wms = [{ name: 'NDVI', title: 'NDVI' }];
     const opts = appendLayerLiveEvalLayerOptions(
       buildProviderLayerOptions('sentinel-hub', wms, HIDDEN),
       'sentinel-hub',
     );
     expect(opts.some(o => o.id === 'VHS' && o.sciCode === 'VHS')).toBe(true);
-    expect(opts.some(o => o.id === 'DELTA_VHS' && o.sciCode === 'ΔVHS')).toBe(true);
-    expect(opts.filter(o => !o.nativeWms).length).toBeGreaterThanOrEqual(41);
+    expect(opts.some(o => o.id.startsWith('DELTA_'))).toBe(false);
+    expect(opts.filter(o => !o.nativeWms).length).toBeGreaterThanOrEqual(20);
     expect(isLayerLiveEvalOnlyLayerId('CPI')).toBe(true);
+    expect(opts.some(o => o.id === 'CCI' && o.sciCode === 'CCI')).toBe(true);
     expect(resolveWmsTileLayerName('VHS', wms)).toBe('NDVI');
+  });
+});
+
+describe('isLayerLiveMapCanvasSupported', () => {
+  const s2Wms = [
+    { name: 'NDVI', title: 'NDVI' },
+    { name: '2_FALSE_COLOR', title: 'False color' },
+    { name: 'NDSI', title: 'NDSI' },
+  ];
+
+  it('keeps spectral indices with evalscript support', () => {
+    expect(isLayerLiveMapCanvasSupported('NDVI', s2Wms, 'sentinel-2-l2a')).toBe(true);
+    expect(isLayerLiveMapCanvasSupported('VHS', s2Wms, 'sentinel-2-l2a')).toBe(true);
+  });
+
+  it('drops RGB / native-only WMS layers from Map Canvas pickers', () => {
+    expect(isLayerLiveMapCanvasSupported('2_FALSE_COLOR', s2Wms, 'sentinel-2-l2a')).toBe(false);
+    expect(isLayerLiveMapCanvasSupported('NDSI', s2Wms, 'sentinel-2-l2a')).toBe(false);
+  });
+
+  it('filters provider options to Map Canvas–ready layers only', () => {
+    const opts = appendLayerLiveEvalLayerOptions(
+      buildProviderLayerOptions('sentinel-hub', s2Wms, HIDDEN),
+      'sentinel-hub',
+    );
+    const filtered = filterRemoteSensingLayerOptionsForMapCanvas(
+      opts.filter(o => o.nativeWms || isLayerLiveEvalOnlyLayerId(o.id)),
+      s2Wms,
+      'sentinel-2-l2a',
+    );
+    expect(filtered.some(o => o.id === 'NDVI')).toBe(true);
+    expect(filtered.some(o => o.id === 'VHS')).toBe(true);
+    expect(filtered.some(o => o.id === '2_FALSE_COLOR')).toBe(false);
+    expect(filtered.some(o => o.id === 'NDSI')).toBe(false);
   });
 });

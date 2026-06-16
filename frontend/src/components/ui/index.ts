@@ -8,6 +8,8 @@ export { Textarea } from './Textarea'
 export { default as Globe } from './globe'
 export { GeoTechOrbitScene } from './GeoTechOrbitScene'
 export type { GeoTechOrbitSceneProps } from './GeoTechOrbitScene'
+export { GeosyntraAnimatedBrandMark } from './GeosyntraAnimatedBrandMark'
+export type { GeosyntraAnimatedBrandMarkProps } from './GeosyntraAnimatedBrandMark'
 export { ScrollGlobe, default as LandingPage } from './landing-page'
 export type {
   ScrollGlobeProps,

@@ -34,61 +34,34 @@
   margin: 0;
 }
 
-.si-map-wx-hist--inline .si-map-wx-hist__picker-row {
-  gap: 5px;
-  padding: 0 2px 0 0;
-  min-width: 0;
-}
-
-.si-map-wx-hist--inline .si-map-wx-hist__date-field {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex: 1 1 auto;
-  min-width: 0;
-  margin: 0;
-  padding: 2px 5px;
-  border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(0, 0, 0, 0.28);
-  cursor: pointer;
-}
-
-.si-map-wx-intel--light .si-map-wx-hist--inline .si-map-wx-hist__date-field {
-  background: rgba(255, 255, 255, 0.72);
-  border-color: rgba(15, 23, 42, 0.08);
-}
-
-.si-map-wx-hist--inline .si-map-wx-hist__date-field > i {
-  flex: 0 0 auto;
-  font-size: 7px;
-  line-height: 1;
-  color: rgba(212, 175, 106, 0.82);
-  opacity: 0.9;
-}
-
 .si-map-wx-hist--inline .si-map-wx-hist__date-input {
-  flex: 1 1 auto;
-  min-width: 0;
-  width: 100%;
+  flex: 0 1 auto;
+  min-width: 8.75rem;
+  width: auto;
   max-width: none;
-  height: 20px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  font-size: 8px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--si-wx-border, rgba(255, 255, 255, 0.1));
+  background: rgba(0, 0, 0, 0.28);
+  font-size: 11px;
   line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  color: var(--si-wx-text, rgba(248, 250, 252, 0.95));
   color-scheme: dark;
   appearance: none;
   -moz-appearance: textfield;
+  cursor: pointer;
 }
 
 .si-map-wx-intel--light .si-map-wx-hist--inline .si-map-wx-hist__date-input {
+  background: #fff;
+  color: #0f172a;
+  border-color: rgba(15, 23, 42, 0.12);
   color-scheme: light;
 }
 
 .si-map-wx-hist--inline .si-map-wx-hist__date-input::-webkit-calendar-picker-indicator {
-  display: none;
   opacity: 0;
   width: 0;
   height: 0;
@@ -99,13 +72,14 @@
 
 .si-map-wx-hist--inline .si-map-wx-hist__today-btn {
   flex: 0 0 auto;
-  height: 20px;
+  height: 32px;
   min-width: 0;
-  padding: 2px 5px;
-  font-size: 7px;
+  padding: 0 10px;
+  font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.03em;
-  border-radius: 5px;
+  letter-spacing: 0.02em;
+  border-radius: 8px;
+  white-space: nowrap;
 }
 
 .si-map-wx-hist__picker-label {

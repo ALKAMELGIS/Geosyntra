@@ -42,7 +42,7 @@ const DEFAULT_SPINE_W_PX = 38;
 
  * Renders children inside `.si-map-container` (fallback: map canvas container) so the toolbox
 
- * stacks above map-only overlays (layer swipe, legends) while pan/zoom still hit the WebGL canvas.
+ * stacks above map-only overlays (legends) while pan/zoom still hit the WebGL canvas.
 
  *
 
@@ -338,15 +338,19 @@ function buildMapCanvasHostStyle(shellRect: DOMRect | null): CSSProperties | nul
 
       top: metrics.top,
 
-      bottom: 0,
-
       insetInlineEnd: 0,
 
       insetInlineStart: 'auto',
 
-      left: Math.round(shellRect.left),
+      margin: 0,
 
-      width: Math.round(shellRect.width),
+      padding: 0,
+
+      width: 'max-content',
+
+      maxWidth: Math.round(shellRect.width),
+
+      height: 'auto',
 
       zIndex: 96,
 
@@ -360,29 +364,33 @@ function buildMapCanvasHostStyle(shellRect: DOMRect | null): CSSProperties | nul
 
 
 
-  return {
+    return {
 
-    position: 'fixed',
+      position: 'fixed',
 
-    top: metrics.top,
+      top: metrics.top,
 
-    bottom: 0,
+      insetInlineEnd: 0,
 
-    insetInlineEnd: 0,
+      insetInlineStart: 'auto',
 
-    insetInlineStart: 'auto',
+      margin: 0,
 
-    width: 'max-content',
+      padding: 0,
 
-    maxWidth: '100vw',
+      width: 'max-content',
 
-    zIndex: 96,
+      maxWidth: '100vw',
 
-    pointerEvents: 'none',
+      height: 'auto',
 
-    overflow: 'visible',
+      zIndex: 96,
 
-  };
+      pointerEvents: 'none',
+
+      overflow: 'visible',
+
+    };
 
 }
 

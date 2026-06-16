@@ -497,6 +497,7 @@ export function liveRasterIndexStats(
 export function roundIndexDisplay(v: number, layerId?: string): string {
   if (!Number.isFinite(v)) return '—';
   if (layerId === 'LST') return v.toFixed(1);
+  if (layerId && String(layerId).toUpperCase() === 'CCI') return v.toFixed(2);
   return v.toFixed(2);
 }
 

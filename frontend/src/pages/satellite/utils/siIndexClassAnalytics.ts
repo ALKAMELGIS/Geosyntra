@@ -92,7 +92,7 @@ export function buildIndexClassSegmentsFromRampStops(
   if (!intervals.length) return [];
 
   const profile = inferWmsEvalProfile(layerId);
-  const wmsLabels = siWmsIndexLegendClassLabels(profile, intervals.length);
+  const wmsLabels = siWmsIndexLegendClassLabels(profile, intervals.length, layerId);
   const ndwiLabels = segmentLabelsForLayer(layerId, intervals.length);
   const legend = legendClassesForIndex(layerId);
 

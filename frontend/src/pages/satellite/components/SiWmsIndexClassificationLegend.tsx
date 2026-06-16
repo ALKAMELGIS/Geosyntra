@@ -1,14 +1,9 @@
 import { useMemo } from 'react';
 import type { WmsAoiEvalProfile } from '../../../lib/sentinelHubWmsAoiClip';
-import {
-  SI_EVI_CLASSIFICATION_STOPS,
-  SI_GNDVI_CLASSIFICATION_STOPS,
-  SI_NDMI_CLASSIFICATION_STOPS,
-  SI_NDVI_CLASSIFICATION_STOPS,
-  SI_NDWI_CLASSIFICATION_STOPS,
-  type IndexRampStop,
-} from '../../../lib/siWmsIndexClassificationRamp';
+import type { IndexRampStop } from '../../../lib/siWmsIndexClassificationRamp';
 import type { SiIndexClassAnalytics } from '../utils/siIndexClassAnalytics';
+import { siWmsResolveCanonicalStops } from '../utils/siWmsSpectralClassification';
+import type { SiWmsSymbologyUiState } from '../utils/siWmsSymbologyModel';
 import { SiWmsUnifiedIndexLegend } from './SiWmsUnifiedIndexLegend';
 
 export const SI_WMS_SPECTRAL_LEGEND_OFFSET_LS = 'si-wms-spectral-legend-offset-v4';
@@ -30,47 +25,7 @@ export function clearSpectralLegendDockOffset(): void {
   }
 }
 
-const CLASSIFIED_PROFILES: readonly WmsAoiEvalProfile[] = [
-  'ndvi',
-  'ndwi',
-  'gndvi',
-  'ndmi',
-  'evi',
-  'savi',
-  'ndbi',
-  'lst',
-];
-
-export function siWmsShowsSpectralLegend(profile: WmsAoiEvalProfile): profile is Exclude<WmsAoiEvalProfile, 'native'> {
-  return profile !== 'native';
-}
-
-function isClassifiedProfile(p: WmsAoiEvalProfile): p is (typeof CLASSIFIED_PROFILES)[number] {
-  return (CLASSIFIED_PROFILES as readonly WmsAoiEvalProfile[]).includes(p);
-}
-
-function stopsForClassified(profile: (typeof CLASSIFIED_PROFILES)[number]): readonly IndexRampStop[] {
-  switch (profile) {
-    case 'ndvi':
-      return SI_NDVI_CLASSIFICATION_STOPS;
-    case 'ndwi':
-      return SI_NDWI_CLASSIFICATION_STOPS;
-    case 'gndvi':
-      return SI_GNDVI_CLASSIFICATION_STOPS;
-    case 'ndmi':
-      return SI_NDMI_CLASSIFICATION_STOPS;
-    case 'evi':
-      return SI_EVI_CLASSIFICATION_STOPS;
-    case 'savi':
-      return SI_NDVI_CLASSIFICATION_STOPS;
-    case 'ndbi':
-      return SI_NDWI_CLASSIFICATION_STOPS;
-    case 'lst':
-      return SI_NDMI_CLASSIFICATION_STOPS;
-    default:
-      return SI_NDVI_CLASSIFICATION_STOPS;
-  }
-}
+export { siWmsShowsSpectralLegend } from '../utils/siWmsLegendMode';
 
 export type SiWmsSpectralTemporalSnapshot = {
   min: number;
@@ -91,32 +46,46 @@ export type SiWmsSpectralLegendContext = {
 };
 
 export type SiWmsIndexClassificationLegendProps = {
+  layerId: string;
   profile: WmsAoiEvalProfile;
   layerLabel: string;
   context: SiWmsSpectralLegendContext;
   maxRows?: number;
+  symbologyPartial?: Partial<SiWmsSymbologyUiState>;
+  aoiFiniteValues?: readonly number[] | null;
   classifiedStopsOverride?: readonly IndexRampStop[] | null;
   classAnalytics?: SiIndexClassAnalytics | null;
+  dataDrivenLabels?: boolean;
+  stackIndex?: number;
+  offsetStorageKey?: string;
 };
 
 export function SiWmsIndexClassificationLegend({
+  layerId,
   profile,
   layerLabel,
   context,
   maxRows,
+  symbologyPartial,
+  aoiFiniteValues = null,
   classifiedStopsOverride = null,
   classAnalytics = null,
+  dataDrivenLabels = false,
+  stackIndex,
+  offsetStorageKey = SI_WMS_SPECTRAL_LEGEND_OFFSET_LS,
 }: SiWmsIndexClassificationLegendProps) {
   const classifiedStops = useMemo(() => {
-    if (isClassifiedProfile(profile)) {
-      return classifiedStopsOverride && classifiedStopsOverride.length >= 2
-        ? classifiedStopsOverride
-        : stopsForClassified(profile);
+    if (classifiedStopsOverride && classifiedStopsOverride.length >= 2) {
+      return classifiedStopsOverride;
     }
-    return null;
-  }, [profile, classifiedStopsOverride]);
+    return siWmsResolveCanonicalStops(layerId, symbologyPartial, aoiFiniteValues);
+  }, [layerId, symbologyPartial, aoiFiniteValues, classifiedStopsOverride]);
 
-  const customSymbology = Boolean(classifiedStopsOverride && classifiedStopsOverride.length >= 2);
+  const customSymbology = Boolean(
+    symbologyPartial != null &&
+      Object.keys(symbologyPartial).length > 0 &&
+      symbologyPartial.autoScientific === false,
+  );
   const isComposite =
     profile === 'true_color' || profile === 'false_color' || profile === 'swir' || profile === 'generic_rgb';
 
@@ -129,9 +98,11 @@ export function SiWmsIndexClassificationLegend({
       classifiedStops={isComposite ? null : classifiedStops}
       maxRows={maxRows}
       customSymbology={customSymbology}
-      offsetStorageKey={SI_WMS_SPECTRAL_LEGEND_OFFSET_LS}
+      offsetStorageKey={offsetStorageKey}
       ariaLabel="Spectral layer legend"
       classAnalytics={classAnalytics}
+      stackIndex={stackIndex}
+      dataDrivenLabels={dataDrivenLabels || Boolean(aoiFiniteValues?.length)}
     />
   );
 }

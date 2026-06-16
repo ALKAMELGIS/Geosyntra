@@ -171,29 +171,31 @@ export function inferWmsEvalProfile(layerName: string): WmsAoiEvalProfile {
   return 'native';
 }
 
-/** Shared piecewise-linear ramp (Sentinel Hub V3 process API JS). */
+/** Shared discrete classification ramp (Sentinel Hub V3 process API JS). */
 const EVAL_CLASSIFIED_RAMP_HELPERS = `
 function __hexRgb(h) {
   return [((h >> 16) & 255) / 255.0, ((h >> 8) & 255) / 255.0, (h & 255) / 255.0];
 }
-function __lerp3(a, b, t) {
-  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
-}
-function __rampRgb(t, stops) {
+/** Discrete classified raster — one flat color per class interval (analytical only). */
+function __classifiedRampRgb(t, stops) {
   var n = stops.length;
+  if (n < 2) return __hexRgb(stops[0][1]);
   if (t <= stops[0][0]) return __hexRgb(stops[0][1]);
-  if (t >= stops[n - 1][0]) return __hexRgb(stops[n - 1][1]);
   for (var i = 1; i < n; i++) {
-    if (t <= stops[i][0]) {
-      var t0 = stops[i - 1][0];
-      var t1 = stops[i][0];
-      var f = (t - t0) / (t1 - t0 + 1e-12);
-      if (f < 0) f = 0;
-      if (f > 1) f = 1;
-      return __lerp3(__hexRgb(stops[i - 1][1]), __hexRgb(stops[i][1]), f);
-    }
+    if (t <= stops[i][0]) return __hexRgb(stops[i][1]);
   }
   return __hexRgb(stops[n - 1][1]);
+}
+`;
+
+/** NDWI-assisted water tint when vegetation index is ambiguous (near-zero NDVI + wet pixel). */
+const EVAL_ADAPTIVE_WATER_TINT = `
+function __adaptiveWaterTint(idx, widx, stops) {
+  if (widx > 0.12 && idx < 0.12) {
+    var t = -0.12 - (widx > 0.45 ? 0.38 : widx * 0.45);
+    return __classifiedRampRgb(t, stops);
+  }
+  return __classifiedRampRgb(idx, stops);
 }
 `;
 
@@ -283,17 +285,20 @@ function evaluatePixel(s) {
       return `//VERSION=3
 function setup() {
   return {
-    input: ["B04", "B08", "dataMask"],
+    input: ["B03", "B04", "B08", "dataMask"],
     output: { bands: 4, sampleType: "AUTO" }
   };
 }
 ${EVAL_CLASSIFIED_RAMP_HELPERS}
+${EVAL_ADAPTIVE_WATER_TINT}
 function evaluatePixel(s) {
   var d = s.B08 + s.B04;
   var idx = d > 1e-6 ? (s.B08 - s.B04) / d : -1;
+  var dw = s.B08 + s.B03;
+  var widx = dw > 1e-6 ? (s.B03 - s.B08) / dw : -1;
   ${alphaFromIndex('idx')}
   var stops = ${stops};
-  var c = __rampRgb(idx, stops);
+  var c = __adaptiveWaterTint(idx, widx, stops);
   return [c[0], c[1], c[2], __a];
 }`;
     }
@@ -307,12 +312,15 @@ function setup() {
   };
 }
 ${EVAL_CLASSIFIED_RAMP_HELPERS}
+${EVAL_ADAPTIVE_WATER_TINT}
 function evaluatePixel(s) {
   var d = s.B08 + s.B03;
   var idx = d > 1e-6 ? (s.B08 - s.B03) / d : -1;
+  var dw = s.B08 + s.B03;
+  var widx = dw > 1e-6 ? (s.B03 - s.B08) / dw : -1;
   ${alphaFromIndex('idx')}
   var stops = ${stops};
-  var c = __rampRgb(idx, stops);
+  var c = __adaptiveWaterTint(idx, widx, stops);
   return [c[0], c[1], c[2], __a];
 }`;
     }
@@ -331,7 +339,7 @@ function evaluatePixel(s) {
   var idx = d > 1e-6 ? (s.B08 - s.B11) / d : -1;
   ${alphaFromIndex('idx')}
   var stops = ${stops};
-  var c = __rampRgb(idx, stops);
+  var c = __classifiedRampRgb(idx, stops);
   return [c[0], c[1], c[2], __a];
 }`;
     }
@@ -350,7 +358,7 @@ function evaluatePixel(s) {
   var idx = d > 1e-6 ? (s.B03 - s.B08) / d : -1;
   ${alphaFromIndex('idx')}
   var stops = ${stops};
-  var c = __rampRgb(idx, stops);
+  var c = __classifiedRampRgb(idx, stops);
   return [c[0], c[1], c[2], __a];
 }`;
     }
@@ -359,18 +367,21 @@ function evaluatePixel(s) {
       return `//VERSION=3
 function setup() {
   return {
-    input: ["B02", "B04", "B08", "dataMask"],
+    input: ["B02", "B03", "B04", "B08", "dataMask"],
     output: { bands: 4, sampleType: "AUTO" }
   };
 }
 ${EVAL_CLASSIFIED_RAMP_HELPERS}
+${EVAL_ADAPTIVE_WATER_TINT}
 function evaluatePixel(s) {
   var den = s.B08 + 6 * s.B04 - 7.5 * s.B02 + 1;
   var raw = den > 1e-6 ? 2.5 * ((s.B08 - s.B04) / den) : 0;
   var idx = raw < -1 ? -1 : (raw > 1 ? 1 : raw);
+  var dw = s.B08 + s.B03;
+  var widx = dw > 1e-6 ? (s.B03 - s.B08) / dw : -1;
   ${alphaFromIndex('idx')}
   var stops = ${stops};
-  var c = __rampRgb(idx, stops);
+  var c = __adaptiveWaterTint(idx, widx, stops);
   return [c[0], c[1], c[2], __a];
 }`;
     }
@@ -379,17 +390,20 @@ function evaluatePixel(s) {
       return `//VERSION=3
 function setup() {
   return {
-    input: ["B04", "B08", "dataMask"],
+    input: ["B03", "B04", "B08", "dataMask"],
     output: { bands: 4, sampleType: "AUTO" }
   };
 }
 ${EVAL_CLASSIFIED_RAMP_HELPERS}
+${EVAL_ADAPTIVE_WATER_TINT}
 function evaluatePixel(s) {
   var d = s.B08 + s.B04 + 0.5;
   var idx = d > 1e-6 ? 1.5 * (s.B08 - s.B04) / d : -1;
+  var dw = s.B08 + s.B03;
+  var widx = dw > 1e-6 ? (s.B03 - s.B08) / dw : -1;
   ${alphaFromIndex('idx')}
   var stops = ${stops};
-  var c = __rampRgb(idx, stops);
+  var c = __adaptiveWaterTint(idx, widx, stops);
   return [c[0], c[1], c[2], __a];
 }`;
     }
@@ -408,7 +422,7 @@ function evaluatePixel(s) {
   var idx = d > 1e-6 ? (s.B11 - s.B08) / d : -1;
   ${alphaFromIndex('idx')}
   var stops = ${stops};
-  var c = __rampRgb(idx, stops);
+  var c = __classifiedRampRgb(idx, stops);
   return [c[0], c[1], c[2], __a];
 }`;
     }
@@ -428,7 +442,7 @@ function evaluatePixel(s) {
   if (idx > 1) idx = 1;
   ${alphaFromIndex('idx')}
   var stops = ${stops};
-  var c = __rampRgb(idx, stops);
+  var c = __classifiedRampRgb(idx, stops);
   return [c[0], c[1], c[2], __a];
 }`;
     }
@@ -440,7 +454,13 @@ function evaluatePixel(s) {
 export type WmsIndexStatsDecodeRange = { min: number; max: number };
 
 /** Decode range for raw index values encoded in WMS stats GetMap (R channel). */
-export function wmsIndexStatsDecodeRange(profile: WmsAoiEvalProfile): WmsIndexStatsDecodeRange | null {
+export function wmsIndexStatsDecodeRange(
+  profile: WmsAoiEvalProfile,
+  layerName = '',
+): WmsIndexStatsDecodeRange | null {
+  if (profile === 'agro_composite' && String(layerName).trim().toUpperCase() === 'CCI') {
+    return { min: -0.2, max: 1.0 };
+  }
   switch (profile) {
     case 'ndvi':
     case 'gndvi':

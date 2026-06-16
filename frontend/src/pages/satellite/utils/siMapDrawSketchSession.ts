@@ -69,7 +69,7 @@ export function siMapDrawAssistHintForShape(
     case 'rectangle':
       return `Draw: drag for a box. ${rotateHint} Esc cancels.`;
     case 'circle':
-      return `Draw: drag for radius. ${rotateHint} Esc cancels.`;
+      return `Touch: long-press for center, drag radius, release to save. Mouse: drag then Enter to apply. ${rotateHint} Esc cancels.`;
     case 'freehand':
       return 'Draw: click vertices; right-click or Enter to close. Esc cancels.';
     case 'polygon':

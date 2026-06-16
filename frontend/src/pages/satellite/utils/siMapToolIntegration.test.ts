@@ -75,7 +75,6 @@ describe('siMapToolIntegration', () => {
       mapWeatherOpen: false,
       mapSunSkyOpen: false,
       mapCropHealthOpen: false,
-      mapLayerSwipeOpen: false,
       elevProfileOpen: false,
       elevProfileSketching: false,
       routeMapPickTarget: null,

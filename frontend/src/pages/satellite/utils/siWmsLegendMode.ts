@@ -12,6 +12,8 @@ const CLASSIFIED_PROFILES = new Set<WmsAoiEvalProfile>([
   'savi',
   'ndbi',
   'lst',
+  'agro_composite',
+  'agro_delta',
 ]);
 
 export function isClassifiedWmsProfile(profile: WmsAoiEvalProfile): boolean {
@@ -19,6 +21,10 @@ export function isClassifiedWmsProfile(profile: WmsAoiEvalProfile): boolean {
 }
 
 export function wmsProfileShowsLegend(profile: WmsAoiEvalProfile): boolean {
+  return profile !== 'native';
+}
+
+export function siWmsShowsSpectralLegend(profile: WmsAoiEvalProfile): profile is Exclude<WmsAoiEvalProfile, 'native'> {
   return profile !== 'native';
 }
 

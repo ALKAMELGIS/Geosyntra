@@ -6,8 +6,8 @@ export type SiMapLeftPopoutSlot =
   | 'spectral-legend'
   | 'weather'
   | 'crop-health'
-  | 'layer-swipe'
-  | 'quick-dashboard';
+  | 'quick-dashboard'
+  | 'layer-swipe';
 
 export type MapCanvasLayout = {
   mapR: DOMRect;
@@ -28,8 +28,8 @@ const SLOT_TOP_BIAS: Record<SiMapLeftPopoutSlot, number> = {
   'route-map': 0.06,
   'weather': 0.16,
   'crop-health': 0.24,
-  'layer-swipe': 0.28,
   'quick-dashboard': 0.12,
+  'layer-swipe': 0.2,
   'aoi-timeline': 0.34,
   'spectral-legend': 0.58,
 };
@@ -171,7 +171,20 @@ export function siMapLeftPopoutCenterFixedPosition(
   return { left: mapR.left + pad, top };
 }
 
-/** Clamp absolute-positioned panel inside map canvas (for `.si-map-container` children). */
+/** Viewport-fixed coords → map-canvas local (for absolute panels inside `.si-map-container`). */
+export function siMapCanvasLocalFromViewport(left: number, top: number): { left: number; top: number } {
+  const layout = readMapCanvasLayout();
+  if (!layout) return { left, top };
+  return { left: left - layout.mapR.left, top: top - layout.mapR.top };
+}
+
+/** Map-canvas local → viewport-fixed coords. */
+export function siMapViewportFromCanvasLocal(left: number, top: number): { left: number; top: number } {
+  const layout = readMapCanvasLayout();
+  if (!layout) return { left, top };
+  return { left: left + layout.mapR.left, top: top + layout.mapR.top };
+}
+
 export function clampAbsolutePanelInMapCanvas(
   el: HTMLElement,
   left: number,

@@ -215,6 +215,28 @@ export function wmsTimeExtentForMode(params: WmsTimeExtentForModeParams): { star
   return clampWmsExtent(start, end, params.opts);
 }
 
+/**
+ * Agro delta layers need a multi-day Sentinel Hub `TIME=start/end` window so
+ * `idx2 - idx1` is spatially varying. Single-day instant mode yields Δ≈0 → flat color.
+ */
+export function wmsTimeExtentForAgroDeltaLayer(
+  focusIso: string,
+  seriesStartIso: string,
+  seriesEndIso: string,
+  opts?: WmsTimeExtentOptions,
+): { start: string; end: string } {
+  const focus = focusIso.slice(0, 10);
+  let start = seriesStartIso.trim().slice(0, 10);
+  const seriesEnd = seriesEndIso.trim().slice(0, 10);
+  if (!start || start === focus) {
+    start = addTimelineInterval(focus, 'month', 1, -1);
+  }
+  if (seriesEnd && start > seriesEnd && seriesEnd !== focus) {
+    start = seriesEnd;
+  }
+  return clampWmsExtent(start, focus, opts);
+}
+
 /** ISO stops from series start → end at the configured interval (default week preserves 7-day steps). */
 export function buildTimelineStops(
   seriesStartIso: string,

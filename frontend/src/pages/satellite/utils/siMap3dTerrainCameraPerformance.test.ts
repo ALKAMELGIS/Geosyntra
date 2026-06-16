@@ -16,7 +16,7 @@ describe('siMap3dTerrainCameraPerformance', () => {
     resetSiMap3dTerrainCameraPerformanceForTests();
   });
 
-  it('raises Esri SSE while camera moves and restores on move end', async () => {
+  it('keeps Esri SSE stable while camera moves and repaints on move end', async () => {
     const listeners = new Map<string, Set<() => void>>();
     const map = {
       on: vi.fn((event: string, fn: () => void) => {
@@ -44,7 +44,7 @@ describe('siMap3dTerrainCameraPerformance', () => {
 
     listeners.get('movestart')?.forEach(fn => fn());
     expect(isSiMap3dTerrainCameraMoving()).toBe(true);
-    expect(applied[applied.length - 1]).toBe(SI_ESRI_3D_TERRAIN_SSE_MOVING);
+    expect(applied[applied.length - 1]).toBe(SI_ESRI_3D_TERRAIN_SSE_IDLE);
 
     let idleRan = false;
     siMap3dTerrainRunWhenCameraIdle(() => {
@@ -66,7 +66,7 @@ describe('siMap3dTerrainCameraPerformance', () => {
     uninstallSiMap3dTerrainCameraPerformance(map as never);
   });
 
-  it('defers Sentinel WMS tile sync until camera stops', () => {
+  it('defers Sentinel WMS tile sync while camera moves and flushes on move end', () => {
     const listeners = new Map<string, Set<() => void>>();
     const map = {
       on: vi.fn((event: string, fn: () => void) => {

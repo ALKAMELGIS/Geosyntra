@@ -1,8 +1,10 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import {
   bindSiMapLayerTransitionRef,
+  bindSiMapProjectionSwitchRef,
   getSiMapLayerTransitionBlendToward3d,
   isSiMapElevationTransitionActive,
+  isSiMapViewTransitionActive,
   resetSiMapLayerTransitionBlend,
   resetSiMapLayerTransitionGuardForTests,
   setSiMapLayerTransitionBlendToward3d,
@@ -24,6 +26,18 @@ describe('siMapLayerTransitionGuard', () => {
     bindSiMapLayerTransitionRef(ref);
     expect(isSiMapElevationTransitionActive()).toBe(false);
     ref.current = true;
+    expect(isSiMapElevationTransitionActive()).toBe(true);
+    expect(isSiMapViewTransitionActive()).toBe(true);
+    ref.current = false;
+    expect(isSiMapViewTransitionActive()).toBe(false);
+  });
+
+  it('tracks projection switch ref', () => {
+    const projectionRef = { current: false };
+    bindSiMapProjectionSwitchRef(projectionRef);
+    expect(isSiMapViewTransitionActive()).toBe(false);
+    projectionRef.current = true;
+    expect(isSiMapViewTransitionActive()).toBe(true);
     expect(isSiMapElevationTransitionActive()).toBe(true);
   });
 

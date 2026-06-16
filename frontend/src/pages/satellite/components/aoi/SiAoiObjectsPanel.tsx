@@ -107,8 +107,8 @@ export function SiAoiObjectsPanel({
           <button
             type="button"
             className="si-aoi-draw-tool si-aoi-draw-tool--danger"
-            title="Clear drawing"
-            aria-label="Clear drawing"
+            title="Clear all drawings"
+            aria-label="Clear all drawings"
             disabled={!hasClearableDrawing}
             onClick={onClearDrawing}
           >

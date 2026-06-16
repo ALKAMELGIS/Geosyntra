@@ -129,9 +129,6 @@ const GOOGLE_EARTH_STYLE = rasterStyleFromTiles([
 
 /** Esri Living Atlas World Terrain Base (shaded relief + bathymetry). */
 export const ESRI_WORLD_TERRAIN_BASE_URL = esriTile('World_Terrain_Base')
-const ESRI_WORLD_TERRAIN_STYLE = rasterStyleFromTiles([
-  { url: ESRI_WORLD_TERRAIN_BASE_URL, attribution: ATTR_ESRI },
-])
 
 /** @deprecated Mapbox-hosted basemaps removed — option kept for call-site compatibility. */
 export type BuildBasemapCatalogOptions = {
@@ -165,13 +162,6 @@ export function buildBasemapCatalog(_mapboxToken = '', _options?: BuildBasemapCa
       label: 'OpenStreetMap',
       mapboxStyle: OSM_RASTER,
       leafletLayers: [{ url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', attribution: ATTR_OSM }],
-    },
-    {
-      id: 'esri-world-terrain',
-      label: 'World Terrain (Esri)',
-      mapboxStyle: ESRI_WORLD_TERRAIN_STYLE,
-      leafletLayers: [{ url: ESRI_WORLD_TERRAIN_BASE_URL, attribution: ATTR_ESRI }],
-      badges: ['3D'],
     },
     {
       id: 'esri-imagery-hybrid',
@@ -365,9 +355,10 @@ export function resolveBasemapId(id: string): string {
     dark: 'esri-dark-gray',
     topographic: 'esri-topo',
     topo: 'esri-topo',
-    terrain: 'esri-world-terrain',
-    'world-terrain': 'esri-world-terrain',
-    'esri-world-terrain-base': 'esri-world-terrain',
+    terrain: 'esri-terrain-labels',
+    'world-terrain': 'esri-terrain-labels',
+    'esri-world-terrain-base': 'esri-terrain-labels',
+    'esri-world-terrain': 'esri-terrain-labels',
     EsriWorldElevationTerrain: 'esri',
     'esri-world-elevation': 'esri',
     'esri-world-elevation-terrain': 'esri',

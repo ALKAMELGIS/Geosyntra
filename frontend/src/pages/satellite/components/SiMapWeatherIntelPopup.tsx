@@ -27,7 +27,6 @@ import {
   type OpenMeteoTemporalComparison,
 } from '../../../lib/openMeteoMapWeatherHistorical';
 import { wxHistoryOpenMeteoLatestEndDate } from '../../../lib/openWeatherTimeHistory';
-import { SiMapWeatherHistoricalSection } from './SiMapWeatherHistoricalSection';
 import { SiMapWeatherTemporalComparison } from './SiMapWeatherTemporalComparison';
 import type { SiMapWeatherPanelTheme } from '../utils/siMapWeatherTypes';
 import {
@@ -178,6 +177,7 @@ function SiMapWeatherIntelPopupPanel({
   const maxHistoricalDate = wxHistoryOpenMeteoLatestEndDate();
   const viewingToday = isOpenMeteoViewDateToday(selectedDate);
   const [searchDraft, setSearchDraft] = useState('');
+  const dateInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const pinKey = `${pin.lng.toFixed(5)}:${pin.lat.toFixed(5)}`;
 
@@ -634,6 +634,16 @@ function SiMapWeatherIntelPopupPanel({
     ? panelSize ?? defaultWxIntelPanelSize(layout, historyOpen)
     : { width: layoutW, height: layoutMaxH };
 
+  const openHeadDatePicker = useCallback(() => {
+    const el = dateInputRef.current;
+    if (!el) return;
+    try {
+      el.showPicker?.();
+    } catch {
+      el.click();
+    }
+  }, []);
+
   const shellStyle = {
     left: pos.left,
     top: pos.top,
@@ -703,6 +713,32 @@ function SiMapWeatherIntelPopupPanel({
             >
               <i className={`fa-solid fa-rotate-right${loading ? ' fa-spin' : ''}`} aria-hidden />
             </button>
+            <span className="si-map-wx-intel__head-date-wrap">
+              <button
+                type="button"
+                className={`si-map-wx-intel__icon-btn si-map-wx-intel__icon-btn--date${!viewingToday ? ' is-active' : ''}`}
+                title={viewingToday ? 'Pick historical date (double-click for today)' : `Historical · ${selectedDate}`}
+                aria-label="Pick historical date"
+                onClick={openHeadDatePicker}
+                onDoubleClick={e => {
+                  e.preventDefault();
+                  setSelectedDate(wxHistoryOpenMeteoLatestEndDate());
+                }}
+              >
+                <i className="fa-regular fa-calendar" aria-hidden />
+              </button>
+              <input
+                ref={dateInputRef}
+                type="date"
+                className="si-map-wx-intel__head-date-input"
+                value={selectedDate}
+                min={OPEN_METEO_HISTORICAL_MIN_DATE}
+                max={maxHistoricalDate}
+                onChange={e => setSelectedDate(e.target.value)}
+                tabIndex={-1}
+                aria-hidden
+              />
+            </span>
             <button type="button" className="si-map-wx-intel__icon-btn" aria-label="Close" onClick={onClose}>
               <i className="fa-solid fa-xmark" aria-hidden />
             </button>
@@ -725,36 +761,31 @@ function SiMapWeatherIntelPopupPanel({
       <div className="si-map-wx-intel__scroll">
         <div className="si-map-wx-intel__toolbar">
           <form
-            className="si-map-wx-intel__search si-map-wx-intel__search--toolbar"
+            className="si-map-wx-intel__toolbar-search"
             onSubmit={e => {
               e.preventDefault();
               void runSearch();
             }}
           >
-            <i className="fa-solid fa-magnifying-glass" aria-hidden />
+            <span className="si-map-wx-intel__toolbar-icon" aria-hidden>
+              <i className="fa-solid fa-magnifying-glass" />
+            </span>
             <input
               type="search"
+              className="si-map-wx-intel__toolbar-search-input"
               value={searchDraft}
               onChange={e => setSearchDraft(e.target.value)}
               placeholder="Place or lat,lng"
               aria-label="Search location for weather"
             />
-            <button type="submit" disabled={loading || !searchDraft.trim()}>
+            <button
+              type="submit"
+              className="si-map-wx-intel__toolbar-go"
+              disabled={loading || !searchDraft.trim()}
+            >
               Go
             </button>
           </form>
-
-          <span className="si-map-wx-intel__toolbar-divider" aria-hidden />
-
-          <SiMapWeatherHistoricalSection
-            inline
-            selectedDate={selectedDate}
-            maxDate={maxHistoricalDate}
-            minDate={OPEN_METEO_HISTORICAL_MIN_DATE}
-            isToday={viewingToday}
-            onDateChange={setSelectedDate}
-            onJumpToday={() => setSelectedDate(wxHistoryOpenMeteoLatestEndDate())}
-          />
         </div>
 
         {error ? <p className="si-map-wx-intel__error">{error}</p> : null}
