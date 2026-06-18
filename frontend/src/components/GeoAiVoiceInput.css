@@ -1,0 +1,133 @@
+/* Geo AI voice mic — dark glass squircle (matches map toolbox aesthetic) */
+.geo-ai-voice-input {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.geo-ai-voice-input__mic {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 11px;
+  background: rgba(8, 12, 22, 0.72);
+  color: #f8fafc;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+    0 4px 14px rgba(2, 6, 23, 0.35);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    transform 0.15s ease;
+}
+
+.geo-ai-voice-input__mic i {
+  font-size: 14px;
+  position: relative;
+  z-index: 1;
+}
+
+.geo-ai-voice-input__mic:hover:not(:disabled) {
+  border-color: rgba(56, 189, 248, 0.4);
+  background: rgba(30, 41, 59, 0.85);
+  transform: translateY(-1px);
+}
+
+.geo-ai-voice-input__mic--active {
+  border-color: rgba(56, 189, 248, 0.55);
+  background: rgba(14, 116, 144, 0.35);
+  color: #e0f2fe;
+}
+
+.geo-ai-voice-input__mic--live {
+  border-color: rgba(248, 113, 113, 0.55);
+  background: rgba(127, 29, 29, 0.45);
+  color: #fecaca;
+}
+
+.geo-ai-voice-input__mic--muted {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.geo-ai-voice-input__pulse {
+  position: absolute;
+  inset: -3px;
+  border-radius: 13px;
+  border: 2px solid rgba(56, 189, 248, 0.45);
+  animation: geo-ai-voice-ring 1.2s ease-out infinite;
+  pointer-events: none;
+}
+
+.geo-ai-voice-input__mic--live .geo-ai-voice-input__pulse {
+  border-color: rgba(248, 113, 113, 0.55);
+  animation: geo-ai-voice-ring-fast 0.75s ease-out infinite;
+}
+
+@keyframes geo-ai-voice-ring {
+  0% {
+    transform: scale(0.92);
+    opacity: 0.85;
+  }
+  100% {
+    transform: scale(1.15);
+    opacity: 0;
+  }
+}
+
+@keyframes geo-ai-voice-ring-fast {
+  0% {
+    transform: scale(0.94);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.2);
+    opacity: 0;
+  }
+}
+
+.geo-ai-voice-input__lang {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(15, 23, 42, 0.42);
+  color: #cbd5e1;
+  font-size: 9px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.geo-ai-voice-input__lang:hover:not(:disabled) {
+  border-color: rgba(56, 189, 248, 0.35);
+  color: #fff;
+}
+
+.geo-ai-voice-input__error {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 11px;
+  color: #fca5a5;
+}
+
+html[data-theme='light'] .geo-ai-voice-input__mic {
+  background: rgba(255, 255, 255, 0.88);
+  color: #0f172a;
+  border-color: rgba(15, 23, 42, 0.12);
+}
+
+html[data-theme='light'] .geo-ai-voice-input__lang {
+  background: rgba(248, 250, 252, 0.95);
+  color: #334155;
+}

@@ -1,0 +1,62 @@
+/* ScrollGlobe — section cross-fade + lazy trailing loader */
+
+.gs-scroll-globe-section-panel {
+  will-change: opacity, transform;
+}
+
+.gs-scroll-globe-trailing__loader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: min(42vh, 360px);
+  padding: 2.5rem 1rem;
+}
+
+.gs-scroll-globe-trailing__loader-bar {
+  display: block;
+  width: min(8rem, 42vw);
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(56, 189, 248, 0.35) 35%,
+    rgba(125, 211, 252, 0.95) 50%,
+    rgba(56, 189, 248, 0.35) 65%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: gsScrollGlobeLoaderSweep 1.1s ease-in-out infinite;
+}
+
+html[data-theme='light'] .gs-scroll-globe-trailing__loader-bar {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(14, 165, 233, 0.22) 35%,
+    rgba(2, 132, 199, 0.85) 50%,
+    rgba(14, 165, 233, 0.22) 65%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+}
+
+@keyframes gsScrollGlobeLoaderSweep {
+  0% {
+    background-position: 120% 0;
+  }
+  100% {
+    background-position: -20% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gs-scroll-globe-section-panel {
+    will-change: auto;
+  }
+
+  .gs-scroll-globe-trailing__loader-bar {
+    animation: none;
+    opacity: 0.65;
+  }
+}

@@ -1,0 +1,80 @@
+.si-contour-cls-legend-dock {
+  position: absolute;
+  left: max(12px, env(safe-area-inset-left, 0px));
+  bottom: calc(var(--si-map-bottom-safe, 12px) + var(--si-map-bottom-reserve, 0px) + 120px);
+  z-index: 710;
+  pointer-events: none;
+}
+
+:root[dir='rtl'] .si-contour-cls-legend-dock {
+  left: auto;
+  right: max(12px, env(safe-area-inset-right, 0px));
+}
+
+.si-contour-cls-legend {
+  pointer-events: auto;
+  min-width: 168px;
+  max-width: 220px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.07) 0%, transparent 40%),
+    linear-gradient(180deg, rgba(16, 16, 19, 0.92) 0%, rgba(0, 0, 0, 0.96) 100%);
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  color: #f2f3f8;
+  font-size: 11px;
+}
+
+.si-contour-cls-legend__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.si-contour-cls-legend__head i {
+  color: #7dd3fc;
+  font-size: 14px;
+}
+
+.si-contour-cls-legend__head strong {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.si-contour-cls-legend__head span {
+  display: block;
+  font-size: 10px;
+  color: rgba(214, 216, 224, 0.72);
+}
+
+.si-contour-cls-legend__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.si-contour-cls-legend__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.si-contour-cls-legend__swatch {
+  width: 14px;
+  height: 4px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.si-contour-cls-legend__label {
+  line-height: 1.3;
+  color: rgba(242, 243, 248, 0.9);
+}

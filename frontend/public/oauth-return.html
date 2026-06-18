@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Geosyntra — Sign-in</title>
+  </head>
+  <body>
+    <p style="font-family: system-ui, sans-serif; color: #64748b; padding: 24px">Completing sign-in…</p>
+    <script>
+      ;(function () {
+        var search = window.location.search || ''
+        var params = new URLSearchParams(search)
+        var payload = {
+          type: 'geosyntra-oauth-return',
+          code: params.get('code') || '',
+          state: params.get('state') || '',
+          error: params.get('error') || params.get('error_description') || '',
+        }
+
+        if (window.opener && !window.opener.closed) {
+          try {
+            window.opener.postMessage(payload, window.location.origin)
+          } catch (e) {
+            /* ignore */
+          }
+          window.close()
+          return
+        }
+
+        var path = window.location.pathname || ''
+        var base = path.replace(/\/oauth-return\.html$/i, '') || ''
+        var basePath = base.endsWith('/') ? base : base + '/'
+        window.location.replace(window.location.origin + basePath + '?start=1&wizard=auth&mode=signin' + search + '#/')
+      })()
+    </script>
+  </body>
+</html>

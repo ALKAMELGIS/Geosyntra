@@ -1,0 +1,59 @@
+.si-route-nav-hud {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 15;
+  width: min(520px, calc(100% - 48px));
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(14px);
+  pointer-events: auto;
+}
+
+.si-route-nav-hud__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.si-route-nav-hud__step {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #f8fafc;
+  line-height: 1.35;
+}
+
+.si-route-nav-hud__meta {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.si-route-nav-hud__actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.si-route-nav-hud__btn {
+  border: none;
+  border-radius: 10px;
+  padding: 8px 12px;
+  background: rgba(51, 65, 85, 0.8);
+  color: #e2e8f0;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.si-route-nav-hud__btn--stop {
+  background: #dc2626;
+  color: #fff;
+}

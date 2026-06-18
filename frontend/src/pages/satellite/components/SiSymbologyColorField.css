@@ -1,0 +1,100 @@
+.si-sym-color-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.si-sym-color-field__label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(203, 213, 225, 0.88);
+}
+
+.si-sym-color-field__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.si-sym-color-field__swatch {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 32px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: var(--si-sym-swatch, #64748b);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 6px 16px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.si-sym-color-field__swatch:hover {
+  transform: scale(1.04);
+  border-color: rgba(125, 211, 252, 0.55);
+}
+
+.si-sym-color-field__native {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.si-sym-color-field__hex {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.38);
+  color: rgba(248, 250, 252, 0.96);
+  font-size: 12px;
+  font-weight: 650;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0.04em;
+  outline: none;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.si-sym-color-field__hex:focus-visible {
+  border-color: rgba(125, 211, 252, 0.55);
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.22);
+}
+
+.si-sym-color-field__presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.si-sym-color-field__preset {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: var(--si-sym-preset, #64748b);
+  cursor: pointer;
+  padding: 0;
+  transition:
+    transform 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.si-sym-color-field__preset:hover {
+  transform: scale(1.12);
+  border-color: rgba(255, 255, 255, 0.45);
+  box-shadow: 0 0 0 2px rgba(125, 211, 252, 0.35);
+}

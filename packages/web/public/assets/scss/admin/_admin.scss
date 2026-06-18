@@ -1,0 +1,366 @@
+@use "../tokens";
+
+.gs-sidebar--admin {
+  border-right-color: rgba(56, 189, 248, 0.18);
+}
+
+.gs-admin-page {
+  max-width: 1100px;
+}
+
+.gs-admin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.85rem;
+}
+
+.gs-admin-tile {
+  display: block;
+  padding: 1rem 1.05rem;
+  border-radius: var(--gs-radius);
+  border: 1px solid var(--gs-border);
+  background: var(--gs-glass-panel);
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.gs-admin-tile:hover {
+  border-color: rgba(56, 189, 248, 0.35);
+  transform: translateY(-1px);
+}
+
+.gs-admin-tile h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+}
+
+.gs-admin-tile p {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--gs-muted);
+}
+
+.gs-admin-form {
+  margin-bottom: 1rem;
+}
+
+.gs-form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+}
+
+.gs-field--grow {
+  flex: 1 1 220px;
+}
+
+.gs-card-title {
+  margin: 0 0 0.75rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.gs-table-wrap {
+  overflow-x: auto;
+  margin-top: 0.5rem;
+}
+
+.gs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.gs-table th,
+.gs-table td {
+  padding: 0.55rem 0.65rem;
+  border-bottom: 1px solid var(--gs-border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.gs-table th {
+  color: var(--gs-muted);
+  font-weight: 600;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.gs-table-muted {
+  color: var(--gs-muted);
+  font-size: 0.82rem;
+}
+
+.gs-table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.gs-table input,
+.gs-table select {
+  width: 100%;
+  min-width: 5rem;
+  border-radius: 0.45rem;
+  border: 1px solid var(--gs-border-strong);
+  background: rgba(8, 12, 20, 0.55);
+  color: var(--gs-text);
+  padding: 0.35rem 0.45rem;
+  font-size: 0.84rem;
+}
+
+.gs-badge--active {
+  background: rgba(34, 197, 94, 0.14);
+  color: #86efac;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+}
+
+.gs-badge--draft {
+  background: rgba(148, 163, 184, 0.12);
+  color: rgba(226, 232, 240, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+}
+
+.gs-badge--pending {
+  background: rgba(251, 191, 36, 0.12);
+  color: #fcd34d;
+  border: 1px solid rgba(251, 191, 36, 0.35);
+}
+
+.gs-badge--suspended {
+  background: rgba(248, 113, 113, 0.12);
+  color: #fca5a5;
+  border: 1px solid rgba(248, 113, 113, 0.35);
+}
+
+.gs-btn--inline {
+  width: auto;
+}
+
+.gs-btn--danger {
+  background: rgba(248, 113, 113, 0.12);
+  color: #fecaca;
+  border: 1px solid rgba(248, 113, 113, 0.35);
+}
+
+.gs-admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.gs-flash {
+  margin: 0 0 0.75rem;
+  padding: 0.55rem 0.85rem;
+  border-radius: 0.65rem;
+  font-size: 0.84rem;
+  color: #bbf7d0;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.gs-back-link {
+  display: inline-block;
+  margin-bottom: 0.75rem;
+  color: var(--gs-muted);
+  text-decoration: none;
+  font-size: 0.84rem;
+}
+
+.gs-back-link:hover {
+  color: #f8fafc;
+}
+
+.gs-role-slug {
+  font-size: 0.78rem;
+  color: var(--gs-muted);
+}
+
+.gs-perm-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.gs-perm-list code {
+  font-size: 0.78rem;
+}
+
+.gs-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.gs-list__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--gs-border);
+}
+
+.gs-field input,
+.gs-field select {
+  border-radius: 0.55rem;
+  border: 1px solid var(--gs-border-strong);
+  background: rgba(8, 12, 20, 0.55);
+  color: var(--gs-text);
+  padding: 0.55rem 0.7rem;
+  font-size: 0.95rem;
+}
+
+// Task 34 — modal + stepper
+.gs-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(4, 8, 16, 0.72);
+  backdrop-filter: blur(4px);
+}
+
+.gs-modal {
+  width: min(560px, 100%);
+  max-height: min(90vh, 720px);
+  overflow: auto;
+  border-radius: var(--gs-radius);
+  border: 1px solid var(--gs-border);
+  background: var(--gs-glass-panel);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.45);
+}
+
+.gs-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--gs-border);
+}
+
+.gs-modal-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.gs-modal-close {
+  border: none;
+  background: transparent;
+  color: var(--gs-muted);
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.gs-modal-body {
+  padding: 1rem;
+}
+
+.gs-modal-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--gs-border);
+}
+
+.gs-stepper-meta {
+  margin-bottom: 0.85rem;
+}
+
+.gs-stepper-label {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--gs-muted);
+  margin-bottom: 0.35rem;
+}
+
+.gs-stepper-track {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.gs-stepper-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: var(--gs-border-strong);
+}
+
+.gs-stepper-dot--active {
+  background: rgba(56, 189, 248, 0.85);
+}
+
+.gs-detail-grid {
+  margin: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.gs-detail-row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 0.65rem;
+  align-items: start;
+}
+
+.gs-detail-label {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--gs-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.gs-detail-value {
+  margin: 0;
+  font-size: 0.9rem;
+  word-break: break-word;
+}
+
+.gs-config-keys {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.gs-config-key {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.gs-attr-rows {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.gs-attr-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.gs-page-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  margin-bottom: 0.75rem;
+}

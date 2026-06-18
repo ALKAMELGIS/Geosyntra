@@ -1,0 +1,40 @@
+name: Sync Hostinger API environment
+
+# Uploads backend/.env to Hostinger when SSH secrets are configured.
+# MAPBOX_TOKEN and other API secrets live on the Node host — NOT in the GitHub Pages build.
+on:
+  workflow_dispatch:
+
+jobs:
+  sync-api-env:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Write hostinger.secrets.env from GitHub Secrets
+        env:
+          MAPBOX_TOKEN: ${{ secrets.MAPBOX_TOKEN }}
+          HOSTINGER_SSH_PASS: ${{ secrets.HOSTINGER_SSH_PASS }}
+          GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          GEOSYNTRA_API_VAULT_MASTER_KEY: ${{ secrets.GEOSYNTRA_API_VAULT_MASTER_KEY || secrets.AGRI_API_VAULT_MASTER_KEY }}
+        run: |
+          set -euo pipefail
+          cp hostinger.secrets.env.example hostinger.secrets.env
+          append() { k="$1"; v="$2"; [ -n "$v" ] && printf '%s=%s\n' "$k" "$v" >> hostinger.secrets.env; }
+          append MAPBOX_TOKEN "$MAPBOX_TOKEN"
+          append HOSTINGER_SSH_PASS "$HOSTINGER_SSH_PASS"
+          append GOOGLE_OAUTH_CLIENT_ID "$GOOGLE_OAUTH_CLIENT_ID"
+          append GOOGLE_OAUTH_CLIENT_SECRET "$GOOGLE_OAUTH_CLIENT_SECRET"
+          append JWT_SECRET "$JWT_SECRET"
+          append GEOSYNTRA_API_VAULT_MASTER_KEY "$GEOSYNTRA_API_VAULT_MASTER_KEY"
+      - name: Install ssh2 for password SSH upload
+        run: npm i -D ssh2 --no-save
+      - name: Apply API env and restart PM2
+        run: node scripts/apply-hostinger-api-env.mjs
+      - name: Verify Mapbox config endpoint
+        run: node scripts/apply-hostinger-api-env.mjs --check

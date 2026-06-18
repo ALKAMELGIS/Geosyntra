@@ -1,0 +1,341 @@
+.si-sun-sky-panel {
+  position: fixed;
+  z-index: 920;
+  width: min(380px, calc(100vw - 24px));
+  max-height: min(78vh, 640px);
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(15, 23, 42, 0.92);
+  box-shadow: 0 18px 48px rgba(2, 6, 23, 0.55);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  color: #e2e8f0;
+  overflow: hidden;
+}
+
+.si-sun-sky-panel.is-dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.si-sun-sky-panel--min {
+  max-height: none;
+}
+
+.si-sun-sky-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  cursor: grab;
+}
+
+.si-sun-sky-panel__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 0.88rem;
+}
+
+.si-sun-sky-panel__title i {
+  color: #fbbf24;
+}
+
+.si-sun-sky-panel__actions {
+  display: flex;
+  gap: 4px;
+}
+
+.si-sun-sky-panel__icon-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(51, 65, 85, 0.55);
+  color: #cbd5e1;
+  cursor: pointer;
+}
+
+.si-sun-sky-panel__icon-btn:hover {
+  background: rgba(71, 85, 105, 0.85);
+}
+
+.si-sun-sky-panel__tabs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+  padding: 6px 8px 0;
+}
+
+.si-sun-sky-panel__tab {
+  border: none;
+  border-radius: 8px 8px 0 0;
+  padding: 7px 4px;
+  font-size: 0.62rem;
+  font-weight: 600;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.si-sun-sky-panel__tab i {
+  font-size: 0.72rem;
+}
+
+.si-sun-sky-panel__tab--active {
+  background: rgba(51, 65, 85, 0.65);
+  color: #fde68a;
+}
+
+.si-sun-sky-panel__body {
+  padding: 10px 12px 14px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.si-sun-sky-panel__metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.si-sun-sky-panel__metrics--compact {
+  margin-top: 8px;
+}
+
+.si-sun-sky-panel__metric {
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: rgba(30, 41, 59, 0.72);
+  font-size: 0.72rem;
+}
+
+.si-sun-sky-panel__metric-label {
+  display: block;
+  color: #94a3b8;
+  font-size: 0.65rem;
+  margin-bottom: 2px;
+}
+
+.si-sun-sky-panel__section h3 {
+  margin: 0 0 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #cbd5e1;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.si-sun-sky-panel__events {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.si-sun-sky-panel__events li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.72rem;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+}
+
+.si-sun-sky-panel__event-time {
+  border: none;
+  background: rgba(251, 191, 36, 0.12);
+  color: #fde68a;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 0.68rem;
+  cursor: pointer;
+}
+
+.si-sun-sky-panel__event-time:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.si-sun-sky-panel__irr {
+  display: flex;
+  gap: 12px;
+  font-size: 0.72rem;
+  color: #94a3b8;
+}
+
+.si-sun-sky-panel__checks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.si-sun-sky-panel__check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.74rem;
+  cursor: pointer;
+}
+
+.si-sun-sky-panel__season-btns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.si-sun-sky-panel__season-btn {
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 0.68rem;
+  background: rgba(30, 41, 59, 0.5);
+  color: #cbd5e1;
+  cursor: pointer;
+}
+
+.si-sun-sky-panel__season-btn.is-active {
+  border-color: rgba(251, 191, 36, 0.45);
+  background: rgba(251, 191, 36, 0.12);
+  color: #fde68a;
+}
+
+.si-sun-sky-panel__solstice {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.72rem;
+}
+
+.si-sun-sky-panel__solstice-tag {
+  display: inline-block;
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin-right: 6px;
+  font-size: 0.62rem;
+  font-weight: 700;
+}
+
+.si-sun-sky-panel__solstice-tag--summer {
+  background: rgba(249, 115, 22, 0.2);
+  color: #fdba74;
+}
+
+.si-sun-sky-panel__solstice-tag--winter {
+  background: rgba(56, 189, 248, 0.2);
+  color: #7dd3fc;
+}
+
+.si-sun-sky-panel__exposure-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(51, 65, 85, 0.8);
+  overflow: hidden;
+}
+
+.si-sun-sky-panel__exposure-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #fbbf24, #f97316);
+}
+
+.si-sun-sky-panel__hint {
+  margin: 6px 0 0;
+  font-size: 0.68rem;
+  color: #94a3b8;
+  line-height: 1.4;
+}
+
+.si-sun-sky-panel__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.72rem;
+  margin-bottom: 8px;
+}
+
+.si-sun-sky-panel__field input {
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(15, 23, 42, 0.8);
+  color: #f8fafc;
+  padding: 6px 8px;
+}
+
+.si-sun-sky-panel__suit {
+  text-transform: capitalize;
+}
+
+.si-sun-sky-panel__suit--excellent {
+  color: #4ade80;
+}
+
+.si-sun-sky-panel__suit--good {
+  color: #fde68a;
+}
+
+.si-sun-sky-panel__suit--fair {
+  color: #fdba74;
+}
+
+.si-sun-sky-panel__suit--poor {
+  color: #fca5a5;
+}
+
+.si-sun-sky-panel__los-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.si-sun-sky-panel__los-btn {
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 0.68rem;
+  background: rgba(30, 41, 59, 0.55);
+  color: #e2e8f0;
+  cursor: pointer;
+}
+
+.si-sun-sky-panel__los-btn.is-active {
+  border-color: rgba(167, 139, 250, 0.5);
+  background: rgba(167, 139, 250, 0.15);
+}
+
+.si-sun-sky-panel__los-result {
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: rgba(30, 41, 59, 0.65);
+  font-size: 0.72rem;
+}
+
+.si-sun-sky-panel__los-result ul {
+  margin: 6px 0 0;
+  padding-left: 16px;
+}
+
+.si-basemap-toggle .si-sun-sky-button.si-basemap-button i {
+  color: #fbbf24;
+}
+
+.si-basemap-toggle .si-sun-sky-button.si-basemap-button.active {
+  border-color: rgba(251, 191, 36, 0.55);
+  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.35);
+}

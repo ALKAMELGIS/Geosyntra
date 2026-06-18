@@ -1,0 +1,239 @@
+/* Labels — compact lux floating panel */
+
+.si-lbl-side-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  max-height: inherit;
+  width: 100%;
+  color: var(--gs-panel-glass-text, rgba(248, 250, 252, 0.96));
+  overflow: hidden;
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.si-lbl-side-panel__head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 8px 10px 6px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent);
+}
+
+.si-lbl-side-panel__head--drag {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.si-lbl-side-panel__head--drag:active {
+  cursor: grabbing;
+}
+
+.si-lbl-side-panel__brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.si-lbl-side-panel__brand > i {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: #4ade80;
+}
+
+.si-lbl-side-panel__title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.si-lbl-side-panel__subtitle {
+  margin: 1px 0 0;
+  font-size: 9px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.55);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.si-lbl-side-panel__close {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(241, 245, 249, 0.9);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.si-lbl-side-panel__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.si-lbl-side-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.si-lbl-side-preview {
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.28);
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+}
+
+.si-lbl-side-preview__chip {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.si-lbl-side-row-2 {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.si-lbl-side-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border: none;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.si-lbl-side-field--grow {
+  flex: 1;
+}
+
+.si-lbl-side-field--color {
+  flex: 0 0 auto;
+}
+
+.si-lbl-side-field--align {
+  flex: 0 0 auto;
+}
+
+.si-lbl-side-field__label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.88);
+}
+
+.si-lbl-side-field__input {
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.35);
+  color: rgba(248, 250, 252, 0.96);
+  font-size: 10px;
+}
+
+.si-lbl-side-field input[type='range'] {
+  width: 100%;
+  accent-color: #38bdf8;
+  height: 18px;
+}
+
+.si-lbl-side-field__color {
+  width: 32px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.si-lbl-side-align {
+  display: flex;
+  gap: 3px;
+}
+
+.si-lbl-side-align__btn {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(241, 245, 249, 0.88);
+  font-size: 9px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.si-lbl-side-align__btn--on {
+  border-color: rgba(56, 189, 248, 0.5);
+  background: rgba(56, 189, 248, 0.16);
+}
+
+.si-lbl-side-hint {
+  margin: 0;
+  font-size: 9px;
+  color: rgba(214, 216, 224, 0.62);
+  line-height: 1.35;
+}
+
+.si-lbl-side-link {
+  align-self: flex-start;
+  border: none;
+  background: none;
+  color: #7dd3fc;
+  font-size: 9px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.si-lbl-side-panel__foot {
+  flex-shrink: 0;
+  display: flex;
+  gap: 6px;
+  padding: 7px 10px 9px;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.si-lbl-side-btn {
+  flex: 1;
+  height: 28px;
+  border-radius: 7px;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(241, 245, 249, 0.94);
+}
+
+.si-lbl-side-btn--primary {
+  border-color: rgba(34, 197, 94, 0.45);
+  background: linear-gradient(145deg, rgba(22, 101, 52, 0.7), rgba(6, 78, 59, 0.55));
+}

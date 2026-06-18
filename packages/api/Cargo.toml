@@ -1,0 +1,37 @@
+[package]
+name = "geosyntra-api"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "geosyntra_api"
+path = "src/lib.rs"
+
+[[bin]]
+name = "geosyntra-api"
+path = "src/main.rs"
+
+[dependencies]
+infrastructure = { path = "../infrastructure" }
+application = { path = "../application" }
+domain = { path = "../domain" }
+interface = { path = "../interface" }
+axum = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tower = { workspace = true }
+tower-http = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tower = { workspace = true }
+http-body-util = "0.1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde_json = { workspace = true }
+once_cell = "1"
+uuid = { workspace = true, features = ["v4"] }
+interface = { path = "../interface" }

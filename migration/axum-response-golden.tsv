@@ -1,0 +1,38 @@
+# Axum public-route response golden file (Task 18).
+# Columns: METHOD, PATH, BODY_JSON (or empty), STATUS, EXPECT
+# EXPECT: text:VALUE | json_keys:key1,key2 | json_has:field
+GET	/health		200	text:ok
+GET	/api/billing/plans		200	json_keys:merchant,ok,plans,pro_amount_usd,trial_days
+GET	/api/config/mapbox		200	json_keys:configured,error,geocodingPath,gatewayPath,ok,proxyMode,publicOnly,publicToken,source
+GET	/api/platform/health		200	json_keys:dataOutsideRepository,environment,ok,persistent,sqlite,storage,warnings
+GET	/api/platform/runtime		200	json_keys:environment,isProduction,isStaging
+GET	/api/auth/oauth/config		200	json_keys:apple,authorizedJavascriptOrigins,callbacks,github,google,linkedin,ok,providers,redirectUri,serverRedirect
+GET	/api/auth/email/status		200	json_keys:configured,ok,provider
+GET	/api/auth/events		200	json_keys:items
+GET	/api/auth/apple		501	json_has:error
+GET	/api/auth/verify-email?token=invalid		400	json_has:error
+GET	/api/geo/grounding/status		200	json_keys:configured,ok,providers,tools
+GET	/api/geo/locations		200	json_keys:items,limit,offset,total
+GET	/api/gateway/mapbox/geocoding		503	json_has:error
+GET	/api/github/events		200	json_keys:items
+GET	/api/github/oauth/start		500	json_has:error
+GET	/api/github/repos		401	json_has:error
+GET	/api/github/repos/octocat/Hello-World/issues		401	json_has:error
+GET	/api/github/status		200	json_keys:connected,scope
+GET	/api/google-3d-tiles-proxy		503	json_has:error
+GET	/api/mapbox-proxy		503	json_has:error
+GET	/api/weather/latest		200	json_keys:humidity_pct,rainfall_mm,temp_c,wind_ms
+POST	/api/ai/analyze	{}	200	json_keys:advisories,score
+POST	/api/ai/chat	{"modelProvider":"simulated"}	200	json_has:reply
+POST	/api/auth/apple/exchange	{}	400	json_has:error
+POST	/api/auth/google/exchange	{}	400	json_has:error
+POST	/api/auth/forgot-password	{"email":"nobody@test.local"}	200	json_keys:message,ok
+POST	/api/auth/forgot-username	{"email":"nobody@test.local"}	200	json_keys:found,message,ok
+POST	/api/auth/logout	{}	200	json_keys:ok
+POST	/api/auth/logout-all	{}	200	json_keys:ok
+POST	/api/auth/resend-verification	{"email":"nobody@test.local"}	200	json_keys:message,ok
+POST	/api/auth/reset-password	{"token":"bad","password":"short"}	400	json_has:error
+POST	/api/auth/send-verification-email	{}	400	json_has:error
+POST	/api/billing/webhook	{"type":"test"}	503	json_has:error
+POST	/api/github/disconnect	{}	200	json_keys:ok
+POST	/api/geo/grounding/invoke	{"tool":"bad"}	400	json_has:error

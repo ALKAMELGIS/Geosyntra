@@ -1,0 +1,44 @@
+
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+      - GEOSYNTRA_ENV=development
+      - DB_DIALECT=postgres
+      - DATABASE_URL=postgres://geosyntra:password@db:5432/geosyntra
+      - GEOSYNTRA_DATA_DIR=/data
+      - GEOSYNTRA_API_SECRETS_FILE=/data/geosyntra_api_secrets.json
+      - GEOSYNTRA_API_VAULT_BACKUP_DIR=/data/api-vault-backups
+    depends_on:
+      - db
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - geosyntra_api_vault:/data
+
+  db:
+    image: postgis/postgis:15-3.3
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=geosyntra
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=geosyntra
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # Task 23.6 — optional Redis for Axum auth/session cache (set REDIS_URL=redis://redis:6379/0 on app)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--save", ""]
+
+volumes:
+  postgres_data:
+  geosyntra_api_vault:

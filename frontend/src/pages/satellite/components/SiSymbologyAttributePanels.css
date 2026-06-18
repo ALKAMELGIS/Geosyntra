@@ -1,0 +1,252 @@
+.si-sym-agol-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  font-size: 13px;
+  color: var(--si-sym-agol-text, #0a0a0a);
+}
+
+.si-sym-agol-switch {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 20px;
+  border: none;
+  border-radius: 10px;
+  background: #c8c8c8;
+  padding: 2px;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background 0.15s ease;
+}
+
+.si-sym-agol-switch--on {
+  background: #0079c1;
+}
+
+.si-sym-agol-switch__thumb {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: transform 0.15s ease;
+}
+
+.si-sym-agol-switch--on .si-sym-agol-switch__thumb {
+  transform: translateX(16px);
+}
+
+.si-sym-side-acc__body--attr {
+  padding-bottom: 4px;
+}
+
+.si-sym-attr-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 4px;
+}
+
+.si-sym-attr-field__row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: start;
+}
+
+.si-sym-attr-field__select.si-sym-side-field {
+  margin-bottom: 0;
+  min-width: 0;
+}
+
+.si-sym-attr-expr-btn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--si-sym-agol-border, #c8c8c8);
+  border-radius: 0;
+  background: #ffffff;
+  color: #6e6e6e;
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.si-sym-attr-hist__tools {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.si-sym-attr-hist__tool {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #c8c8c8;
+  background: #ffffff;
+  color: #4a4a4a;
+  cursor: pointer;
+}
+
+.si-sym-attr-hist__tool:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.si-sym-attr-hist__body {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: stretch;
+  min-height: 140px;
+}
+
+.si-sym-attr-hist__values {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.si-sym-attr-hist__val {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.si-sym-attr-hist__val input {
+  width: 56px;
+  height: 28px;
+  border: 1px solid #c8c8c8;
+  background: #fff;
+  font-size: 12px;
+  text-align: right;
+  color-scheme: light;
+}
+
+.si-sym-attr-hist__bar {
+  border: 1px solid #c8c8c8;
+  background: linear-gradient(
+    to bottom,
+    rgba(51, 65, 85, var(--si-hist-top, 1)) 0%,
+    rgba(51, 65, 85, var(--si-hist-bottom, 0.3)) 100%
+  );
+  position: relative;
+}
+
+.si-sym-attr-hist__bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(45deg, #e8e8e8 25%, transparent 25%),
+    linear-gradient(-45deg, #e8e8e8 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #e8e8e8 75%),
+    linear-gradient(-45deg, transparent 75%, #e8e8e8 75%);
+  background-size: 10px 10px;
+  background-position:
+    0 0,
+    0 5px,
+    5px -5px,
+    -5px 0;
+  opacity: 0.35;
+  mix-blend-mode: multiply;
+}
+
+.si-sym-attr-hist__stats {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  font-size: 11px;
+  color: #6e6e6e;
+  min-width: 52px;
+}
+
+.si-sym-attr-range-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.si-sym-attr-range-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.si-sym-attr-range-row__label {
+  color: #4a4a4a;
+}
+
+.si-sym-attr-numwrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.si-sym-attr-numwrap input {
+  width: 56px;
+  height: 30px;
+  border: 1px solid #c8c8c8;
+  background: #fff;
+  text-align: right;
+  font-size: 13px;
+  color-scheme: light;
+}
+
+.si-sym-attr-numwrap__unit {
+  font-size: 12px;
+  color: #4a4a4a;
+}
+
+.si-sym-attr-radio-group {
+  border: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 16px;
+}
+
+.si-sym-attr-radio-group__legend {
+  width: 100%;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0a0a0a;
+  margin-bottom: 8px;
+}
+
+.si-sym-attr-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.si-sym-attr-radio input {
+  accent-color: #0079c1;
+}
+
+.si-sym-attr-rotation-dial {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+}
+
+.si-sym-attr-rotation-dial__svg {
+  width: 120px;
+  height: 120px;
+}
+
+.si-sym-attr-rotation-dial__mode {
+  font-size: 11px;
+  color: #6e6e6e;
+  text-align: center;
+}

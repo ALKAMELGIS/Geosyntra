@@ -1,0 +1,48 @@
+# Production — code updates must NOT replace user data.
+# Usage: docker compose -f docker-compose.production.yml up -d
+#
+# Mount geosyntra_platform_data outside the git clone. Never bind-mount the repo over /app in production.
+
+version: '3.8'
+
+services:
+  api:
+    build: .
+    ports:
+      - '3001:3001'
+    env_file:
+      - backend/.env
+    environment:
+      NODE_ENV: production
+      GEOSYNTRA_ENV: production
+      AGRI_DATA_DIR: /data
+      GEOSYNTRA_DATA_DIR: /data
+      AGRI_USER_DB_PATH: /data/geosyntra_platform.db
+      GEOSYNTRA_USER_DB_PATH: /data/geosyntra_platform.db
+      AGRI_API_SECRETS_FILE: /data/geosyntra_api_secrets.json
+      GEOSYNTRA_API_SECRETS_FILE: /data/geosyntra_api_secrets.json
+      AGRI_API_VAULT_BACKUP_DIR: /data/api-vault-backups
+      GEOSYNTRA_API_VAULT_BACKUP_DIR: /data/api-vault-backups
+      AGRI_ADMIN_BACKUP_DIR: /data/admin-backups
+      GEOSYNTRA_ADMIN_BACKUP_DIR: /data/admin-backups
+      AGRI_USER_PROFILES_FILE: /data/geosyntra_user_profiles.json
+      GEOSYNTRA_USER_PROFILES_FILE: /data/geosyntra_user_profiles.json
+    volumes:
+      - geosyntra_platform_data:/data
+    restart: unless-stopped
+
+  db:
+    image: postgis/postgis:15-3.3
+    environment:
+      POSTGRES_USER: geosyntra
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_DB: geosyntra
+    volumes:
+      - geosyntra_postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    profiles:
+      - postgres
+
+volumes:
+  geosyntra_platform_data:
+  geosyntra_postgres_data:

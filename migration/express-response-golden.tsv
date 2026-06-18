@@ -1,0 +1,23 @@
+# Express public-route response golden file (Task 18).
+# Columns: METHOD, PATH, BODY_JSON (or empty), STATUS, EXPECT
+# Record: EXPRESS_URL=http://127.0.0.1:3001 scripts/record-express-response-golden.sh
+# Verify (Express must be running): scripts/verify-express-response-golden.sh
+GET	/health		200	text:ok
+GET	/api/billing/plans		200	json_keys:merchant,ok,plans,pro_amount_usd,trial_days
+GET	/api/platform/health		200	json_keys:dataOutsideRepository,environment,ok,persistent,sqlite,storage,warnings
+GET	/api/platform/runtime		200	json_keys:environment,isProduction,isStaging
+GET	/api/auth/oauth/config		200	json_keys:apple,authorizedJavascriptOrigins,callbacks,github,google,linkedin,ok,providers,redirectUri,serverRedirect
+GET	/api/auth/email/status		200	json_keys:configured,ok,provider
+GET	/api/auth/events		200	json_keys:items
+GET	/api/auth/apple		501	json_has:error
+GET	/api/auth/verify-email?token=invalid		400	json_has:error
+GET	/api/geo/grounding/status		200	json_keys:configured,ok,providers,tools
+GET	/api/geo/locations		200	json_keys:items,limit,offset,total
+GET	/api/github/events		200	json_keys:items
+GET	/api/github/status		200	json_keys:connected,scope
+GET	/api/weather/latest		200	json_keys:humidity_pct,rainfall_mm,temp_c,wind_ms
+POST	/api/ai/analyze	{}	200	json_keys:advisories,score
+POST	/api/auth/forgot-password	{"email":"nobody@test.local"}	200	json_keys:message,ok
+POST	/api/auth/forgot-username	{"email":"nobody@test.local"}	200	json_keys:found,message,ok
+POST	/api/auth/resend-verification	{"email":"nobody@test.local"}	200	json_keys:message,ok
+POST	/api/billing/webhook	{"type":"test"}	503	json_has:error

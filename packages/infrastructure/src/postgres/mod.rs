@@ -1,0 +1,45 @@
+pub mod auth_lifecycle_repository;
+pub mod audit_repository;
+pub mod auth_directory_repository;
+pub mod invite_repository;
+pub mod governance_repository;
+pub mod invited_user_creator;
+pub mod membership_repository;
+pub mod platform_config_repository;
+pub mod policy_repository;
+pub mod owner_bootstrap;
+pub mod pool;
+pub mod refresh_token_repository;
+pub mod role_repository;
+pub mod subscription_repository;
+pub mod tenant_bootstrap;
+pub mod tenant_isolation_fixture;
+pub mod tenant_repository;
+pub mod temporary_grant_repository;
+pub mod user_id;
+pub mod user_id_allocator;
+pub mod user_repository;
+
+pub use audit_repository::PostgresAuditRepository;
+pub use auth_lifecycle_repository::PostgresAuthLifecycleRepository;
+pub use auth_directory_repository::PostgresAuthDirectoryRepository;
+pub use invite_repository::PostgresInviteRepository;
+pub use governance_repository::PostgresGovernanceRepository;
+pub use invited_user_creator::PostgresInvitedUserCreator;
+pub use membership_repository::PostgresMembershipRepository;
+pub use platform_config_repository::PostgresPlatformConfigRepository;
+pub use policy_repository::PostgresPolicyRepository;
+pub use owner_bootstrap::{
+    default_first_run_accounts, ensure_system_owners, list_system_owner_emails,
+    resolve_bootstrap_password, BootstrapAccountSpec, BootstrapAction,
+};
+pub use pool::{bootstrap, connect, run_migrations};
+pub use refresh_token_repository::PostgresRefreshTokenRepository;
+pub use role_repository::PostgresRoleRepository;
+pub use subscription_repository::PostgresSubscriptionRepository;
+pub use tenant_bootstrap::PostgresTenantBootstrapService;
+pub use tenant_repository::PostgresTenantRepository;
+pub use temporary_grant_repository::PostgresTemporaryGrantRepository;
+pub use user_id::next_user_id;
+pub use user_id_allocator::PostgresUserIdAllocator;
+pub use user_repository::PostgresUserRepository;

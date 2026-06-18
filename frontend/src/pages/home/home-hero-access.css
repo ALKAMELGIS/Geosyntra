@@ -1,0 +1,239 @@
+/* Dual-access hero CTAs — premium glass (Start vs Free Trial) */
+
+.home-saas-hero__cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  min-height: 3rem;
+}
+
+.home-hero-access-btn {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.875rem;
+  padding: 0.65rem 1.85rem;
+  margin: 0;
+  border-radius: 0.625rem;
+  font-family: inherit;
+  font-size: clamp(0.875rem, 1.6vw, 0.9375rem);
+  line-height: 1.2;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    transform 0.24s cubic-bezier(0.23, 1, 0.32, 1),
+    box-shadow 0.32s ease,
+    border-color 0.32s ease,
+    background 0.32s ease,
+    color 0.24s ease;
+}
+
+.home-hero-access-btn__label {
+  position: relative;
+  z-index: 1;
+}
+
+.home-hero-access-btn__glow {
+  position: absolute;
+  inset: -1px;
+  z-index: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0.65;
+}
+
+.home-hero-access-btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, hsl(var(--primary, 199 89% 58%)) 70%, white);
+  outline-offset: 3px;
+}
+
+/* START — dark glass, blue glow, primary emphasis */
+.home-hero-access-btn--start {
+  border: 1px solid color-mix(in srgb, hsl(var(--primary, 199 89% 58%)) 42%, rgba(148, 163, 184, 0.35));
+  background: linear-gradient(
+    165deg,
+    rgba(8, 14, 28, 0.82) 0%,
+    rgba(12, 20, 38, 0.74) 48%,
+    rgba(6, 10, 22, 0.88) 100%
+  );
+  color: rgba(248, 250, 252, 0.96);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: clamp(0.8125rem, 1.5vw, 0.875rem);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(14, 165, 233, 0.12),
+    0 0 0 1px rgba(2, 6, 23, 0.4),
+    0 12px 32px rgba(14, 165, 233, 0.22),
+    0 4px 16px rgba(2, 6, 23, 0.45);
+  backdrop-filter: blur(16px) saturate(1.35);
+  -webkit-backdrop-filter: blur(16px) saturate(1.35);
+}
+
+.home-hero-access-btn--start .home-hero-access-btn__glow {
+  background: radial-gradient(
+    120% 140% at 50% 100%,
+    rgba(56, 189, 248, 0.35) 0%,
+    transparent 62%
+  );
+  filter: blur(6px);
+}
+
+.home-hero-access-btn--start:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, hsl(var(--primary, 199 89% 58%)) 58%, rgba(255, 255, 255, 0.42));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -1px 0 rgba(14, 165, 233, 0.18),
+    0 0 0 1px rgba(14, 165, 233, 0.2),
+    0 16px 40px rgba(14, 165, 233, 0.32),
+    0 6px 20px rgba(2, 6, 23, 0.5);
+}
+
+.home-hero-access-btn--start:hover .home-hero-access-btn__glow {
+  opacity: 1;
+}
+
+.home-hero-access-btn--start:active {
+  transform: translateY(0);
+}
+
+/* FREE TRIAL — transparent outline, animated border glow, secondary */
+.home-hero-access-btn--trial {
+  min-height: 2.625rem;
+  padding: 0.55rem 1.55rem;
+  border: 1px solid rgba(226, 232, 240, 0.38);
+  background: rgba(2, 6, 23, 0.18);
+  color: rgba(241, 245, 249, 0.94);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 8px 24px rgba(2, 6, 23, 0.28);
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+}
+
+.home-hero-access-btn--trial .home-hero-access-btn__glow {
+  inset: -2px;
+  opacity: 0.5;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    rgba(148, 163, 184, 0.15) 60deg,
+    rgba(186, 230, 253, 0.55) 120deg,
+    rgba(148, 163, 184, 0.2) 180deg,
+    transparent 240deg,
+    rgba(186, 230, 253, 0.4) 300deg,
+    transparent 360deg
+  );
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  -webkit-mask-composite: xor;
+  padding: 1px;
+  animation: home-hero-trial-border-spin 5s linear infinite;
+}
+
+@keyframes home-hero-trial-border-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.home-hero-access-btn--trial:hover {
+  transform: translateY(-1px);
+  border-color: rgba(226, 232, 240, 0.55);
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 0 24px rgba(148, 163, 184, 0.2),
+    0 12px 28px rgba(2, 6, 23, 0.38);
+}
+
+.home-hero-access-btn--trial:hover .home-hero-access-btn__glow {
+  opacity: 0.85;
+}
+
+.home-hero-access-btn--trial:active {
+  transform: translateY(0);
+}
+
+@media (max-width: 480px) {
+  .home-hero-access-btn--start {
+    width: min(100%, 16.5rem);
+  }
+
+  .home-hero-access-btn--trial {
+    width: min(100%, 18.5rem);
+  }
+}
+
+/* ── Luxury Light — hero CTAs on frosted landing ── */
+html[data-theme='light'] .home-hero-access-btn--trial {
+  border: 1px solid var(--ds-color-border-strong, rgba(15, 23, 42, 0.14));
+  background: linear-gradient(
+    168deg,
+    rgba(255, 255, 255, 0.96) 0%,
+    rgba(246, 248, 252, 0.9) 52%,
+    rgba(238, 242, 248, 0.94) 100%
+  );
+  color: var(--ds-color-text, #1a1d2b);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    var(--ds-shadow-sm, 0 2px 8px rgba(15, 23, 42, 0.04), 0 8px 22px rgba(15, 23, 42, 0.05));
+  backdrop-filter: blur(14px) saturate(1.08);
+  -webkit-backdrop-filter: blur(14px) saturate(1.08);
+}
+
+html[data-theme='light'] .home-hero-access-btn--trial .home-hero-access-btn__glow {
+  opacity: 0;
+  animation: none;
+}
+
+html[data-theme='light'] .home-hero-access-btn--trial:hover {
+  transform: translateY(-1px);
+  border-color: rgba(15, 23, 42, 0.2);
+  color: var(--ds-color-primary-hover, #0c0e18);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    var(--ds-shadow-md, 0 4px 12px rgba(15, 23, 42, 0.04), 0 16px 40px rgba(15, 23, 42, 0.07));
+}
+
+html[data-theme='light'] .home-hero-access-btn--start {
+  border: 1px solid rgba(15, 23, 42, 0.22);
+  background: linear-gradient(
+    168deg,
+    #2a3142 0%,
+    #1a1d2b 48%,
+    #12141f 100%
+  );
+  color: rgba(248, 250, 252, 0.96);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    var(--ds-shadow-md);
+}
+
+html[data-theme='light'] .home-hero-access-btn--start .home-hero-access-btn__glow {
+  background: radial-gradient(120% 140% at 50% 100%, rgba(255, 255, 255, 0.08) 0%, transparent 62%);
+  filter: none;
+}
+
+html[data-theme='light'] .home-hero-access-btn--start:hover {
+  border-color: rgba(15, 23, 42, 0.32);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    var(--ds-shadow-lg);
+}
+
+html[data-theme='light'] .home-hero-access-btn:focus-visible {
+  outline-color: color-mix(in srgb, var(--ds-color-text) 35%, transparent);
+}

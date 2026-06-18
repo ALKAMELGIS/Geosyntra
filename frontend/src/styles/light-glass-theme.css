@@ -1,0 +1,2129 @@
+/* ============================================================================
+ * Geosyntra · White Glass One UI — Lite Mode override layer.
+ *
+ * This file is the SINGLE source of truth for everything the app should look
+ * like when `html[data-theme="light"]` is set. The dark theme is the default
+ * baseline (defined throughout `index.css`, `header.css`, `navmenu.css`, the
+ * GIS sidebar override block, `satelliteMapAnalysisChrome.css`, etc.); this
+ * layer surgically re-skins those same surfaces for the white-glass identity.
+ *
+ * Why one cohesive file rather than scattering `[data-theme="light"]` rules
+ * inside every component sheet?
+ *   - The dark identity is intentionally heavy (deep gradients, tall shadows,
+ *     `inset 0 1px 0 rgba(255,255,255,0.06)` hairlines). Toggling each of
+ *     those individually inside every CSS file would explode the diff and
+ *     guarantee drift over time.
+ *   - Selectors carry the `html[data-theme="light"] …` attribute prefix, so
+ *     they always have +1 specificity over the dark base rules. Source order
+ *     stops mattering — wherever this file is imported, light mode wins.
+ *   - Reviewable: the entire light identity sits next to itself, so a
+ *     reviewer can see the whole "frosted white" surface in one read instead
+ *     of reconstructing it from 30 different files.
+ *
+ * Design references explicitly named in the spec (user request 2026-05-13):
+ *   - Apple Frosted UI            (translucent off-white, soft outer shadows)
+ *   - Samsung One UI Light        (rounded glass cards, Mid-slate type)
+ *   - ArcGIS Modern Light Theme   (clean rails, soft cool-gray hairlines)
+ *   - Windows Fluent White Glass  (acrylic blur, neutral accent only)
+ *
+ * Banned in this layer (matches the user's earlier "don't shout in color"
+ * direction — accent color stays *neutral* slate, never blue / cyan / indigo
+ * / violet / teal):
+ *   - Pure white-on-white panels with no separation
+ *   - Hard `#000` foreground type
+ *   - Heavy 2px+ borders
+ *   - Saturated accent gradients
+ *   - Drop-shadows with color tint
+ *
+ * Token map (kept in sync with `:root` design tokens in `index.css`):
+ *   --gs-lt-bg-canvas   = `#f6f8fc`  (page background)
+ *   --gs-lt-bg-elev-1   = rgba(255,255,255,0.78) (frosted panel)
+ *   --gs-lt-bg-elev-2   = rgba(255,255,255,0.92) (raised panel / popover)
+ *   --gs-lt-text        = `#0a0c12`  (clear black type)
+ *   --gs-lt-text-muted  = `#0a0c12`  (same — no grey body copy in Lite Mode)
+ *   --gs-lt-border      = rgba(15,23,42,0.10)
+ *   --gs-lt-border-2    = rgba(15,23,42,0.18)
+ *   --gs-lt-accent      = `#1d2030`  (deep slate — never colored)
+ *   --gs-lt-accent-soft = rgba(29,32,48,0.08)
+ *   --gs-lt-glow        = rgba(29,32,48,0.18)
+ *   --gs-lt-shadow-md   = 0 12px 32px rgba(15,23,42,0.10)
+ *   --gs-lt-shadow-lg   = 0 24px 60px rgba(15,23,42,0.14)
+ * ========================================================================== */
+
+html[data-theme='light'] {
+  --gs-lt-bg-canvas: #f4f6fa;
+  --gs-lt-bg-elev-1: rgba(255, 255, 255, 0.82);
+  --gs-lt-bg-elev-2: rgba(255, 255, 255, 0.94);
+  --gs-lt-text: #0a0c12;
+  --gs-lt-text-muted: #0a0c12;
+  --gs-lt-border: rgba(15, 23, 42, 0.09);
+  --gs-lt-border-2: rgba(15, 23, 42, 0.14);
+  --gs-lt-accent: #1a1d2b;
+  --gs-lt-accent-soft: rgba(26, 29, 43, 0.07);
+  --gs-lt-glow: rgba(26, 29, 43, 0.14);
+  --gs-lt-glass-blur: blur(20px) saturate(1.12);
+  --gs-lt-shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.04), 0 8px 22px rgba(15, 23, 42, 0.05);
+  --gs-lt-shadow-md: 0 4px 12px rgba(15, 23, 42, 0.04), 0 16px 40px rgba(15, 23, 42, 0.07);
+  --gs-lt-shadow-lg: 0 8px 24px rgba(15, 23, 42, 0.05), 0 28px 64px rgba(15, 23, 42, 0.09);
+}
+
+/* Shared frosted surface — cards, rails, popovers */
+html[data-theme='light'] .gs-lux-glass,
+html[data-theme='light'] .ds-lux-glass {
+  background: var(--gs-lt-bg-elev-1);
+  border: 1px solid var(--gs-lt-border);
+  box-shadow: var(--gs-lt-shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  backdrop-filter: var(--gs-lt-glass-blur);
+  -webkit-backdrop-filter: var(--gs-lt-glass-blur);
+}
+
+/* ----------------------------------------------------------------------------
+ * 1. Header / topbar
+ * --------------------------------------------------------------------------*/
+
+/* Topbar — frosted white glass + dark type in Lite Mode */
+html[data-theme='light'] .geosyntra-header {
+  color: var(--gs-lt-text);
+  background: transparent;
+  background-color: transparent;
+  border-bottom: none;
+  box-shadow:
+    0 2px 12px rgba(15, 23, 42, 0.06),
+    inset 0 -1px 0 var(--gs-lt-border);
+  backdrop-filter: blur(20px) saturate(1.12);
+  -webkit-backdrop-filter: blur(20px) saturate(1.12);
+}
+
+html[data-theme='light'] .geosyntra-header::before {
+  background:
+    linear-gradient(
+      120deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.65) 42%,
+      rgba(248, 250, 253, 0.45) 58%,
+      transparent 100%
+    ),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(248, 250, 253, 0.78) 100%);
+  mix-blend-mode: normal;
+  opacity: 0.96;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+html[data-theme='light'] .geosyntra-header::after {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.55) 0%, transparent 52%),
+    linear-gradient(180deg, transparent calc(100% - 1px), var(--gs-lt-border) calc(100% - 1px));
+  filter: none;
+  opacity: 1;
+}
+
+html[data-theme='light'] .geosyntra-header .saas-entry__brand-mark {
+  background: transparent;
+}
+
+html[data-theme='light'] .geosyntra-header .saas-entry__brand-mark-icon svg stop {
+  stop-color: #1a1d2b;
+  stop-opacity: 0.92;
+}
+
+html[data-theme='light'] .geosyntra-header .logo-text {
+  background: linear-gradient(168deg, #0a0c1a 0%, #1a1d2b 42%, #2a2d3e 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  filter: none;
+}
+
+html[data-theme='light'] .geosyntra-header .brand-logo .logo-icon__svg {
+  filter: drop-shadow(0 1px 1px rgba(15, 23, 42, 0.12));
+}
+
+html[data-theme='light'] .geosyntra-header .brand-logo .logo-icon__svg .gs-stroke,
+html[data-theme='light'] .geosyntra-header .brand-logo .logo-icon__svg path[stroke="#ffffff"],
+html[data-theme='light'] .geosyntra-header .brand-logo .logo-icon__svg path[stroke="#fff"] {
+  stroke: #1a1d2b;
+}
+
+/* Header controls — light frosted chips with dark icons */
+html[data-theme='light'] .geosyntra-header .menu-btn {
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid var(--gs-lt-border);
+  color: var(--gs-lt-text);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 1px 3px rgba(15, 23, 42, 0.06);
+}
+
+html[data-theme='light'] .geosyntra-header .menu-btn:hover {
+  background: #ffffff;
+  border-color: var(--gs-lt-border-2);
+  color: var(--gs-lt-accent);
+  box-shadow: inset 0 1px 0 #ffffff, 0 4px 12px rgba(15, 23, 42, 0.1);
+}
+
+/* Primary nav icon chips — frosted white glass with dark glyphs */
+html[data-theme='light'] .geosyntra-header .geosyntra-primary-nav__glass {
+  background: linear-gradient(
+    168deg,
+    rgba(255, 255, 255, 0.94) 0%,
+    rgba(246, 248, 252, 0.84) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 1px 3px rgba(15, 23, 42, 0.06);
+}
+
+html[data-theme='light'] .geosyntra-header .geosyntra-primary-nav__link:hover .geosyntra-primary-nav__glass,
+html[data-theme='light'] .geosyntra-header .geosyntra-primary-nav__trigger:hover .geosyntra-primary-nav__glass {
+  background: linear-gradient(
+    168deg,
+    rgba(255, 255, 255, 0.98) 0%,
+    rgba(248, 250, 253, 0.92) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    0 4px 12px rgba(15, 23, 42, 0.08);
+}
+
+html[data-theme='light'] .geosyntra-header .geosyntra-primary-nav__link--active .geosyntra-primary-nav__glass,
+html[data-theme='light'] .geosyntra-header .geosyntra-primary-nav__trigger--active .geosyntra-primary-nav__glass {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.98),
+    0 0 0 1px rgba(15, 23, 42, 0.12),
+    0 2px 8px rgba(15, 23, 42, 0.06);
+}
+
+html[data-theme='light'] .geosyntra-header .geosyntra-primary-nav__glass i {
+  opacity: 1;
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .geosyntra-header .profile-icon-only,
+html[data-theme='light'] .geosyntra-header .profile-icon-only .profile-icon {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(241, 245, 249, 0.9));
+  border-color: var(--gs-lt-border);
+  color: var(--gs-lt-text);
+  box-shadow: inset 0 1px 0 #ffffff, 0 2px 6px rgba(15, 23, 42, 0.08);
+}
+
+html[data-theme='light'] .geosyntra-header .profile-icon-only:hover {
+  border-color: var(--gs-lt-border-2);
+  box-shadow: inset 0 1px 0 #ffffff, 0 6px 16px rgba(15, 23, 42, 0.12);
+}
+
+html[data-theme='light'] .geosyntra-header .profile-icon-only .profile-icon {
+  background: rgba(15, 23, 42, 0.06);
+  color: var(--gs-lt-text);
+}
+
+/* Hamburger / menu toggle */
+html[data-theme='light'] .menu-btn {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(248, 250, 253, 0.75));
+  border: 1px solid var(--gs-lt-border);
+  color: var(--gs-lt-text);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    0 2px 6px rgba(15, 23, 42, 0.06);
+}
+
+html[data-theme='light'] .menu-btn:hover {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(241, 245, 249, 0.85));
+  border-color: var(--gs-lt-border-2);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 4px 12px rgba(15, 23, 42, 0.10);
+}
+
+html[data-theme='light'] .menu-btn:focus-visible {
+  outline: 2px solid var(--gs-lt-glow);
+  outline-offset: 2px;
+}
+
+/* Profile dropdown trigger */
+html[data-theme='light'] .profile-icon-only,
+html[data-theme='light'] .profile-icon {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(241, 245, 249, 0.82));
+  border: 1px solid var(--gs-lt-border);
+  color: var(--gs-lt-text);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 2px 6px rgba(15, 23, 42, 0.08);
+}
+
+html[data-theme='light'] .profile-icon-only:hover,
+html[data-theme='light'] .profile-icon:hover {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 1), rgba(236, 241, 248, 0.92));
+  border-color: var(--gs-lt-border-2);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    0 6px 16px rgba(15, 23, 42, 0.12);
+}
+
+/* Profile dropdown menu (the panel that appears under the avatar) */
+html[data-theme='light'] .profile-menu {
+  background: var(--gs-lt-bg-elev-2);
+  border: 1px solid var(--gs-lt-border);
+  box-shadow: var(--gs-lt-shadow-lg);
+  color: var(--gs-lt-text);
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+}
+
+html[data-theme='light'] .profile-menu a,
+html[data-theme='light'] .profile-menu button {
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .profile-menu a:hover,
+html[data-theme='light'] .profile-menu button:hover {
+  background: var(--gs-lt-accent-soft);
+  color: var(--gs-lt-accent);
+}
+
+/* ----------------------------------------------------------------------------
+ * 2. Sidebar nav (NavMenu)
+ * --------------------------------------------------------------------------*/
+
+/* Outer rail — was midnight `#0c0d12`. Flip to frosted snow with a hint of
+ * cool depth, but keep it transparent enough that the page surface shows
+ * through (matching the more-translucent topbar). The collapse toggle,
+ * top brand and labels read off this. */
+html[data-theme='light'] .navmenu,
+html[data-theme='light'] aside.navmenu {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0.06) 60%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.36) 0%, rgba(248, 250, 253, 0.28) 100%);
+  background-color: rgba(255, 255, 255, 0.28);
+  border-right: 1px solid rgba(15, 23, 42, 0.05);
+  color: var(--gs-lt-text);
+  box-shadow:
+    0 12px 34px rgba(15, 23, 42, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(28px) saturate(160%) brightness(1.02);
+  -webkit-backdrop-filter: blur(28px) saturate(160%) brightness(1.02);
+}
+
+/* Light-mode shimmer + hairline mirror for the horizontal navmenu (the
+ * dark-mode versions live in `navmenu.css`). */
+html[data-theme='light'] .navmenu::before {
+  background:
+    linear-gradient(120deg, transparent 0%, rgba(15, 23, 42, 0.06) 45%, rgba(15, 23, 42, 0.035) 60%, transparent 100%);
+  mix-blend-mode: multiply;
+  opacity: 0.5;
+}
+
+html[data-theme='light'] .navmenu::after {
+  background:
+    linear-gradient(90deg, transparent 0%, rgba(15, 23, 42, 0.16) 30%, rgba(15, 23, 42, 0.16) 70%, transparent 100%);
+  opacity: 0.7;
+}
+
+/* Group header (top-level menu rows: Satellite Imagery / Admin / etc.) */
+html[data-theme='light'] .navmenu .group-header {
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .navmenu .group-header:hover {
+  background: rgba(15, 23, 42, 0.04);
+}
+
+html[data-theme='light'] .navmenu .group-header.is-active {
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.08), rgba(15, 23, 42, 0.04));
+  color: var(--gs-lt-accent);
+  box-shadow: inset 0 0 0 1px var(--gs-lt-border-2);
+}
+
+/* Top-level icon "squircle" — was a black-glass chip with white glyph.
+ * Flip to a soft white chip with deep-slate glyph so the icon reads cleanly
+ * against the white rail. */
+html[data-theme='light'] .navmenu .icon {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(236, 241, 248, 0.82));
+  border: 1px solid var(--gs-lt-border);
+  color: var(--gs-lt-accent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 1px 3px rgba(15, 23, 42, 0.06);
+}
+
+html[data-theme='light'] .navmenu .group-header:hover .icon {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 1), rgba(229, 235, 244, 0.92));
+  border-color: var(--gs-lt-border-2);
+}
+
+html[data-theme='light'] .navmenu .group-header.is-active .icon {
+  background:
+    linear-gradient(145deg, #1d2030, #2a2d3e);
+  border-color: rgba(15, 23, 42, 0.32);
+  color: #f6f8fc;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 4px 12px rgba(15, 23, 42, 0.18);
+}
+
+/* Sublist (the nested list of pages under each group) */
+html[data-theme='light'] .navmenu .sublist {
+  background:
+    linear-gradient(180deg, rgba(248, 250, 253, 0.95), rgba(241, 245, 249, 0.85));
+  border: 1px solid var(--gs-lt-border);
+  border-radius: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+html[data-theme='light'] .navmenu .subitem {
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .navmenu .subitem:hover {
+  background: rgba(15, 23, 42, 0.06);
+  color: var(--gs-lt-accent);
+}
+
+html[data-theme='light'] .navmenu .subitem.is-active,
+html[data-theme='light'] .navmenu .subitem.active {
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.10), rgba(15, 23, 42, 0.04));
+  color: var(--gs-lt-accent);
+  box-shadow: inset 0 0 0 1px var(--gs-lt-border-2);
+}
+
+/* Collapse toggle on the rail */
+html[data-theme='light'] .nav-collapse-toggle {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(241, 245, 249, 0.82));
+  border: 1px solid var(--gs-lt-border);
+  color: var(--gs-lt-text);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06);
+}
+
+html[data-theme='light'] .nav-collapse-toggle:hover {
+  background: rgba(255, 255, 255, 1);
+  border-color: var(--gs-lt-border-2);
+}
+
+/* ----------------------------------------------------------------------------
+ * 3. App-level back buttons (`.back-btn`, `.app-back-icon-btn`)
+ * --------------------------------------------------------------------------*/
+
+html[data-theme='light'] .back-btn,
+html[data-theme='light'] .app-back-icon-btn {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(241, 245, 249, 0.82));
+  border: 1px solid var(--gs-lt-border);
+  color: var(--gs-lt-text);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 2px 6px rgba(15, 23, 42, 0.06);
+}
+
+html[data-theme='light'] .back-btn:hover,
+html[data-theme='light'] .app-back-icon-btn:hover {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(236, 241, 248, 0.92));
+  border-color: var(--gs-lt-border-2);
+  color: var(--gs-lt-accent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    0 4px 12px rgba(15, 23, 42, 0.10);
+}
+
+html[data-theme='light'] .back-btn:focus-visible,
+html[data-theme='light'] .app-back-icon-btn:focus-visible {
+  outline: 2px solid var(--gs-lt-glow);
+  outline-offset: 2px;
+}
+
+/* ----------------------------------------------------------------------------
+ * 4. GIS Map sidebar — mirror of the dark override block at the bottom of
+ *    `index.css`, retoned for white glass.
+ * --------------------------------------------------------------------------*/
+
+/* Outer shell — flat against the page edge (no curved corners, no halo). */
+html[data-theme='light'] .gis-sidebar {
+  border-radius: 0;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.86) 0%, rgba(248, 250, 253, 0.92) 100%);
+  border: 1px solid var(--gs-lt-border);
+  box-shadow: none;
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+}
+
+/* Action bar separator between rail and content column */
+html[data-theme='light'] .gis-sidebar-inner--agol-action-bar .gis-sidebar-rail--agol,
+:root[dir='rtl'] html[data-theme='light'] .gis-sidebar-inner--agol-action-bar .gis-sidebar-rail--agol {
+  border-color: var(--gs-lt-border);
+}
+
+/* Action pane (right-hand content column with Layers / Tables / etc.) */
+html[data-theme='light'] .gis-sidebar-column--action-pane {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.78) 0%, rgba(248, 250, 253, 0.82) 55%, rgba(241, 245, 249, 0.78) 100%);
+}
+
+/* Power-BI bookstrip collapsed pane */
+html[data-theme='light'] .gis-sidebar-column.gis-sidebar-column--action-pane.gis-sidebar-column--action-pane--collapsed {
+  background: rgba(248, 250, 253, 0.85);
+  border-left-color: var(--gs-lt-border);
+  box-shadow: inset 1px 0 0 rgba(15, 23, 42, 0.04);
+}
+
+:root[dir='rtl'] html[data-theme='light'] .gis-sidebar-column.gis-sidebar-column--action-pane.gis-sidebar-column--action-pane--collapsed {
+  border-right-color: var(--gs-lt-border);
+  box-shadow: inset -1px 0 0 rgba(15, 23, 42, 0.04);
+}
+
+html[data-theme='light'] .gis-pbi-bookstrip {
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .gis-pbi-bookstrip:hover {
+  background: rgba(15, 23, 42, 0.04);
+  color: var(--gs-lt-accent);
+}
+
+html[data-theme='light'] .gis-pbi-bookstrip:focus-visible {
+  outline-color: var(--gs-lt-glow);
+}
+
+html[data-theme='light'] .gis-pbi-bookstrip__label {
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .gis-pbi-bookstrip__chev {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: var(--gs-lt-border);
+  color: var(--gs-lt-text);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+/* Action pane header */
+html[data-theme='light'] .gis-sidebar-action-pane__head {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(248, 250, 253, 0.85));
+  border-bottom-color: var(--gs-lt-border);
+}
+
+html[data-theme='light'] .gis-sidebar-action-pane__title {
+  color: var(--gs-lt-text);
+}
+
+/* Close + collapse buttons in the pane header */
+html[data-theme='light'] .gis-sidebar-action-pane__close,
+html[data-theme='light'] .gis-sidebar-action-pane__close--collapse {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: var(--gs-lt-border);
+  color: var(--gs-lt-text);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+}
+
+html[data-theme='light'] .gis-sidebar-action-pane__close:hover,
+html[data-theme='light'] .gis-sidebar-action-pane__close--collapse:hover {
+  background: rgba(255, 255, 255, 1);
+  border-color: var(--gs-lt-border-2);
+  color: var(--gs-lt-accent);
+}
+
+/* Body main panel surface (Layers list / Tables list container) */
+html[data-theme='light'] .gis-sidebar-body--action-pane:not(.gis-sidebar-body--tool-dock) > .gis-sidebar-body-main {
+  background: rgba(255, 255, 255, 0.55);
+  border-color: var(--gs-lt-border);
+  box-shadow:
+    0 1px 0 rgba(15, 23, 42, 0.03),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+/* Empty-state messaging */
+html[data-theme='light'] .gis-sidebar-layers-empty-agol__icon {
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .gis-sidebar-layers-empty-agol__message {
+  background: rgba(255, 255, 255, 0.65);
+  border-color: var(--gs-lt-border);
+  color: var(--gs-lt-text-muted);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+/* "Add" pill that opens the layer-source menu */
+html[data-theme='light'] .gis-tables-agol-add__btn {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(241, 245, 249, 0.85));
+  border-color: var(--gs-lt-border-2);
+  color: var(--gs-lt-text);
+  box-shadow:
+    0 2px 6px rgba(15, 23, 42, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+html[data-theme='light'] .gis-tables-agol-add__btn:hover {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(236, 241, 248, 0.92));
+  border-color: rgba(15, 23, 42, 0.28);
+  color: var(--gs-lt-accent);
+}
+
+html[data-theme='light'] .gis-tables-agol-add__btn:focus-visible {
+  box-shadow: 0 0 0 3px var(--gs-lt-glow);
+}
+
+/* Add-source dropdown menu */
+html[data-theme='light'] .gis-tables-agol-add__menu {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(248, 250, 253, 0.94));
+  border-color: var(--gs-lt-border);
+  box-shadow:
+    var(--gs-lt-shadow-lg),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+}
+
+html[data-theme='light'] .gis-tables-agol-add__menu-item {
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .gis-tables-agol-add__menu-item:hover {
+  background: rgba(15, 23, 42, 0.04);
+}
+
+html[data-theme='light'] .gis-tables-agol-add__menu-item i {
+  color: var(--gs-lt-accent);
+}
+
+/* Layer cards */
+html[data-theme='light'] .gis-sidebar-body--action-pane .gis-layer-card {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: var(--gs-lt-border);
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .gis-sidebar-body--action-pane .gis-layer-card:hover {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: var(--gs-lt-border-2);
+}
+
+html[data-theme='light'] .gis-sidebar-body--action-pane .gis-layer-name {
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .gis-sidebar-body--action-pane .gis-layer-meta {
+  color: var(--gs-lt-text-muted);
+}
+
+/* Vertical icon rail */
+html[data-theme='light'] .gis-sidebar-rail {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(248, 250, 253, 0.95) 100%);
+  border-right-color: var(--gs-lt-border);
+  box-shadow: inset -1px 0 0 rgba(15, 23, 42, 0.04);
+}
+
+:root[dir='rtl'] html[data-theme='light'] .gis-sidebar-rail {
+  border-left-color: var(--gs-lt-border);
+  box-shadow: inset 1px 0 0 rgba(15, 23, 42, 0.04);
+}
+
+html[data-theme='light'] .gis-sidebar-rail__sep {
+  background:
+    linear-gradient(90deg, transparent, rgba(15, 23, 42, 0.10), transparent);
+}
+
+/* Per-tool button on the rail */
+html[data-theme='light'] .gis-sidebar-rail-btn {
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .gis-sidebar-rail-btn i {
+  color: var(--gs-lt-accent);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+html[data-theme='light'] .gis-sidebar-rail-btn:hover {
+  background: rgba(15, 23, 42, 0.06);
+  color: var(--gs-lt-accent);
+}
+
+html[data-theme='light'] .gis-sidebar-rail-btn:hover i {
+  color: #0a0c1a;
+}
+
+html[data-theme='light'] .gis-sidebar-rail-btn:focus-visible {
+  outline-color: var(--gs-lt-glow);
+}
+
+html[data-theme='light'] .gis-sidebar-rail-btn--active {
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.10), rgba(15, 23, 42, 0.04));
+  color: var(--gs-lt-accent);
+  box-shadow:
+    inset 0 0 0 1px var(--gs-lt-border-2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    0 4px 12px rgba(15, 23, 42, 0.08);
+}
+
+html[data-theme='light'] .gis-sidebar-rail-btn--active i {
+  color: #0a0c1a;
+}
+
+/* Pinned-bottom expand/collapse strip */
+html[data-theme='light'] .gis-sidebar-v-toolbar__end--overlay {
+  background:
+    linear-gradient(180deg, rgba(248, 250, 253, 0.92), rgba(241, 245, 249, 0.95));
+  border-top-color: var(--gs-lt-border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+/* Expand/collapse double-chevron toggle */
+html[data-theme='light'] .gis-sidebar-rail-expand-toggle {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: var(--gs-lt-border);
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .gis-sidebar-rail-expand-toggle:hover {
+  background: rgba(255, 255, 255, 1);
+  border-color: var(--gs-lt-border-2);
+  color: var(--gs-lt-accent);
+}
+
+html[data-theme='light'] .gis-sidebar-rail-expand-toggle:focus-visible {
+  outline-color: var(--gs-lt-glow);
+}
+
+html[data-theme='light'] .gis-sidebar-rail-toggle:hover {
+  background: rgba(15, 23, 42, 0.06);
+  color: var(--gs-lt-accent);
+}
+
+html[data-theme='light'] .gis-sidebar-rail-toggle:focus-visible {
+  outline-color: var(--gs-lt-glow);
+}
+
+/* Mobile drawer rail */
+html[data-theme='light'] .gis-sidebar-rail.gis-sidebar-rail--mobile-drawer {
+  border-right-color: var(--gs-lt-border-2);
+  box-shadow: inset -1px 0 0 rgba(15, 23, 42, 0.04);
+}
+
+html[data-theme='light'] .gis-sidebar-rail--mobile-drawer .gis-sidebar-rail__sep {
+  background:
+    linear-gradient(90deg, transparent, rgba(15, 23, 42, 0.14), transparent);
+}
+
+/* Header strip above the layers list */
+html[data-theme='light'] .gis-sidebar-header {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(248, 250, 253, 0.85));
+  border-bottom-color: var(--gs-lt-border);
+}
+
+html[data-theme='light'] .gis-sidebar-title {
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .gis-sidebar-title i {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(236, 241, 248, 0.85));
+  border-color: var(--gs-lt-border);
+  color: var(--gs-lt-accent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+/* Floating layer-count badge */
+html[data-theme='light'] .gis-sidebar-expand-badge,
+html[data-theme='light'] .gis-sidebar-foot-toolbar__layer-count {
+  background:
+    linear-gradient(145deg, #1d2030, #2a2d3e);
+  color: #f6f8fc;
+  border-color: rgba(15, 23, 42, 0.45);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.18);
+}
+
+/* Bottom toolbar inside the layers panel */
+html[data-theme='light'] .gis-sidebar-foot-toolbar {
+  background:
+    linear-gradient(180deg, rgba(248, 250, 253, 0.85), rgba(241, 245, 249, 0.92));
+  border-top-color: var(--gs-lt-border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+html[data-theme='light'] .gis-sidebar-title--expand:focus-visible {
+  outline-color: var(--gs-lt-glow);
+}
+
+/* ----------------------------------------------------------------------------
+ * 5. Satellite Map Toolbox & Contextual Analysis dock
+ *    (`.si-sat-ctx-dock`, `.si-sat-ctx-dock--map`, `.si-sat-ctx-dock--light`)
+ * --------------------------------------------------------------------------*/
+
+/* Token overrides — flip the dock's CSS variables to the white-glass family.
+ * Both `.si-sat-ctx-dock` and `.si-sat-ctx-dock--light` share the override
+ * because the upstream component appends `--light` only when the parent map
+ * surface is light; we want the entire dock to follow the global theme. */
+html[data-theme='light'] .si-sat-ctx-dock,
+html[data-theme='light'] .si-sat-ctx-dock--light,
+html[data-theme='light'] .si-sat-ctx-dock--map {
+  --si-ctx-bg: rgba(255, 255, 255, 0.78);
+  --si-ctx-bg2: rgba(15, 23, 42, 0.04);
+  --si-ctx-border: rgba(15, 23, 42, 0.10);
+  --si-ctx-text: #0a0c12;
+  --si-ctx-muted: #0a0c12;
+  --si-ctx-accent: #1d2030;
+  --si-ctx-glow: rgba(29, 32, 48, 0.18);
+  --si-ctx-shadow-float:
+    0 24px 60px rgba(15, 23, 42, 0.14),
+    0 6px 18px rgba(15, 23, 42, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+}
+
+/* Rail surface — frosted snow with cool depth */
+html[data-theme='light'] .si-sat-ctx-dock--map .si-sat-ctx-rail,
+html[data-theme='light'] .si-sat-ctx-dock--light .si-sat-ctx-rail {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(248, 250, 253, 0.85) 100%);
+  border-color: var(--gs-lt-border);
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    inset -1px 0 0 rgba(15, 23, 42, 0.04);
+}
+
+/* Embedded panel column */
+html[data-theme='light'] .si-sat-ctx-dock--map .si-sat-ctx-panel,
+html[data-theme='light'] .si-sat-ctx-dock--light .si-sat-ctx-panel {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.85) 0%, rgba(248, 250, 253, 0.92) 100%);
+  border-color: var(--gs-lt-border);
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    inset 1px 0 0 rgba(15, 23, 42, 0.04);
+}
+
+/* Brand strip mark */
+html[data-theme='light'] .si-sat-ctx-rail-brand__mark,
+html[data-theme='light'] .si-sat-ctx-rail-brand--open .si-sat-ctx-rail-brand__mark,
+html[data-theme='light'] .si-sat-ctx-dock--light .si-sat-ctx-rail-brand__mark,
+html[data-theme='light'] .si-sat-ctx-dock--light .si-sat-ctx-rail-brand--open .si-sat-ctx-rail-brand__mark {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(236, 241, 248, 0.85));
+  color: var(--gs-lt-accent);
+  border: 1px solid var(--gs-lt-border);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 4px 12px rgba(15, 23, 42, 0.10);
+}
+
+/* Brand title text — slate gradient on light */
+html[data-theme='light'] .si-sat-ctx-rail-brand__title,
+html[data-theme='light'] .si-sat-ctx-dock--light .si-sat-ctx-rail-brand__title {
+  background: linear-gradient(180deg, #0a0c1a 0%, #2a2d3e 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+/* Per-tool tile on the rail */
+html[data-theme='light'] .si-sat-ctx-rail-btn i {
+  color: var(--gs-lt-accent);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+html[data-theme='light'] .si-sat-ctx-rail-btn:hover,
+html[data-theme='light'] .si-sat-ctx-dock--light .si-sat-ctx-rail-btn:hover {
+  background: rgba(15, 23, 42, 0.05);
+  border-color: var(--gs-lt-border);
+  color: var(--gs-lt-accent);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.10);
+}
+
+html[data-theme='light'] .si-sat-ctx-rail-btn:hover i {
+  color: #0a0c1a;
+}
+
+html[data-theme='light'] .si-sat-ctx-rail-btn--active,
+html[data-theme='light'] .si-sat-ctx-dock--light .si-sat-ctx-rail-btn--active {
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.10), rgba(15, 23, 42, 0.04));
+  border-color: var(--gs-lt-border-2);
+  color: var(--gs-lt-accent);
+  box-shadow:
+    inset 0 0 0 1px var(--gs-lt-border-2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    0 6px 14px rgba(15, 23, 42, 0.10);
+}
+
+html[data-theme='light'] .si-sat-ctx-rail-btn--active i {
+  color: #0a0c1a;
+}
+
+/* Smart-processing accordion components — were dark slate cards. */
+html[data-theme='light'] .si-smart-proc__context,
+html[data-theme='light'] .si-sat-ctx-dock--light .si-smart-proc__context {
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.92), rgba(248, 250, 253, 0.85));
+  border-color: var(--gs-lt-border);
+}
+
+html[data-theme='light'] .si-smart-proc__cat-toggle,
+html[data-theme='light'] .si-sat-ctx-dock--light .si-smart-proc__cat-toggle {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: var(--gs-lt-border);
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .si-smart-proc__cat-toggle:hover,
+html[data-theme='light'] .si-sat-ctx-dock--light .si-smart-proc__cat-toggle:hover {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: var(--gs-lt-border-2);
+}
+
+html[data-theme='light'] .si-smart-proc__cat-toggle--on {
+  border-color: var(--gs-lt-border-2);
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.08), rgba(15, 23, 42, 0.03));
+}
+
+html[data-theme='light'] .si-smart-proc__chip,
+html[data-theme='light'] .si-sat-ctx-dock--light .si-smart-proc__chip {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: var(--gs-lt-border);
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .si-smart-proc__chip:hover {
+  border-color: var(--gs-lt-border-2);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+}
+
+html[data-theme='light'] .si-smart-proc__chip i,
+html[data-theme='light'] .si-sat-ctx-dock--light .si-smart-proc__chip i {
+  color: var(--gs-lt-accent);
+}
+
+html[data-theme='light'] .si-smart-proc__tool,
+html[data-theme='light'] .si-sat-ctx-dock--light .si-smart-proc__tool {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: var(--gs-lt-border);
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .si-smart-proc__tool:hover {
+  border-color: var(--gs-lt-border-2);
+  background: rgba(255, 255, 255, 0.95);
+}
+
+html[data-theme='light'] .si-smart-proc__tool i {
+  color: var(--gs-lt-accent);
+}
+
+/* AOI buttons */
+html[data-theme='light'] .si-sat-ctx-aoi-btn {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: var(--gs-lt-border);
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .si-sat-ctx-aoi-btn--on {
+  border-color: var(--gs-lt-border-2);
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.08), rgba(15, 23, 42, 0.03));
+  color: var(--gs-lt-accent);
+}
+
+/* Primary CTA inside the dock */
+html[data-theme='light'] .si-sat-ctx-primary-btn {
+  background:
+    linear-gradient(145deg, #1d2030, #0c0e1c);
+  color: #f6f8fc;
+  box-shadow:
+    0 6px 16px rgba(15, 23, 42, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.10);
+}
+
+html[data-theme='light'] .si-sat-ctx-primary-btn:hover {
+  filter: brightness(1.1);
+}
+
+/* Processing-embed mode header */
+html[data-theme='light'] .si-sat-ctx-panel.si-sat-ctx-panel--processing-embed-mode .si-sat-ctx-panel-header {
+  border-bottom-color: var(--gs-lt-border);
+}
+
+/* ----------------------------------------------------------------------------
+ * 6. Common UI primitives (cards, popovers, generic buttons)
+ * --------------------------------------------------------------------------*/
+
+html[data-theme='light'] .ds-card {
+  background: var(--gs-lt-bg-elev-1);
+  border-color: var(--gs-lt-border);
+  box-shadow: var(--gs-lt-shadow-sm);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+}
+
+html[data-theme='light'] .ds-btn {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(241, 245, 249, 0.85));
+  border-color: var(--gs-lt-border);
+  color: var(--gs-lt-text);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 1px 3px rgba(15, 23, 42, 0.06);
+}
+
+html[data-theme='light'] .ds-btn:hover {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(236, 241, 248, 0.92));
+  border-color: var(--gs-lt-border-2);
+}
+
+/* Inputs */
+html[data-theme='light'] input,
+html[data-theme='light'] select,
+html[data-theme='light'] textarea {
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--gs-lt-text);
+  border-color: var(--gs-lt-border);
+}
+
+html[data-theme='light'] input:hover,
+html[data-theme='light'] select:hover,
+html[data-theme='light'] textarea:hover {
+  border-color: var(--gs-lt-border-2);
+}
+
+html[data-theme='light'] input::placeholder,
+html[data-theme='light'] textarea::placeholder {
+  color: var(--gs-lt-text-muted);
+}
+
+html[data-theme='light'] button:focus-visible,
+html[data-theme='light'] input:focus-visible,
+html[data-theme='light'] select:focus-visible,
+html[data-theme='light'] textarea:focus-visible,
+html[data-theme='light'] a:focus-visible {
+  box-shadow: 0 0 0 3px var(--gs-lt-glow);
+}
+
+/* ----------------------------------------------------------------------------
+ * 7. Glass scrollbars (WebKit + Firefox)
+ *
+ * The dark mode uses transparent track + white-glass thumb. In light mode we
+ * flip to soft slate thumb on transparent track so the bar reads as a
+ * polished divider rather than a black band on white.
+ * --------------------------------------------------------------------------*/
+
+html[data-theme='light'] {
+  scrollbar-color: rgba(15, 23, 42, 0.22) transparent;
+  scrollbar-width: thin;
+}
+
+html[data-theme='light'] ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+html[data-theme='light'] ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+html[data-theme='light'] ::-webkit-scrollbar-thumb {
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.20), rgba(15, 23, 42, 0.12));
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 999px;
+}
+
+html[data-theme='light'] ::-webkit-scrollbar-thumb:hover {
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.32), rgba(15, 23, 42, 0.20));
+  background-clip: padding-box;
+}
+
+html[data-theme='light'] ::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* ----------------------------------------------------------------------------
+ * 8. Theme picker pill highlight (the popover from the screenshot)
+ *
+ * The screenshot shows a theme picker with "Dark Mode" highlighted in a
+ * teal ring. In light mode we flip the popover to a frosted-white card with
+ * a slate ring around the active option so the picker matches the surrounding
+ * white-glass chrome instead of looking like a stranded dark widget.
+ * --------------------------------------------------------------------------*/
+
+html[data-theme='light'] [data-popover='theme-picker'],
+html[data-theme='light'] [data-theme-picker-menu],
+html[data-theme='light'] .theme-picker-menu,
+html[data-theme='light'] .theme-mode-menu {
+  background: var(--gs-lt-bg-elev-2);
+  border: 1px solid var(--gs-lt-border);
+  color: var(--gs-lt-text);
+  box-shadow: var(--gs-lt-shadow-lg);
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+}
+
+html[data-theme='light'] .theme-picker-menu button,
+html[data-theme='light'] .theme-mode-menu button {
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .theme-picker-menu button:hover,
+html[data-theme='light'] .theme-mode-menu button:hover {
+  background: var(--gs-lt-accent-soft);
+}
+
+html[data-theme='light'] .theme-picker-menu .is-active,
+html[data-theme='light'] .theme-mode-menu .is-active {
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.10), rgba(15, 23, 42, 0.04));
+  box-shadow: inset 0 0 0 1px var(--gs-lt-border-2);
+}
+
+/* ----------------------------------------------------------------------------
+ * 9. Dynamic theme icons — Dark = neon glow, Light = elegant soft slate.
+ *
+ * Many icons in the app use either Font Awesome glyphs or inline SVG
+ * <path>/<g> elements. The dark mode glows them in white. In light mode we
+ * keep the strokes/fills crisp slate for high readability without harshness.
+ * --------------------------------------------------------------------------*/
+
+html[data-theme='light'] .navmenu .icon i,
+html[data-theme='light'] .gis-sidebar-rail-btn i,
+html[data-theme='light'] .si-sat-ctx-rail-btn i,
+html[data-theme='light'] .menu-btn i,
+html[data-theme='light'] .profile-icon i,
+html[data-theme='light'] .profile-icon-only i {
+  filter: none;
+}
+
+html[data-theme='light'] .navmenu .group-header.is-active .icon i {
+  color: #f6f8fc;
+}
+
+/* ----------------------------------------------------------------------------
+ * 10. GIS Map tool surfaces — Workspace selector, Apps grid, Share, Embed,
+ *      Bookmarks, Charts. Mirror of the Black-Glass override block in
+ *      `index.css` (lines ~13177+), retoned for White Glass One UI so the
+ *      popovers feel like first-class siblings of the surrounding white
+ *      sidebar, not stranded green-tagged widgets.
+ * --------------------------------------------------------------------------*/
+
+html[data-theme='light'] .gis-map-tool-surface__icon {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(236, 241, 248, 0.82));
+  border-color: var(--gs-lt-border);
+  color: var(--gs-lt-accent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 4px 12px rgba(15, 23, 42, 0.10);
+}
+
+html[data-theme='light'] .gis-map-tool-surface__kicker {
+  color: var(--gs-lt-text-muted);
+}
+
+html[data-theme='light'] .gis-map-tool-surface__lede {
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .gis-map-tool-surface__primary {
+  background: linear-gradient(145deg, #1d2030, #0c0e1c);
+  color: #f6f8fc;
+  border-color: rgba(15, 23, 42, 0.45);
+  box-shadow:
+    0 6px 16px rgba(15, 23, 42, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.10);
+}
+
+html[data-theme='light'] .gis-map-tool-surface__primary:hover {
+  filter: brightness(1.10);
+  box-shadow:
+    0 8px 22px rgba(15, 23, 42, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+html[data-theme='light'] .gis-map-tool-surface__primary:focus-visible {
+  box-shadow:
+    0 0 0 3px var(--gs-lt-glow),
+    0 8px 22px rgba(15, 23, 42, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+html[data-theme='light'] .gis-map-tool-surface-app-row {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(248, 250, 253, 0.85));
+  border-color: var(--gs-lt-border);
+  color: var(--gs-lt-text);
+  box-shadow:
+    var(--gs-lt-shadow-sm),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+}
+
+html[data-theme='light'] .gis-map-tool-surface-app-row:hover {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(236, 241, 248, 0.92));
+  border-color: var(--gs-lt-border-2);
+  box-shadow:
+    var(--gs-lt-shadow-md),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+html[data-theme='light'] .gis-map-tool-surface-app-row__icon {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(236, 241, 248, 0.82));
+  border-color: var(--gs-lt-border);
+  color: var(--gs-lt-accent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 1px 3px rgba(15, 23, 42, 0.06);
+}
+
+html[data-theme='light'] .gis-map-tool-surface-app-row:hover .gis-map-tool-surface-app-row__icon {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 1), rgba(229, 235, 244, 0.92));
+  border-color: var(--gs-lt-border-2);
+  color: #0a0c1a;
+}
+
+html[data-theme='light'] .gis-map-tool-surface-app-row__main strong {
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .gis-map-tool-surface-app-row__main small {
+  color: var(--gs-lt-text-muted);
+}
+
+html[data-theme='light'] .gis-map-tool-surface-app-row__chev {
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .gis-map-tool-surface-app-row:hover .gis-map-tool-surface-app-row__chev {
+  color: var(--gs-lt-accent);
+}
+
+html[data-theme='light'] .gis-map-tool-surface__footnote {
+  color: var(--gs-lt-text-muted);
+}
+
+html[data-theme='light'] .gis-map-tool-surface__footnote .fa-circle-info {
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .gis-map-tool-surface__linkish {
+  color: var(--gs-lt-accent);
+  text-decoration-color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .gis-map-tool-surface__linkish:hover {
+  color: #0a0c1a;
+  text-decoration-color: rgba(15, 23, 42, 0.85);
+}
+
+/* Share popover URL split-pill — White Glass mirror of the dark variant.
+ * Anchor + trailing copy/✓ button share one frosted-white capsule with a
+ * soft cool-gray hairline; hover lifts to a slightly brighter white. */
+html[data-theme='light'] .gis-map-tool-surface__url {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 253, 0.88));
+  border-color: var(--gs-lt-border);
+  box-shadow:
+    var(--gs-lt-shadow-sm),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+html[data-theme='light'] .gis-map-tool-surface__url:hover {
+  border-color: var(--gs-lt-border-2);
+  box-shadow: var(--gs-lt-shadow-md);
+}
+
+html[data-theme='light'] .gis-map-tool-surface__url:focus-within {
+  border-color: var(--gs-lt-accent);
+  box-shadow:
+    var(--gs-lt-shadow-md),
+    0 0 0 3px var(--gs-lt-glow);
+}
+
+html[data-theme='light'] .gis-map-tool-surface__url-link {
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .gis-map-tool-surface__url-link:hover,
+html[data-theme='light'] .gis-map-tool-surface__url-link:focus-visible {
+  background: rgba(15, 23, 42, 0.04);
+  color: #0a0c1a;
+}
+
+html[data-theme='light'] .gis-map-tool-surface__url-link i {
+  color: var(--gs-lt-text-muted);
+}
+
+html[data-theme='light'] .gis-map-tool-surface__url-link:hover i {
+  color: var(--gs-lt-accent);
+}
+
+html[data-theme='light'] .gis-map-tool-surface__url-copy {
+  background: rgba(15, 23, 42, 0.03);
+  color: var(--gs-lt-accent);
+  border-inline-start-color: var(--gs-lt-border);
+}
+
+html[data-theme='light'] .gis-map-tool-surface__url-copy:hover {
+  background: rgba(15, 23, 42, 0.07);
+  color: #0a0c1a;
+}
+
+html[data-theme='light'] .gis-map-tool-surface__url-copy:focus-visible {
+  background: rgba(15, 23, 42, 0.09);
+  color: #0a0c1a;
+}
+
+html[data-theme='light'] .gis-map-tool-surface__url-copy .fa-check {
+  color: #047857;
+}
+
+/* ----------------------------------------------------------------------------
+ * 11. Map projection toggle (2D ⇄ 3D Globe) — White Glass mirror. The dark
+ *      variant lives at the end of `index.css`; this re-tones the same
+ *      capsule + child rows for Lite Mode (frosted-white background, soft
+ *      cool-gray hairlines, deep-slate glyphs, slate-fill on the active
+ *      row). Both the floating capsule on the map and the in-panel
+ *      settings variant inherit these rules, so the projection control
+ *      feels at home in either chrome.
+ * --------------------------------------------------------------------------*/
+html[data-theme='light'] .gis-map-projection-toggle--vertical.gis-map-projection-toggle--float {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 253, 0.92));
+  border-color: var(--gs-lt-border);
+  box-shadow:
+    var(--gs-lt-shadow-md),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+html[data-theme='light'] .gis-map-projection-toggle--float .gis-map-tool {
+  color: var(--gs-lt-text);
+  border-bottom-color: var(--gs-lt-border);
+}
+
+html[data-theme='light'] .gis-map-projection-toggle--float .gis-map-tool i {
+  color: var(--gs-lt-text-muted);
+}
+
+html[data-theme='light'] .gis-map-projection-toggle--float .gis-map-tool:hover:not(.active) {
+  background: rgba(15, 23, 42, 0.04);
+  border-bottom-color: var(--gs-lt-border);
+}
+
+html[data-theme='light'] .gis-map-projection-toggle--float .gis-map-tool:hover:not(.active) i {
+  color: var(--gs-lt-accent);
+}
+
+html[data-theme='light'] .gis-map-projection-toggle--float .gis-map-tool.active {
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.10), rgba(15, 23, 42, 0.04));
+  color: var(--gs-lt-accent);
+  border-bottom-color: var(--gs-lt-border);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 0 0 1px var(--gs-lt-border-2);
+}
+
+html[data-theme='light'] .gis-map-projection-toggle--float .gis-map-tool.active i {
+  color: #0a0c1a;
+}
+
+html[data-theme='light'] .gis-map-projection-toggle--float .gis-map-tool:focus-visible {
+  box-shadow:
+    inset 0 0 0 2px var(--gs-lt-accent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+/* In-panel (Settings) variant */
+html[data-theme='light'] .gis-map-projection-toggle--vertical:not(.gis-map-projection-toggle--float) {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(248, 250, 253, 0.85));
+  border-color: var(--gs-lt-border);
+}
+
+html[data-theme='light'] .gis-map-projection-toggle--vertical:not(.gis-map-projection-toggle--float) .gis-map-tool {
+  color: var(--gs-lt-text);
+  border-bottom-color: var(--gs-lt-border);
+}
+
+html[data-theme='light'] .gis-map-projection-toggle--vertical:not(.gis-map-projection-toggle--float) .gis-map-tool i {
+  color: var(--gs-lt-text-muted);
+}
+
+html[data-theme='light'] .gis-map-projection-toggle--vertical:not(.gis-map-projection-toggle--float) .gis-map-tool:hover:not(.active) {
+  background: rgba(15, 23, 42, 0.04);
+}
+
+html[data-theme='light'] .gis-map-projection-toggle--vertical:not(.gis-map-projection-toggle--float) .gis-map-tool:hover:not(.active) i {
+  color: var(--gs-lt-accent);
+}
+
+html[data-theme='light'] .gis-map-projection-toggle--vertical:not(.gis-map-projection-toggle--float) .gis-map-tool.active {
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.10), rgba(15, 23, 42, 0.04));
+  color: var(--gs-lt-accent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+html[data-theme='light'] .gis-map-projection-toggle--vertical:not(.gis-map-projection-toggle--float) .gis-map-tool.active i {
+  color: #0a0c1a;
+}
+
+/* ----------------------------------------------------------------------------
+ * 12. Add Source Data modal — White Glass mirror.
+ *      The dark variant lives at the end of
+ *      `frontend/src/pages/satellite/SatelliteIntelligence.css`. This block
+ *      re-tones the entire `.si-add-layer-gis-overlay …` family for Lite
+ *      Mode: frosted-white shell, soft cool-gray hairlines, deep-slate
+ *      glyphs/text, white-on-slate active states. Same coverage as the
+ *      dark block (shell, hero/head, options grid, radios, icon chips,
+ *      hover/focus/active, footer + Cancel, tabs, body/panels, inputs,
+ *      buttons, dropzone, Get Data rows, GIS-content list, banner).
+ * --------------------------------------------------------------------------*/
+
+html[data-theme='light'] .si-add-layer-gis-overlay.gis-modal-overlay {
+  background: rgba(15, 23, 42, 0.42) !important;
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-modal.gis-modal.gis-modal-compact {
+  border: 1px solid var(--gs-lt-border);
+  background:
+    linear-gradient(168deg, rgba(255, 255, 255, 0.96) 0%, rgba(248, 250, 253, 0.96) 50%, rgba(255, 255, 255, 0.96) 100%);
+  color: var(--gs-lt-text);
+  box-shadow:
+    var(--gs-lt-shadow-lg),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-modal.ddb-add-source-modal--home.gis-modal-compact::before {
+  background:
+    radial-gradient(ellipse 110% 70% at 100% -5%, rgba(15, 23, 42, 0.06), transparent 55%),
+    radial-gradient(ellipse 90% 65% at -5% 105%, rgba(15, 23, 42, 0.05), transparent 50%);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .ddb-add-source-modal--home .gis-modal-compact-hero,
+html[data-theme='light'] .si-add-layer-gis-overlay .ddb-add-source-modal__head {
+  border-bottom: 1px solid var(--gs-lt-border) !important;
+  background:
+    linear-gradient(118deg, rgba(248, 250, 253, 0.85) 0%, rgba(255, 255, 255, 0.65) 100%) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-modal-compact-hero-title,
+html[data-theme='light'] .si-add-layer-gis-overlay .ddb-add-source-modal__head .gis-modal-compact-title,
+html[data-theme='light'] .si-add-layer-gis-overlay #si-layer-modal-title.gis-modal-compact-title,
+html[data-theme='light'] .si-add-layer-gis-overlay #si-layer-modal-title.gis-modal-compact-hero-title {
+  color: var(--gs-lt-text) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-modal-compact-hero-lead {
+  color: var(--gs-lt-text-muted);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .ddb-add-source-back {
+  border: 1px solid var(--gs-lt-border);
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--gs-lt-text);
+  box-shadow: var(--gs-lt-shadow-sm);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .ddb-add-source-back:hover {
+  background: rgba(255, 255, 255, 1);
+  border-color: var(--gs-lt-border-2);
+  color: var(--gs-lt-accent);
+}
+
+/* Options grid */
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-option {
+  border: 1px solid var(--gs-lt-border);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(248, 250, 253, 0.85));
+  color: var(--gs-lt-text);
+  box-shadow:
+    var(--gs-lt-shadow-sm),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-option:hover {
+  border-color: var(--gs-lt-border-2);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(236, 241, 248, 0.92));
+  box-shadow:
+    var(--gs-lt-shadow-md),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-option:focus-visible {
+  border-color: var(--gs-lt-accent);
+  box-shadow: 0 0 0 2px var(--gs-lt-glow);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-option.active {
+  border-color: var(--gs-lt-border-2);
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.06), rgba(15, 23, 42, 0.02));
+  box-shadow:
+    0 0 0 1px var(--gs-lt-border-2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-option-radio {
+  border-color: rgba(15, 23, 42, 0.30);
+  background: rgba(255, 255, 255, 0.95);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-option:hover .si-add-source-option-radio {
+  border-color: var(--gs-lt-accent);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-option.active .si-add-source-option-radio {
+  border-color: var(--gs-lt-accent);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-option.active .si-add-source-option-radio::after {
+  background: linear-gradient(145deg, #1d2030, #0c0e1c);
+  box-shadow: 0 0 8px rgba(15, 23, 42, 0.20);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-option-icon {
+  background:
+    linear-gradient(155deg, rgba(255, 255, 255, 0.95), rgba(236, 241, 248, 0.78));
+  border-color: var(--gs-lt-border);
+  color: var(--gs-lt-accent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-option:hover .si-add-source-option-icon {
+  border-color: var(--gs-lt-border-2);
+  color: #0a0c1a;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    var(--gs-lt-shadow-md);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-option-main strong {
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-option-main small {
+  color: var(--gs-lt-text-muted);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-gis-banner {
+  background:
+    linear-gradient(105deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 253, 0.85) 55%, rgba(255, 255, 255, 0.92) 100%);
+  border-color: var(--gs-lt-border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-gis-banner .ddb-add-source-gis-hint {
+  color: var(--gs-lt-text-muted);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-gis-banner .ddb-add-source-gis-hint strong {
+  color: var(--gs-lt-text);
+}
+
+/* Footer + Cancel */
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-modal-footer {
+  background: rgba(248, 250, 253, 0.85) !important;
+  border-top: 1px solid var(--gs-lt-border) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-modal-footer .gis-link-btn {
+  border: 1px solid var(--gs-lt-border) !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+  color: var(--gs-lt-text) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-modal-footer .gis-link-btn:hover {
+  background: rgba(255, 255, 255, 1) !important;
+  border-color: var(--gs-lt-border-2) !important;
+  color: var(--gs-lt-accent) !important;
+}
+
+/* Tabs */
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-modal-compact-tabs {
+  background: rgba(248, 250, 253, 0.65) !important;
+  border-bottom: 1px solid var(--gs-lt-border) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-compact-tab {
+  background: rgba(255, 255, 255, 0.85) !important;
+  color: var(--gs-lt-text-muted) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-compact-tab i {
+  color: var(--gs-lt-text-muted) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-compact-tab:hover {
+  border-color: var(--gs-lt-border-2) !important;
+  color: var(--gs-lt-accent) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-compact-tab:hover i {
+  color: var(--gs-lt-accent) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-compact-tab.active {
+  color: #0a0c1a !important;
+  border-color: var(--gs-lt-border-2) !important;
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.08), rgba(15, 23, 42, 0.02)) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-compact-tab.active i {
+  color: #0a0c1a !important;
+}
+
+/* Body / panels */
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-modal-compact .gis-modal-body {
+  background: rgba(248, 250, 253, 0.55) !important;
+  color: var(--gs-lt-text) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-modal-body > [role='tabpanel'] {
+  background: rgba(255, 255, 255, 0.85) !important;
+  border: 1px solid var(--gs-lt-border) !important;
+  color: var(--gs-lt-text) !important;
+}
+
+/* Inputs */
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-input,
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-select {
+  background: rgba(255, 255, 255, 0.92) !important;
+  border: 1px solid var(--gs-lt-border) !important;
+  color: var(--gs-lt-text) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-input::placeholder {
+  color: var(--gs-lt-text) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-input:focus-visible {
+  border-color: var(--gs-lt-accent) !important;
+  box-shadow: 0 0 0 2px var(--gs-lt-glow) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-form-label,
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-discover-meta {
+  color: var(--gs-lt-text-muted) !important;
+}
+
+/* Buttons */
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-btn-outline {
+  border-color: var(--gs-lt-border) !important;
+  color: var(--gs-lt-text) !important;
+  background: rgba(255, 255, 255, 0.92) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-btn-outline:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 1) !important;
+  border-color: var(--gs-lt-border-2) !important;
+  color: var(--gs-lt-accent) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-btn-primary-full {
+  background:
+    linear-gradient(
+      168deg,
+      rgba(6, 6, 8, 0.94) 0%,
+      rgba(0, 0, 0, 0.97) 46%,
+      rgba(10, 10, 12, 0.95) 100%
+    ) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  color: rgba(248, 250, 252, 0.98) !important;
+  backdrop-filter: blur(22px) saturate(155%);
+  -webkit-backdrop-filter: blur(22px) saturate(155%);
+  box-shadow:
+    0 14px 36px rgba(0, 0, 0, 0.48),
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-modal-compact .gis-discovered-add {
+  background: linear-gradient(145deg, #1d2030, #0c0e1c) !important;
+  border: 1px solid rgba(15, 23, 42, 0.45) !important;
+  color: #f6f8fc !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-smart-url-panel {
+  border-color: var(--gs-lt-border) !important;
+  background: rgba(255, 255, 255, 0.72) !important;
+  box-shadow: var(--gs-lt-shadow-md), inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-smart-url-panel--drop {
+  border-color: var(--gs-lt-accent) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-smart-url-badge {
+  border-color: var(--gs-lt-border-2) !important;
+  background: rgba(248, 250, 253, 0.85) !important;
+  color: var(--gs-lt-text) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-smart-url-preview {
+  color: var(--gs-lt-text-muted) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-modal-compact .gis-discover-panel {
+  background: rgba(255, 255, 255, 0.78) !important;
+  border-color: var(--gs-lt-border) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-modal .gis-discover-selection {
+  background: rgba(248, 250, 253, 0.92) !important;
+  border-color: var(--gs-lt-border-2) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-modal .gis-discover-selection-name {
+  color: var(--gs-lt-text) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-modal .gis-discover-selection-label,
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-modal .gis-discover-selection-kind {
+  color: var(--gs-lt-text-muted) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-discover-meta {
+  color: var(--gs-lt-text) !important;
+  background: rgba(248, 250, 253, 0.95) !important;
+  border-color: var(--gs-lt-border-2) !important;
+}
+
+/* Dropzone */
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-modal-compact .gis-dropzone {
+  border: 1px dashed var(--gs-lt-border-2) !important;
+  background: rgba(248, 250, 253, 0.65) !important;
+  color: var(--gs-lt-text-muted) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-modal-compact .gis-dropzone:hover,
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-modal-compact .gis-dropzone:focus-visible {
+  border-color: var(--gs-lt-accent) !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-modal-compact .gis-dropzone-icon i {
+  color: var(--gs-lt-accent) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-modal-compact .gis-dropzone.drag-over {
+  border-color: var(--gs-lt-accent) !important;
+  background: rgba(255, 255, 255, 1) !important;
+  box-shadow: inset 0 0 0 1px var(--gs-lt-border-2);
+}
+
+/* Get Data */
+html[data-theme='light'] .si-add-layer-gis-overlay .si-get-data-hero-icons {
+  color: var(--gs-lt-accent);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-get-data-row {
+  border-color: var(--gs-lt-border);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(248, 250, 253, 0.85));
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-get-data-row:hover {
+  border-color: var(--gs-lt-border-2);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(236, 241, 248, 0.92));
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-get-data-row-icon,
+html[data-theme='light'] .si-add-layer-gis-overlay .si-get-data-row-icon--excel,
+html[data-theme='light'] .si-add-layer-gis-overlay .si-get-data-row-icon--csv {
+  background: rgba(15, 23, 42, 0.06);
+  color: var(--gs-lt-accent);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-get-data-more-btn {
+  color: var(--gs-lt-accent);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-get-data-more-btn:hover {
+  color: #0a0c1a;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-get-data-back {
+  border-color: var(--gs-lt-border);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-get-data-back:hover {
+  border-color: var(--gs-lt-border-2);
+  color: var(--gs-lt-accent);
+}
+
+/* GIS-content list rows */
+html[data-theme='light'] .si-add-layer-gis-overlay .ddb-gis-content-list {
+  border-color: var(--gs-lt-border);
+  background: rgba(255, 255, 255, 0.85);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .ddb-gis-content-row {
+  border-bottom: 1px solid var(--gs-lt-border);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .ddb-gis-badge {
+  border-color: var(--gs-lt-border-2);
+  color: var(--gs-lt-accent);
+  background: rgba(15, 23, 42, 0.06);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .ddb-gis-content-add-btn {
+  background: linear-gradient(145deg, #1d2030, #0c0e1c) !important;
+  border: 1px solid rgba(15, 23, 42, 0.45) !important;
+  color: #f6f8fc !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .ddb-add-source-loading,
+html[data-theme='light'] .si-add-layer-gis-overlay .ddb-add-source-empty {
+  background: rgba(248, 250, 253, 0.65);
+  border-color: var(--gs-lt-border);
+  color: var(--gs-lt-text-muted);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .ddb-add-source-empty i {
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-layer-advanced {
+  border: 1px solid var(--gs-lt-border);
+  background: rgba(255, 255, 255, 0.85);
+}
+
+/* ----------------------------------------------------------------------------
+ * 13. Disabled state — apply across all themed surfaces.
+ * --------------------------------------------------------------------------*/
+
+html[data-theme='light'] button:disabled,
+html[data-theme='light'] input:disabled,
+html[data-theme='light'] select:disabled,
+html[data-theme='light'] textarea:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ----------------------------------------------------------------------------
+ * 14. GIS Map page canvas + floating tool popover — Lite Mode mirror.
+ *
+ * Counterparts of the Black-Glass overrides at the bottom of `index.css`
+ * (search for "Geosyntra · GIS Map page canvas + floating tool popover").
+ *
+ *   - `.gis-map-page` — page background was the legacy mint `#edf7f1`
+ *     even in Lite Mode. Swap it to the white-glass canvas tone so the
+ *     gutter around the rounded sidebar / map canvas matches the rest
+ *     of the Lite shell.
+ *   - `.gis-map-tool-panel` — was already white in the base sheet, but
+ *     the dark base (above) overrides it to charcoal-glass. Re-assert a
+ *     proper frosted-white card here so Lite Mode doesn't show the dark
+ *     panel through the white shell.
+ * --------------------------------------------------------------------------*/
+
+html[data-theme='light'] .gis-map-page {
+  background:
+    radial-gradient(1200px 600px at 12% -10%, rgba(226, 232, 240, 0.55), transparent 60%),
+    radial-gradient(1000px 500px at 95% 110%, rgba(214, 222, 235, 0.65), transparent 65%),
+    linear-gradient(180deg, var(--gs-lt-bg-canvas), #eef1f6);
+}
+
+html[data-theme='light'] .gis-map-tool-panel {
+  background: var(--gs-lt-bg-elev-2);
+  border-color: var(--gs-lt-border);
+  box-shadow: var(--gs-lt-shadow-lg);
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+}
+
+html[data-theme='light'] .gis-sidebar-content-wrapper.gis-sidebar-tool-dock > .gis-map-tool-panel {
+  background: var(--gs-lt-bg-elev-1);
+  border-color: var(--gs-lt-border);
+  box-shadow: none;
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+}
+
+html[data-theme='light'] .gis-map-tool-panel-head {
+  border-bottom-color: var(--gs-lt-border);
+}
+
+html[data-theme='light'] .gis-map-tool-panel-title {
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .gis-map-tool-close {
+  background: rgba(255, 255, 255, 0.86);
+  border-color: var(--gs-lt-border);
+  color: var(--gs-lt-text-muted);
+}
+
+html[data-theme='light'] .gis-map-tool-close:hover {
+  background: #ffffff;
+  border-color: var(--gs-lt-border-2);
+  color: var(--gs-lt-text);
+}
+
+/* ----------------------------------------------------------------------------
+ * 15. Fields Data — Lite Mode mirror of the Black-Glass identity defined
+ *     in `index.css` (search "Geosyntra · Fields Data").
+ *
+ *     The field cards swap from charcoal-glass to white-glass; the map
+ *     tooltip pill flips to a soft white card with slate type so the
+ *     OneSoil-style labels stay readable on top of the bright basemap.
+ * --------------------------------------------------------------------------*/
+
+html[data-theme='light'] .gs-fields-cta {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(232, 236, 245, 0.94));
+  border-color: var(--gs-lt-border-2);
+  color: var(--gs-lt-text);
+  box-shadow: var(--gs-lt-shadow-md), inset 0 1px 0 #ffffff;
+}
+
+html[data-theme='light'] .gs-fields-cta:hover:not(:disabled) {
+  background: #ffffff;
+  border-color: rgba(15, 23, 42, 0.28);
+}
+
+html[data-theme='light'] .gs-fields-search {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: var(--gs-lt-border);
+  color: var(--gs-lt-text-muted);
+}
+
+html[data-theme='light'] .gs-fields-search input {
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .gs-fields-search input::placeholder {
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .gs-fields-search:focus-within {
+  background: #ffffff;
+  border-color: var(--gs-lt-border-2);
+}
+
+html[data-theme='light'] .gs-fields-search__clear {
+  background: rgba(15, 23, 42, 0.06);
+  color: var(--gs-lt-text-muted);
+}
+
+html[data-theme='light'] .gs-fields-search__clear:hover {
+  background: rgba(15, 23, 42, 0.12);
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .gs-fields-chip {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: var(--gs-lt-border);
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .gs-fields-chip strong {
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .gs-fields-chip--muted {
+  color: var(--gs-lt-text-muted);
+}
+
+html[data-theme='light'] .gs-fields-empty {
+  background: rgba(255, 255, 255, 0.78);
+  border-color: rgba(15, 23, 42, 0.12);
+}
+
+html[data-theme='light'] .gs-fields-empty__icon {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: var(--gs-lt-border);
+  color: var(--gs-lt-text-muted);
+}
+
+html[data-theme='light'] .gs-fields-empty__title {
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .gs-fields-empty__copy {
+  color: var(--gs-lt-text-muted);
+}
+
+html[data-theme='light'] .gs-field-card {
+  background: var(--gs-lt-bg-elev-2);
+  border-color: var(--gs-lt-border);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), inset 0 1px 0 #ffffff;
+}
+
+html[data-theme='light'] .gs-field-card:hover {
+  border-color: rgba(15, 23, 42, 0.28);
+  box-shadow: var(--gs-lt-shadow-md), inset 0 1px 0 #ffffff;
+}
+
+html[data-theme='light'] .gs-field-card--selected {
+  border-color: var(--field-color, var(--gs-lt-text));
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.10), 0 0 0 1px var(--field-color, var(--gs-lt-text)) inset;
+  background: #ffffff;
+}
+
+html[data-theme='light'] .gs-field-card__name {
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .gs-field-card__sub {
+  color: var(--gs-lt-text-muted);
+}
+
+html[data-theme='light'] .gs-field-card__date {
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .gs-field-card__rename {
+  background: #ffffff;
+  border-color: var(--gs-lt-border-2);
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .gs-field-card__btn {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: var(--gs-lt-border);
+  color: var(--gs-lt-text-muted);
+}
+
+html[data-theme='light'] .gs-field-card__btn:hover {
+  background: #ffffff;
+  border-color: var(--gs-lt-border-2);
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .gs-field-card__btn--danger:hover {
+  background: rgba(244, 63, 94, 0.12);
+  border-color: rgba(244, 63, 94, 0.45);
+  color: #b91c1c;
+}
+
+html[data-theme='light'] .gs-field-detail {
+  background: var(--gs-lt-bg-elev-2);
+  border-color: var(--gs-lt-border);
+  box-shadow: var(--gs-lt-shadow-md), inset 0 1px 0 #ffffff;
+}
+
+html[data-theme='light'] .gs-field-detail__title {
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .gs-field-detail__close {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: var(--gs-lt-border);
+  color: var(--gs-lt-text-muted);
+}
+
+html[data-theme='light'] .gs-field-detail__close:hover {
+  background: #ffffff;
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .gs-field-detail__stat {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: var(--gs-lt-border);
+}
+
+html[data-theme='light'] .gs-field-detail__stat-label {
+  color: var(--gs-lt-text-muted);
+}
+
+html[data-theme='light'] .gs-field-detail__stat strong {
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .gs-field-detail__field span {
+  color: var(--gs-lt-text-muted);
+}
+
+html[data-theme='light'] .gs-field-detail__field input,
+html[data-theme='light'] .gs-field-detail__field textarea {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: var(--gs-lt-border);
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .gs-field-detail__field input:focus,
+html[data-theme='light'] .gs-field-detail__field textarea:focus {
+  background: #ffffff;
+  border-color: var(--gs-lt-border-2);
+}
+
+html[data-theme='light'] .gs-field-index {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: var(--gs-lt-border);
+}
+
+html[data-theme='light'] .gs-field-index__label {
+  color: var(--gs-lt-text-muted);
+}
+
+html[data-theme='light'] .gs-field-index__value {
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .gs-field-index__hint {
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .gs-field-detail__btn,
+html[data-theme='light'] .gs-fields-foot__btn {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: var(--gs-lt-border);
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .gs-field-detail__btn:hover,
+html[data-theme='light'] .gs-fields-foot__btn:hover {
+  background: #ffffff;
+  border-color: var(--gs-lt-border-2);
+}
+
+html[data-theme='light'] .gs-sidebar-rail-btn__badge,
+html[data-theme='light'] .gis-sidebar-rail-btn__badge {
+  background: linear-gradient(145deg, #1d2030, #475569);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.20);
+}
+
+/* Map label pill — flip to a clean white card with slate type so it
+ * remains readable on top of the bright Lite Mode basemap. */
+html[data-theme='light'] .leaflet-tooltip.gs-field-label {
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--gs-lt-text);
+  border-color: var(--gs-lt-border-2);
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.18);
+}

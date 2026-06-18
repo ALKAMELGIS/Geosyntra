@@ -1,0 +1,35 @@
+.si-sun-sky-map__sun {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 35% 35%, #fef9c3, #fbbf24 55%, #f59e0b);
+  color: #78350f;
+  box-shadow: 0 0 18px rgba(251, 191, 36, 0.75);
+  font-size: 14px;
+  pointer-events: none;
+}
+
+.si-sun-sky-map__los {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  border: 2px solid rgba(248, 250, 252, 0.9);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.45);
+  pointer-events: none;
+}
+
+.si-sun-sky-map__los--observer {
+  background: #22c55e;
+  color: #052e16;
+}
+
+.si-sun-sky-map__los--target {
+  background: #f97316;
+  color: #431407;
+}

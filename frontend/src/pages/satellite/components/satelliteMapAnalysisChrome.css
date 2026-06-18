@@ -1,0 +1,4805 @@
+/* Floating analysis UX on Satellite Intelligence map — minimal, map-anchored */
+
+:root {
+  --si-map-bottom-reserve: 0px;
+  --si-map-bottom-safe: max(12px, env(safe-area-inset-bottom, 0px));
+}
+
+.si-map-analysis-timeline {
+  position: fixed;
+  z-index: 95;
+  transform: translateX(-50%);
+  width: min(92vw, 900px);
+  pointer-events: auto;
+  contain: layout style;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  animation: si-map-tl-in 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  filter: drop-shadow(var(--si-tl-drop-shadow));
+  padding-bottom: max(6px, env(safe-area-inset-bottom, 0px));
+}
+
+@keyframes si-map-tl-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.si-map-analysis-timeline--dragging {
+  cursor: grabbing;
+}
+
+.si-map-analysis-timeline--dragging .si-map-analysis-timeline-inner {
+  pointer-events: none;
+  opacity: 0.92;
+  box-shadow:
+    0 0 0 1px rgba(125, 211, 252, 0.28) inset,
+    0 16px 40px rgba(0, 0, 0, 0.42);
+}
+
+.si-map-analysis-timeline-inner {
+  position: relative;
+  align-self: stretch;
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) minmax(120px, auto);
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 0;
+  padding: 7px 10px 7px 8px;
+  border-radius: 16px;
+  background: linear-gradient(
+    155deg,
+    rgba(255, 255, 255, 0.07) 0%,
+    rgba(255, 255, 255, 0.02) 22%,
+    transparent 48%
+  ),
+    linear-gradient(168deg, var(--si-tl-glass) 0%, var(--si-tl-glass-deep) 55%, var(--si-tl-panel) 100%);
+  border: 1px solid var(--si-tl-edge-strong);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.28) inset,
+    0 1px 0 rgba(255, 255, 255, 0.08) inset;
+  outline: none;
+  backdrop-filter: var(--si-tl-blur);
+  -webkit-backdrop-filter: var(--si-tl-blur);
+  isolation: isolate;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.42);
+}
+
+.si-map-analysis-timeline-grip {
+  grid-column: 1;
+  flex-shrink: 0;
+  width: 18px;
+  height: 34px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(248, 250, 252, 0.4);
+  cursor: grab;
+  touch-action: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  box-shadow: inset 0 0 0 1px var(--si-tl-edge);
+  transition:
+    color 0.16s ease,
+    background 0.16s ease;
+}
+
+.si-map-analysis-timeline-grip:hover {
+  color: rgba(248, 250, 252, 0.82);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.si-map-analysis-timeline--dragging .si-map-analysis-timeline-grip {
+  cursor: grabbing;
+}
+
+/* Subtle “temporal axis” highlight along the top edge */
+.si-map-analysis-timeline-inner::before {
+  content: '';
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  top: 0;
+  height: 1px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.14), var(--si-tl-accent-dim), rgba(255, 255, 255, 0.12), transparent);
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+.si-map-analysis-timeline-inner--eo {
+  font-family: var(--ds-font-sans, ui-sans-serif, system-ui, sans-serif);
+}
+
+.si-map-analysis-timeline-transport {
+  grid-column: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.18);
+  box-shadow: inset 0 0 0 1px var(--si-tl-edge);
+}
+
+.si-map-analysis-tl-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: none;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--si-tl-text);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  box-shadow: inset 0 0 0 1px var(--si-tl-edge);
+  transition:
+    background 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.14s ease;
+}
+
+.si-map-analysis-tl-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 0 0 1px var(--si-tl-edge-strong);
+  color: #fff;
+}
+
+.si-map-analysis-tl-play {
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.04));
+  color: #f8fafc;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  box-shadow:
+    0 0 0 1px var(--si-tl-edge-strong),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 8px 28px rgba(0, 0, 0, 0.35);
+  transition:
+    background 0.2s ease,
+    transform 0.14s ease,
+    box-shadow 0.2s ease,
+    color 0.18s ease;
+}
+
+.si-map-analysis-tl-play:hover {
+  background: linear-gradient(165deg, rgba(125, 211, 252, 0.18), rgba(255, 255, 255, 0.06));
+  box-shadow:
+    0 0 0 1px rgba(125, 211, 252, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 10px 32px rgba(0, 0, 0, 0.4),
+    0 0 24px var(--si-tl-accent-glow);
+  color: #fff;
+}
+
+.si-map-analysis-tl-play--on {
+  background: linear-gradient(165deg, rgba(56, 189, 248, 0.35), rgba(14, 116, 144, 0.45));
+  box-shadow:
+    0 0 0 1px rgba(125, 211, 252, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 0 28px var(--si-tl-accent-glow);
+  color: #ecfeff;
+}
+
+.si-map-analysis-tl-settings {
+  margin-left: 2px;
+  font-size: 12px;
+  color: rgba(248, 250, 252, 0.88);
+}
+
+.si-map-analysis-tl-settings:hover {
+  color: #fff;
+}
+
+.si-map-analysis-timeline-track-wrap {
+  grid-column: 3;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  background: transparent;
+  border-radius: 12px;
+  padding: 0 2px;
+  box-shadow: none;
+}
+
+.si-map-analysis-timeline-scrub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 0;
+  padding: 0 2px;
+}
+
+.si-map-analysis-tl-nudge {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--si-tl-muted);
+  font-size: 9px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.16s ease, background 0.16s ease;
+}
+
+.si-map-analysis-tl-nudge:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.si-map-analysis-timeline-scrub-core {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.si-map-analysis-timeline-range-edge {
+  flex: 0 0 42px;
+  font-size: 9px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  color: var(--si-tl-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.si-map-analysis-timeline-range-edge:first-child {
+  text-align: left;
+}
+
+.si-map-analysis-timeline-range-edge:last-child {
+  text-align: right;
+}
+
+.si-map-analysis-timeline-date-field {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+
+.si-map-analysis-timeline-date-field--end {
+  align-items: flex-end;
+}
+
+.si-map-analysis-timeline-date-k {
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--si-tl-muted);
+  line-height: 1;
+}
+
+.si-map-analysis-timeline-date-input {
+  width: 100%;
+  max-width: 100%;
+  height: 24px;
+  padding: 3px 7px;
+  border-radius: 8px;
+  border: none;
+  background: rgba(0, 0, 0, 0.45);
+  box-shadow: inset 0 0 0 1px var(--si-tl-edge-strong);
+  color: var(--si-tl-text);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  color-scheme: dark;
+  cursor: pointer;
+}
+
+.si-map-analysis-timeline-date-input--end {
+  color: #bbf7d0;
+  box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.28);
+}
+
+.si-map-analysis-timeline-date-input:hover {
+  box-shadow: inset 0 0 0 1px var(--si-tl-edge-strong);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.si-map-analysis-timeline-date-input:focus-visible {
+  outline: 2px solid rgba(125, 211, 252, 0.55);
+  outline-offset: 1px;
+}
+
+.si-map-analysis-timeline-mode-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 4px;
+  padding: 0 2px 2px;
+}
+
+.si-map-analysis-timeline-inline-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.si-map-analysis-timeline-inline-k {
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--si-tl-muted);
+  flex-shrink: 0;
+}
+
+.si-map-analysis-timeline-inline-select {
+  height: 22px;
+  max-width: 148px;
+  padding: 2px 6px;
+  border-radius: 8px;
+  border: none;
+  background: rgba(0, 0, 0, 0.42);
+  box-shadow: inset 0 0 0 1px var(--si-tl-edge-strong);
+  color: var(--si-tl-text);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  color-scheme: dark;
+}
+
+.si-map-analysis-timeline-inline-select:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.si-map-analysis-timeline-inline-select:focus-visible {
+  outline: 2px solid rgba(125, 211, 252, 0.55);
+  outline-offset: 1px;
+}
+
+/* Esri-style draggable time rail */
+.si-map-analysis-timeline-rail {
+  position: relative;
+  flex: 1;
+  min-width: 48px;
+  height: 22px;
+  touch-action: none;
+  cursor: pointer;
+  user-select: none;
+}
+
+.si-map-analysis-timeline-rail-track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 5px;
+  margin-top: -2.5px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.5);
+  box-shadow:
+    inset 0 1px 4px rgba(0, 0, 0, 0.55),
+    inset 0 0 0 1px var(--si-tl-edge);
+  pointer-events: none;
+}
+
+.si-map-analysis-timeline-rail-tick {
+  position: absolute;
+  top: 50%;
+  width: 1px;
+  height: 6px;
+  margin-top: -3px;
+  margin-left: -0.5px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.22);
+  pointer-events: none;
+}
+
+.si-map-analysis-timeline-rail-tick--major {
+  height: 9px;
+  margin-top: -4.5px;
+  background: rgba(255, 255, 255, 0.38);
+}
+
+.si-map-analysis-timeline-rail-segment {
+  position: absolute;
+  top: 50%;
+  height: 7px;
+  margin-top: -3.5px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(56, 189, 248, 0.35),
+    rgba(125, 211, 252, 0.55),
+    rgba(56, 189, 248, 0.35)
+  );
+  box-shadow:
+    0 0 12px var(--si-tl-accent-glow),
+    inset 0 0 0 1px rgba(125, 211, 252, 0.35);
+  pointer-events: none;
+  transition:
+    left 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    width 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.si-map-analysis-timeline-rail-thumb {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  margin-top: -6px;
+  margin-left: -6px;
+  border-radius: 50%;
+  background: linear-gradient(165deg, #f8fafc 0%, #cbd5e1 100%);
+  box-shadow:
+    0 0 0 2px rgba(15, 23, 42, 0.85),
+    0 0 0 3px rgba(125, 211, 252, 0.45),
+    0 4px 14px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  transition: left 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  z-index: 2;
+}
+
+.si-map-analysis-timeline-rail:active .si-map-analysis-timeline-rail-thumb {
+  transform: scale(1.08);
+  box-shadow:
+    0 0 0 2px rgba(15, 23, 42, 0.85),
+    0 0 0 4px rgba(125, 211, 252, 0.55),
+    0 6px 18px rgba(0, 0, 0, 0.5);
+}
+
+.si-map-analysis-timeline-meta {
+  grid-column: 4;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  align-content: center;
+  justify-content: flex-end;
+  gap: 4px;
+  min-width: 112px;
+  max-width: min(34vw, 220px);
+  padding-inline-start: 10px;
+  border-inline-start: 1px solid var(--si-tl-edge);
+  overflow: hidden;
+}
+
+.si-map-analysis-timeline-meta > .si-map-analysis-timeline-date-block {
+  flex: 1 1 calc(50% - 4px);
+  min-width: 96px;
+}
+
+.si-map-analysis-timeline-meta > .si-map-analysis-timeline-meta-actions {
+  flex: 1 1 100%;
+  justify-content: flex-end;
+}
+
+.si-map-analysis-timeline-date-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 0;
+  width: 100%;
+  padding: 4px 8px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.22);
+  box-shadow: inset 0 0 0 1px var(--si-tl-edge);
+}
+
+.si-map-analysis-timeline-date-block--editable {
+  background: rgba(0, 0, 0, 0.28);
+  box-shadow: inset 0 0 0 1px rgba(125, 211, 252, 0.22);
+}
+
+.si-map-analysis-timeline-date-label {
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  line-height: 1.1;
+  color: var(--si-tl-muted);
+}
+
+.si-map-analysis-timeline-date--end {
+  color: #a7f3d0;
+}
+
+.si-map-analysis-timeline-date {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  color: var(--si-tl-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  text-align: right;
+}
+
+.si-map-analysis-timeline-meta-actions {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  width: 100%;
+}
+
+.si-map-analysis-tl-transition {
+  display: inline-flex;
+  align-items: stretch;
+  border-radius: 999px;
+  padding: 2px;
+  gap: 2px;
+  background: rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 0 0 1px var(--si-tl-edge);
+}
+
+.si-map-analysis-tl-transition-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  color: var(--si-tl-muted);
+  background: transparent;
+  transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.si-map-analysis-tl-transition-btn:hover {
+  color: #f0f9ff;
+}
+
+.si-map-analysis-tl-transition-btn--on {
+  color: #f8fafc;
+  background: rgba(125, 211, 252, 0.22);
+  box-shadow: inset 0 0 0 1px rgba(125, 211, 252, 0.35);
+}
+
+.si-map-analysis-tl-speed {
+  border: none;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 10px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  color: var(--si-tl-muted);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px var(--si-tl-edge);
+  transition: background 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
+}
+
+.si-map-analysis-tl-speed:hover {
+  background: rgba(125, 211, 252, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(125, 211, 252, 0.28);
+  color: #f0f9ff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .si-map-analysis-timeline {
+    animation: none;
+  }
+
+  .si-map-analysis-timeline-rail-thumb,
+  .si-map-analysis-timeline-rail-segment {
+    transition: none;
+  }
+}
+
+/* Timeline: same dark glass on light/dark app themes — it floats over satellite imagery. */
+
+@media (max-width: 720px) {
+  .si-map-analysis-timeline {
+    width: min(94vw, 100%);
+  }
+
+  .si-map-analysis-timeline-inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    border-radius: 16px;
+    row-gap: 8px;
+    padding: 8px 10px;
+  }
+
+  .si-map-analysis-timeline-grip {
+    display: none;
+  }
+
+  .si-map-analysis-timeline-transport {
+    order: 1;
+  }
+
+  .si-map-analysis-timeline-meta {
+    order: 2;
+    flex: 1 1 auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    max-width: none;
+    min-width: 0;
+    padding-inline-start: 10px;
+    border-inline-start: 1px solid var(--si-tl-edge);
+  }
+
+  .si-map-analysis-timeline-date-block {
+    align-items: flex-start;
+    flex: 1 1 120px;
+  }
+
+  .si-map-analysis-timeline-date {
+    text-align: left;
+  }
+
+  .si-map-analysis-timeline-meta-actions {
+    flex: 0 0 auto;
+  }
+
+  .si-map-analysis-timeline-track-wrap {
+    order: 3;
+    flex: 1 1 100%;
+    width: 100%;
+  }
+}
+
+/* Bottom icon toolbar */
+.si-map-analysis-toolbar {
+  position: absolute;
+  z-index: 96;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.35);
+  pointer-events: auto;
+  animation: si-map-tb-in 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes si-map-tb-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* Embedded in Remote Sensing panel — full width, no float */
+.si-map-analysis-toolbar.si-map-analysis-toolbar--embedded {
+  position: static;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  transform: none;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px;
+  margin: 0;
+  animation: none;
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(167, 139, 250, 0.22);
+  border-radius: 14px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.si-map-analysis-toolbar--two-rows {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+
+.si-map-analysis-toolbar__row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+}
+
+.si-map-analysis-toolbar--two-rows .si-map-analysis-tool {
+  flex-shrink: 0;
+}
+
+.si-map-analysis-toolbar--two-rows .si-map-analysis-toolbar__row + .si-map-analysis-toolbar__row {
+  padding-top: 6px;
+  border-top: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.si-field-analysis .si-map-analysis-toolbar--embedded,
+.si-sat-ctx-map-toolbox-host .si-map-analysis-toolbar--embedded {
+  gap: 4px;
+  padding: 4px 6px;
+}
+
+.si-field-analysis .si-map-analysis-toolbar--embedded .si-map-analysis-tool,
+.si-sat-ctx-map-toolbox-host .si-map-analysis-toolbar--embedded .si-map-analysis-tool {
+  width: 26px;
+  height: 26px;
+  font-size: 11px;
+  border-radius: 6px;
+}
+
+.si-field-analysis .si-map-analysis-toolbar--embedded .si-map-analysis-toolbar-sep,
+.si-sat-ctx-map-toolbox-host .si-map-analysis-toolbar--embedded .si-map-analysis-toolbar-sep {
+  height: 14px;
+  margin: 0 1px;
+}
+
+.si-map-analysis-tool {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(30, 41, 59, 0.85);
+  color: #e2e8f0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.1s ease;
+}
+
+.si-map-analysis-tool:hover {
+  border-color: rgba(167, 139, 250, 0.45);
+  color: #fff;
+}
+
+.si-map-analysis-tool--on {
+  border-color: rgba(52, 211, 153, 0.55);
+  background: rgba(6, 78, 59, 0.55);
+  color: #bbf7d0;
+}
+
+/* Symbology (palette) — icon only, no outer tile border */
+.si-map-analysis-tool--sym-only {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.si-map-analysis-tool--sym-only:hover {
+  border-color: transparent;
+  background: rgba(255, 255, 255, 0.06);
+  color: #e2e8f0;
+}
+
+.si-map-analysis-tool--sym-only.si-map-analysis-tool--on {
+  border-color: transparent;
+  background: rgba(52, 211, 153, 0.14);
+  color: #bbf7d0;
+}
+
+.si-map-analysis-tool--clear {
+  touch-action: manipulation;
+}
+
+.si-map-analysis-tool--clear:not(:disabled):hover {
+  border-color: rgba(251, 146, 60, 0.55);
+  color: #fed7aa;
+  background: rgba(154, 52, 18, 0.28);
+}
+
+.si-map-analysis-tool--clear:not(:disabled):active {
+  transform: scale(0.96);
+}
+
+.si-map-analysis-tool--clear:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.si-map-analysis-toolbar-sep {
+  width: 1px;
+  height: 26px;
+  background: rgba(148, 163, 184, 0.22);
+  margin: 0 2px;
+}
+
+.si-map-analysis-tool--aoi-live.si-map-analysis-tool--on {
+  border-color: rgba(52, 211, 153, 0.85);
+  box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.35);
+}
+
+.si-map-analysis-tool--aoi-live:not(:disabled):hover {
+  border-color: rgba(52, 211, 153, 0.55);
+}
+
+.si-map-analysis-tool--print {
+  border-color: rgba(251, 191, 36, 0.55);
+  background: linear-gradient(180deg, rgba(180, 83, 9, 0.88), rgba(120, 53, 15, 0.95));
+  color: #fffbeb;
+  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.2), 0 6px 18px rgba(180, 83, 9, 0.35);
+}
+
+.si-map-analysis-tool--print:hover {
+  border-color: rgba(253, 224, 71, 0.75);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.si-map-print-fab {
+  width: 42px;
+  height: 42px;
+  margin-left: 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(251, 191, 36, 0.55);
+  background: linear-gradient(180deg, rgba(180, 83, 9, 0.9), rgba(120, 53, 15, 0.95));
+  color: #fffbeb;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(251, 191, 36, 0.15);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.si-map-print-fab:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 28px rgba(180, 83, 9, 0.4);
+}
+
+/* Charts dock — leading (left) edge of map canvas; independent floating window */
+.si-map-analysis-charts {
+  position: absolute;
+  z-index: 242;
+  top: 14px;
+  left: 14px;
+  right: auto;
+  width: min(440px, calc(100% - 28px));
+  max-height: min(72vh, 640px);
+  overflow: auto;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(
+    165deg,
+    rgba(12, 12, 14, 0.94) 0%,
+    rgba(22, 22, 26, 0.9) 45%,
+    rgba(8, 8, 10, 0.96) 100%
+  );
+  backdrop-filter: blur(20px) saturate(1.12);
+  -webkit-backdrop-filter: blur(20px) saturate(1.12);
+  box-shadow:
+    0 26px 64px rgba(0, 0, 0, 0.58),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  pointer-events: auto;
+  /* Opacity-only entrance so inline translate() for drag is never overridden */
+  animation: si-map-ch-in 0.35s ease;
+}
+
+@keyframes si-map-ch-in {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.si-map-analysis-charts-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.si-map-analysis-charts-head:active {
+  cursor: grabbing;
+}
+
+.si-map-analysis-charts--dragged {
+  animation: none;
+}
+
+.si-map-analysis-charts--dragging {
+  cursor: grabbing;
+  animation: none;
+}
+
+.si-map-analysis-charts--dragging .si-map-analysis-charts-head {
+  cursor: grabbing;
+}
+
+.si-map-analysis-charts-head-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.si-map-analysis-charts-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: #f1f5f9;
+  letter-spacing: 0.02em;
+}
+
+.si-map-analysis-charts-subtitle {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(148, 163, 184, 0.92);
+  line-height: 1.35;
+}
+
+.si-map-analysis-charts-subtitle--tight {
+  margin: 0 0 6px;
+}
+
+.si-map-analysis-charts-multiline {
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.si-map-analysis-layer-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.si-map-analysis-layer-chip {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.32);
+  color: #e2e8f0;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.si-map-analysis-layer-chip--on {
+  border-color: rgba(74, 222, 128, 0.5);
+  background: rgba(34, 197, 94, 0.18);
+  color: #ecfdf5;
+}
+
+.si-map-analysis-layer-chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.si-map-analysis-layer-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-inline-start: 2px;
+  padding: 2px 4px 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.si-map-analysis-layer-more-label {
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.88);
+  white-space: nowrap;
+}
+
+.si-map-analysis-layer-more-select {
+  font-size: 10px;
+  font-weight: 650;
+  padding: 5px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.32);
+  color: #e2e8f0;
+  cursor: pointer;
+  max-width: min(148px, 38vw);
+}
+
+.si-map-analysis-layer-more-select:focus {
+  outline: 2px solid rgba(99, 102, 241, 0.45);
+  outline-offset: 1px;
+}
+
+.si-map-analysis-layer-more-select option {
+  color: #0f172a;
+  background: #f8fafc;
+}
+
+.si-sat-ctx-dock--light .si-map-analysis-layer-more {
+  background: rgba(255, 255, 255, 0.75);
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+.si-sat-ctx-dock--light .si-map-analysis-layer-more-label {
+  color: rgba(71, 85, 105, 0.9);
+}
+
+.si-sat-ctx-dock--light .si-map-analysis-layer-more-select {
+  background: rgba(255, 255, 255, 0.92);
+  color: #0f172a;
+  border-color: rgba(148, 163, 184, 0.4);
+}
+
+.si-aoi-static-line-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 248px;
+  min-height: 200px;
+  border-radius: 10px;
+  padding: 6px 6px 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.si-aoi-static-line-wrap--scatter {
+  height: auto;
+  min-height: 268px;
+}
+
+.si-aoi-static-line-wrap--scatter .si-aoi-static-line-chart-host {
+  flex: 0 0 auto;
+  height: min(220px, 32vh);
+  min-height: 168px;
+}
+
+.si-aoi-static-line-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 0 1px 2px;
+  min-height: 24px;
+}
+
+.si-aoi-static-line-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  flex-shrink: 0;
+  padding: 1px 1px 4px;
+  min-height: 22px;
+}
+
+.si-aoi-static-line-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border-radius: 6px;
+  padding: 1px 3px 1px 2px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.si-aoi-static-line-wrap--light .si-aoi-static-line-legend-item {
+  background: rgba(255, 255, 255, 0.65);
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+.si-aoi-static-line-legend-item--off {
+  opacity: 0.45;
+}
+
+.si-aoi-static-line-legend-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 2px 4px 2px 2px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  max-width: min(160px, 42vw);
+}
+
+.si-aoi-static-line-legend-toggle:hover {
+  background: rgba(148, 163, 184, 0.12);
+}
+
+.si-aoi-static-line-wrap--light .si-aoi-static-line-legend-toggle:hover {
+  background: rgba(148, 163, 184, 0.18);
+}
+
+.si-aoi-static-line-legend-point {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+}
+
+.si-aoi-static-line-wrap--light .si-aoi-static-line-legend-point {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9);
+}
+
+.si-aoi-static-line-legend-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(242, 243, 248, 0.92);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.si-aoi-static-line-wrap--light .si-aoi-static-line-legend-label {
+  color: #1e293b;
+}
+
+.si-aoi-static-line-legend-pick {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border-radius: 5px;
+  cursor: pointer;
+  color: rgba(214, 216, 224, 0.72);
+}
+
+.si-aoi-static-line-legend-pick:hover {
+  color: #f2f3f8;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.si-aoi-static-line-wrap--light .si-aoi-static-line-legend-pick {
+  color: #64748b;
+}
+
+.si-aoi-static-line-wrap--light .si-aoi-static-line-legend-pick:hover {
+  color: #4f46e5;
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.si-aoi-static-line-legend-pick-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.si-aoi-static-line-legend-pick-icon {
+  font-size: 10px;
+  pointer-events: none;
+}
+
+.si-aoi-static-chart-type {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.si-aoi-static-chart-type-label {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(214, 216, 224, 0.62);
+}
+
+.si-aoi-static-chart-type-icons {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.si-aoi-static-chart-type-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.35);
+  color: rgba(242, 243, 248, 0.9);
+  cursor: pointer;
+  font-size: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: filter 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.si-aoi-static-chart-type-icon:hover {
+  filter: brightness(1.06);
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.si-aoi-static-chart-type-icon--active {
+  border-color: rgba(74, 222, 128, 0.45);
+  background: rgba(34, 197, 94, 0.14);
+  color: #ecfdf5;
+}
+
+.si-aoi-static-chart-type-icon--scatter {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+.si-aoi-static-chart-type-icon__r2 {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: inherit;
+}
+
+.si-aoi-static-chart-type-icon__r2 sup {
+  font-size: 0.58em;
+  font-weight: 800;
+  line-height: 0;
+  top: -0.4em;
+  margin-left: 0.02em;
+}
+
+.si-aoi-static-line-wrap--light .si-aoi-static-chart-type-label {
+  color: rgba(71, 85, 105, 0.95);
+}
+
+.si-aoi-static-line-wrap--light .si-aoi-static-chart-type-icon {
+  background: rgba(255, 255, 255, 0.92);
+  color: #334155;
+  border-color: rgba(148, 163, 184, 0.45);
+}
+
+.si-aoi-static-line-wrap--light .si-aoi-static-chart-type-icon--active {
+  border-color: rgba(34, 197, 94, 0.55);
+  background: rgba(220, 252, 231, 0.88);
+  color: #14532d;
+}
+
+.si-aoi-static-scatter-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 160px;
+  padding: 14px 12px;
+  text-align: center;
+}
+
+.si-aoi-static-scatter-empty-title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 650;
+  color: rgba(242, 243, 248, 0.92);
+}
+
+.si-aoi-static-scatter-empty-hint {
+  margin: 0;
+  max-width: 280px;
+  font-size: 10px;
+  line-height: 1.4;
+  color: rgba(214, 216, 224, 0.72);
+}
+
+.si-aoi-static-line-wrap--light .si-aoi-static-scatter-empty-title {
+  color: #0f172a;
+}
+
+.si-aoi-static-line-wrap--light .si-aoi-static-scatter-empty-hint {
+  color: #475569;
+}
+
+.si-aoi-static-line-chart-host {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Regression read-out below the scatter plot (keeps the plot area uncluttered). */
+.si-aoi-scatter-stats {
+  flex-shrink: 0;
+  margin-top: 6px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.si-aoi-scatter-stats__equation {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.si-aoi-scatter-stats__equation-tag {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #fecaca;
+  background: rgba(185, 28, 28, 0.2);
+  border: 1px solid rgba(185, 28, 28, 0.38);
+}
+
+.si-aoi-scatter-stats__equation-value {
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: rgba(242, 243, 248, 0.94);
+}
+
+.si-aoi-scatter-stats__grid {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px 6px;
+}
+
+.si-aoi-scatter-stats__cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.si-aoi-scatter-stats__cell dt {
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(214, 216, 224, 0.62);
+}
+
+.si-aoi-scatter-stats__cell dd {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: rgba(242, 243, 248, 0.92);
+}
+
+.si-aoi-scatter-stats__meta {
+  margin: 0;
+  font-size: 9px;
+  line-height: 1.35;
+  color: rgba(214, 216, 224, 0.58);
+}
+
+/* Light theme */
+.si-aoi-static-line-wrap--light .si-aoi-scatter-stats {
+  border-color: rgba(148, 163, 184, 0.4);
+  background: rgba(241, 245, 249, 0.9);
+}
+
+.si-aoi-static-line-wrap--light .si-aoi-scatter-stats__equation-value {
+  color: #0f172a;
+}
+
+.si-aoi-static-line-wrap--light .si-aoi-scatter-stats__cell {
+  background: rgba(15, 23, 42, 0.05);
+}
+
+.si-aoi-static-line-wrap--light .si-aoi-scatter-stats__cell dt {
+  color: #64748b;
+}
+
+.si-aoi-static-line-wrap--light .si-aoi-scatter-stats__cell dd {
+  color: #0f172a;
+}
+
+.si-aoi-static-line-wrap--light .si-aoi-scatter-stats__meta {
+  color: #64748b;
+}
+
+/* Narrow docks: collapse to two columns so labels never wrap awkwardly. */
+@media (max-width: 520px) {
+  .si-aoi-scatter-stats__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media print {
+  .si-aoi-scatter-stats {
+    border-color: #94a3b8;
+    background: #ffffff;
+  }
+  .si-aoi-scatter-stats__equation-value,
+  .si-aoi-scatter-stats__cell dt,
+  .si-aoi-scatter-stats__cell dd,
+  .si-aoi-scatter-stats__meta {
+    color: #0f172a;
+  }
+  .si-aoi-scatter-stats__cell {
+    background: #f1f5f9;
+  }
+}
+
+.si-aoi-static-line-wrap--report {
+  height: 100%;
+  min-height: 280px;
+}
+
+/* Unified luxury black glass — matches si-sat-ctx-dock toolbox */
+.si-aoi-static-line-wrap--dark {
+  --si-chart-glass-rim: rgba(255, 255, 255, 0.06);
+  --si-chart-glass-highlight: rgba(255, 255, 255, 0.1);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.07) 0%, transparent 42%),
+    linear-gradient(180deg, rgba(16, 16, 19, 0.82) 0%, rgba(0, 0, 0, 0.88) 100%);
+  border-color: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(20px) saturate(1.35);
+  -webkit-backdrop-filter: blur(20px) saturate(1.35);
+  box-shadow:
+    0 0 0 1px var(--si-chart-glass-rim),
+    inset 0 1px 0 var(--si-chart-glass-highlight);
+}
+
+.si-aoi-static-line-wrap--dark .si-aoi-scatter-stats {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.si-aoi-static-line-wrap--dark .si-aoi-static-line-legend-item {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.si-aoi-static-line-wrap--dark .si-aoi-static-chart-type-icon {
+  background: rgba(0, 0, 0, 0.38);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: rgba(242, 243, 248, 0.9);
+}
+
+.si-aoi-static-line-wrap--light {
+  background: rgba(248, 250, 252, 0.98);
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+.si-aoi-static-line-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  z-index: 2;
+}
+
+.si-aoi-static-line-theme-toggle {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.38);
+  color: rgba(242, 243, 248, 0.9);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  cursor: pointer;
+  z-index: 2;
+  transition: filter 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.si-aoi-static-line-theme-toggle:hover {
+  filter: brightness(1.08);
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.si-aoi-static-line-wrap--light .si-aoi-static-line-theme-toggle {
+  background: rgba(255, 255, 255, 0.95);
+  color: #334155;
+  border-color: rgba(148, 163, 184, 0.5);
+}
+
+.si-aoi-static-line-empty {
+  padding: 20px 14px;
+  text-align: center;
+  background: rgba(30, 41, 59, 0.4);
+  border-radius: 12px;
+  border: 1px dashed rgba(148, 163, 184, 0.35);
+}
+
+.si-aoi-static-line-empty-title {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #e2e8f0;
+}
+
+.si-aoi-static-line-empty-hint {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.45;
+  color: rgba(148, 163, 184, 0.95);
+}
+
+.si-map-analysis-charts-grid--below {
+  padding-top: 8px;
+}
+
+.si-map-analysis-charts-close {
+  border: none;
+  background: rgba(148, 163, 184, 0.12);
+  color: #cbd5e1;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.si-map-analysis-charts-close:hover {
+  background: rgba(248, 113, 113, 0.15);
+  color: #fecaca;
+}
+
+.si-map-analysis-charts-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 14px 14px;
+}
+
+.si-map-analysis-chart-card {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.28);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.si-map-analysis-chart-card--spectral {
+  padding-top: 8px;
+}
+
+.si-map-analysis-chart-kicker {
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.85);
+  margin-bottom: 8px;
+}
+
+.si-map-analysis-spark {
+  width: 100%;
+  height: 52px;
+  display: block;
+}
+
+.si-map-analysis-spark-path {
+  stroke: #6ee7b7;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.si-map-analysis-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.si-map-analysis-bar-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(56px, 1.2fr) 44px;
+  gap: 8px;
+  align-items: center;
+  font-size: 10px;
+}
+
+.si-map-analysis-bar-name {
+  color: #cbd5e1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.si-map-analysis-bar-track {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+.si-map-analysis-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #34d399, #22c55e);
+}
+
+.si-map-analysis-bar-val {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: #e2e8f0;
+}
+
+.si-map-analysis-chart-card--pie .si-map-analysis-pie-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.si-map-analysis-pie-seg {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  color: #cbd5e1;
+}
+
+.si-map-analysis-pie-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.si-map-analysis-pie-lbl {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.si-map-analysis-pie-pct {
+  font-variant-numeric: tabular-nums;
+  color: #94a3b8;
+}
+
+.si-map-analysis-charts-foot {
+  margin: 0;
+  padding: 0 14px 12px;
+  font-size: 10px;
+  line-height: 1.4;
+  color: rgba(148, 163, 184, 0.88);
+}
+
+@media (max-width: 520px) {
+  .si-map-analysis-charts {
+    width: min(440px, calc(100% - 24px));
+    max-height: min(52vh, 520px);
+  }
+}
+
+/* Portal host: .si-map-container — above swipe overlay (12–14), below fixed timeline (95) */
+.si-map-tools-dock-host {
+  position: absolute;
+  inset: 0;
+  z-index: 96;
+  pointer-events: none;
+  overflow: visible;
+}
+
+/* —— Calcite-style contextual dock (rail + panel) —— */
+.si-sat-ctx-dock {
+  --si-ctx-bg: rgba(0, 0, 0, 0.72);
+  --si-ctx-bg2: rgba(255, 255, 255, 0.05);
+  --si-ctx-border: var(--gs-panel-glass-border, rgba(255, 255, 255, 0.1));
+  --si-ctx-text: var(--gs-panel-glass-text, rgba(248, 250, 252, 0.96));
+  --si-ctx-muted: var(--gs-panel-glass-muted, rgba(255, 255, 255, 0.62));
+  --si-ctx-accent: #22c55e;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  pointer-events: none;
+}
+
+.si-sat-ctx-dock > * {
+  pointer-events: auto;
+}
+
+.si-sat-ctx-dock--map {
+  position: absolute;
+  z-index: 96;
+  /* Flush with canvas trailing edge (right in LTR, left in RTL); panel opens toward map center. */
+  inset-inline-end: 0;
+  inset-inline-start: auto;
+  top: 50%;
+  transform: translateY(-50%);
+  max-height: min(86vh, 760px);
+  flex-direction: row-reverse;
+  filter: drop-shadow(0 18px 40px rgba(2, 6, 23, 0.42));
+}
+
+.si-sat-ctx-dock--map.si-sat-ctx-dock--map-toolbox {
+  filter: none;
+}
+
+.si-sat-ctx-dock--map.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--map-tall {
+  margin-top: 0;
+  padding-top: 0;
+  top: 0;
+  bottom: 0;
+  transform: none;
+  height: 100%;
+  max-height: none;
+}
+
+body:has(.si-page.si-page--map-canvas)
+  .si-sat-ctx-dock--map.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--map-tall {
+  top: 0;
+  bottom: 0;
+  transform: none;
+  max-height: none;
+}
+
+/* Full-height map toolbox (Satellite Intelligence) — docked trailing edge, expand/collapse rail */
+.si-sat-ctx-dock--map.si-sat-ctx-dock--map-tall {
+  top: 0;
+  bottom: 0;
+  transform: none;
+  height: 100%;
+  max-height: none;
+  align-self: stretch;
+  /* Shrink-wrap rail + panel; avoid stretching to full canvas width (empty area reads as a black bar). */
+  width: fit-content;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.si-sat-ctx-dock--map-tall .si-sat-ctx-rail {
+  height: 100%;
+  min-height: 0;
+  flex: 0 0 auto;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  border-radius: 0;
+  /* Outer edge = inline-end when toolbox is on the trailing side of the map */
+  border-start-end-radius: 14px;
+  border-end-end-radius: 14px;
+  overflow: hidden;
+}
+
+.si-sat-ctx-dock--map-tall.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+
+.si-sat-ctx-dock--map .si-sat-ctx-panel {
+  border-radius: 16px 0 0 16px;
+  border-inline-end: none;
+  border-inline-start: 1px solid var(--si-ctx-border);
+  box-shadow: -12px 0 40px rgba(2, 6, 23, 0.25);
+}
+
+.si-sat-ctx-dock.si-sat-ctx-dock--map[dir='rtl'] .si-sat-ctx-panel {
+  border-radius: 0 16px 16px 0;
+  border-inline-start: none;
+  border-inline-end: 1px solid var(--si-ctx-border);
+  box-shadow: 12px 0 40px rgba(2, 6, 23, 0.25);
+}
+
+.si-sat-ctx-dock--map-tall .si-sat-ctx-panel {
+  max-height: none;
+  height: 100%;
+  min-height: 0;
+}
+
+.si-sat-ctx-dock--map-tall .si-sat-ctx-panel-wrap {
+  max-height: none;
+}
+
+.si-sat-ctx-rail-footer--map {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.si-sat-ctx-rail-strip-hide {
+  width: 100%;
+  min-height: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--si-ctx-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  touch-action: manipulation;
+  transition:
+    color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.si-sat-ctx-rail-strip-hide i {
+  font-size: 0.72rem;
+  line-height: 1;
+  opacity: 0.88;
+}
+
+.si-sat-ctx-rail-strip-hide:hover {
+  color: var(--si-ctx-text);
+  background: transparent;
+}
+
+.si-sat-ctx-rail-strip-hide:hover i {
+  opacity: 1;
+}
+
+.si-sat-ctx-dock--light .si-sat-ctx-rail-strip-hide {
+  background: transparent;
+  color: rgba(51, 65, 85, 0.72);
+}
+
+.si-sat-ctx-dock--light .si-sat-ctx-rail-strip-hide:hover {
+  color: #0f172a;
+}
+
+.si-sat-ctx-rail-strip-hide:focus-visible {
+  outline: 2px solid rgba(129, 140, 248, 0.72);
+  outline-offset: 2px;
+}
+
+/* Map toolbox minimized to edge: icon rail + clear “restore strip” control (no blank peek tab). */
+.si-sat-ctx-dock--map.si-sat-ctx-dock--map-strip-minimized {
+  filter: drop-shadow(0 14px 32px rgba(2, 6, 23, 0.4));
+}
+
+.si-sat-ctx-dock--map-strip-minimized .si-sat-ctx-rail {
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
+  padding-inline: 4px;
+  /* Accent on the map-facing edge of the rail (inline-start when docked on inline-end) */
+  border-inline-start: 2px solid rgba(52, 211, 153, 0.38);
+}
+
+.si-sat-ctx-dock.si-sat-ctx-dock--map-strip-minimized[dir='rtl'] .si-sat-ctx-rail {
+  border-inline-start: none;
+  border-inline-end: 2px solid rgba(52, 211, 153, 0.38);
+}
+
+.si-sat-ctx-rail-strip-show {
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 4px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--si-ctx-muted);
+  cursor: pointer;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  touch-action: manipulation;
+  transition:
+    color 0.16s ease,
+    opacity 0.16s ease;
+}
+
+.si-sat-ctx-rail-strip-show > i {
+  font-size: 0.72rem;
+  line-height: 1;
+  opacity: 0.88;
+}
+
+.si-sat-ctx-rail-strip-show:hover > i {
+  opacity: 1;
+}
+
+.si-sat-ctx-rail-strip-show:hover {
+  color: var(--si-ctx-text);
+  background: transparent;
+}
+
+.si-sat-ctx-rail-strip-show:focus-visible {
+  outline: 2px solid rgba(52, 211, 153, 0.75);
+  outline-offset: 2px;
+}
+
+/* Icon-only: titles live on `aria-label` / `title`. */
+.si-sat-ctx-rail-strip-show__label {
+  display: none;
+}
+
+.si-sat-ctx-dock--light .si-sat-ctx-rail-strip-show {
+  background: transparent;
+  color: rgba(51, 65, 85, 0.72);
+}
+
+.si-sat-ctx-dock--light .si-sat-ctx-rail-strip-show:hover {
+  color: #0f172a;
+}
+
+.si-sat-ctx-dock--light .si-sat-ctx-rail-strip-show__label {
+  display: none;
+}
+
+.si-sat-ctx-dock[dir='rtl'] .si-sat-ctx-rail-collapse__icon-wrap i,
+.si-sat-ctx-dock[dir='rtl'] .si-sat-ctx-rail-collapse i,
+.si-sat-ctx-dock[dir='rtl'] .si-sat-ctx-rail-strip-hide i,
+.si-sat-ctx-dock[dir='rtl'] .si-sat-ctx-rail-strip-show i {
+  transform: scaleX(-1);
+}
+
+.si-sat-ctx-dock--embedded {
+  position: relative;
+  width: 100%;
+  min-height: 320px;
+  max-height: min(70vh, 640px);
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(15, 23, 42, 0.35);
+  flex-direction: row-reverse;
+}
+
+.si-sat-ctx-dock--float-mode .si-sat-ctx-panel {
+  transform: translateX(2px) scale(1.01);
+  box-shadow:
+    0 28px 64px rgba(2, 6, 23, 0.55),
+    0 0 0 1px rgba(99, 102, 241, 0.12);
+}
+
+.si-sat-ctx-dock--light {
+  --si-ctx-bg: rgba(0, 0, 0, 0.72);
+  --si-ctx-bg2: rgba(255, 255, 255, 0.05);
+  --si-ctx-border: var(--gs-panel-glass-border, rgba(255, 255, 255, 0.1));
+  --si-ctx-text: var(--gs-panel-glass-text, rgba(248, 250, 252, 0.96));
+  --si-ctx-muted: var(--gs-panel-glass-muted, rgba(255, 255, 255, 0.62));
+  --si-ctx-accent: rgba(255, 255, 255, 0.92);
+}
+
+.si-sat-ctx-dock--light .si-map-analysis-layer-chip,
+.si-sat-ctx-dock--light .si-map-analysis-chart-card {
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(248, 250, 252, 0.96);
+}
+
+.si-sat-ctx-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 8px 6px 0;
+  width: 52px;
+  flex-shrink: 0;
+  min-height: 0;
+  border-radius: 0 14px 14px 0;
+  background: var(--si-ctx-bg);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--si-ctx-border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/** Scrollable tool list — footer (collapse/expand) stays pinned below. */
+.si-sat-ctx-rail__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  padding-bottom: 4px;
+}
+
+.si-sat-ctx-rail__footer {
+  flex-shrink: 0;
+  margin-top: auto;
+  padding: 6px 0 max(8px, env(safe-area-inset-bottom, 0px));
+  background: var(--si-ctx-bg);
+  border-top: 1px solid var(--si-ctx-border);
+  box-shadow: 0 -8px 18px rgba(2, 6, 23, 0.22);
+}
+
+.si-sat-ctx-dock--map .si-sat-ctx-rail {
+  border-radius: 0;
+  border-start-end-radius: 14px;
+  border-end-end-radius: 14px;
+  transition:
+    width 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    padding 0.24s ease,
+    border-radius 0.2s ease;
+}
+
+.si-sat-ctx-dock.si-sat-ctx-dock--map[dir='rtl'] .si-sat-ctx-rail {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+  border-start-start-radius: 14px;
+  border-end-start-radius: 14px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .si-sat-ctx-dock--map .si-sat-ctx-rail,
+  .si-sat-ctx-panel-wrap,
+  .si-sat-ctx-dock--map .si-sat-ctx-rail-label,
+  .si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-btn--map .si-sat-ctx-rail-label,
+  .si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-brand {
+    transition: none !important;
+  }
+}
+
+.si-sat-ctx-rail--labeled {
+  width: min(220px, 38vw);
+  padding-inline: 8px;
+}
+
+.si-sat-ctx-dock--rail-narrow .si-sat-ctx-rail {
+  align-items: center;
+}
+
+.si-sat-ctx-dock--embedded .si-sat-ctx-rail {
+  border-radius: 0 12px 12px 0;
+}
+
+.si-sat-ctx-rail-sep {
+  height: 1px;
+  margin: 6px 4px;
+  background: var(--si-ctx-border);
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.si-sat-ctx-rail-spacer {
+  flex: 1 1 auto;
+  min-height: 8px;
+}
+
+/* Legacy spacer — scroll region replaces flex push; keep for embedded docks if referenced. */
+.si-sat-ctx-dock--embedded .si-sat-ctx-rail-spacer {
+  display: none;
+}
+
+.si-sat-ctx-rail-sym-wrap {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 0 2px;
+}
+
+.si-sat-ctx-rail-sym-tool {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--si-ctx-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  box-shadow: none;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    transform 0.14s ease;
+}
+
+.si-sat-ctx-rail-sym-tool:hover:not(:disabled) {
+  color: #e2e8f0;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.si-sat-ctx-rail-sym-tool--on {
+  color: #bbf7d0;
+  background: rgba(52, 211, 153, 0.14);
+}
+
+.si-sat-ctx-rail-sym-tool:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.si-sat-ctx-rail-footer {
+  padding-top: 2px;
+  flex-shrink: 0;
+}
+
+.si-sat-ctx-rail-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--si-ctx-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  transition:
+    background 0.18s ease,
+    color 0.18s ease,
+    border-color 0.18s ease,
+    transform 0.14s ease;
+}
+
+.si-sat-ctx-rail-btn--row {
+  width: 100%;
+  height: auto;
+  min-height: 40px;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+}
+
+.si-sat-ctx-rail-label {
+  flex: 1;
+  min-width: 0;
+  text-align: start;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+
+.si-sat-ctx-rail-label-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1.25;
+  color: var(--si-ctx-text);
+}
+
+.si-sat-ctx-dock--map .si-sat-ctx-rail-label {
+  transition:
+    opacity 0.2s ease,
+    transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.si-sat-ctx-rail-label-desc {
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--si-ctx-muted);
+}
+
+/* Map toolbox: brand + expand (labels) / collapse (icons) density */
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 2px 8px;
+  margin-inline: -2px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid var(--si-ctx-border);
+  flex-shrink: 0;
+  transition: opacity 0.2s ease;
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-brand--minimized {
+  justify-content: center;
+  padding-bottom: 6px;
+}
+
+/* Add data — same rail chrome as Layers / other toolbox icons (no FAB pill) */
+.si-sat-ctx-rail-add-data {
+  margin-bottom: 2px;
+}
+
+.si-sat-ctx-rail-add-data .si-sat-ctx-rail-label {
+  text-align: start;
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-add-data.si-sat-ctx-rail-btn--map > i.fa-plus {
+  font-size: 14px;
+  line-height: 1;
+  color: inherit;
+}
+
+.si-sat-ctx-rail-group-kicker {
+  flex-shrink: 0;
+  padding: 4px 2px 2px;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--si-ctx-muted);
+  opacity: 0.92;
+  user-select: none;
+}
+
+.si-sat-ctx-dock--rail-narrow .si-sat-ctx-rail-group-kicker {
+  text-align: center;
+  padding-inline: 0;
+}
+
+.si-sat-ctx-subnav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(2, 6, 23, 0.22);
+}
+
+.si-sat-ctx-dock--light .si-sat-ctx-subnav {
+  background: rgba(241, 245, 249, 0.75);
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+.si-sat-ctx-subnav-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(15, 23, 42, 0.35);
+  color: var(--si-ctx-text);
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.si-sat-ctx-subnav-back:hover {
+  border-color: rgba(129, 140, 248, 0.45);
+  background: var(--si-ctx-bg2);
+}
+
+.si-sat-ctx-subnav-back i {
+  font-size: 12px;
+  color: var(--si-ctx-muted);
+}
+
+.si-sat-ctx-dock[dir='rtl'] .si-sat-ctx-subnav-back i {
+  transform: scaleX(-1);
+}
+
+.si-sat-ctx-subnav-crumb {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--si-ctx-muted);
+}
+
+.si-sat-ctx-layers-options-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.si-sat-ctx-layers-options-stack > p {
+  margin-top: 0;
+}
+
+.si-sat-ctx-toolbox-opt-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* Layers → Options: per-layer popup configuration (parent supplies JSX) */
+.si-map-toolbox-layer-popup-cfg {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(148, 163, 184, 0.22);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.si-map-toolbox-layer-popup-cfg .si-env-chart-title {
+  margin-bottom: 0;
+}
+
+.si-map-toolbox-layer-popup-cfg__hint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--si-ctx-muted);
+}
+
+.si-map-toolbox-layer-popup-cfg__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--si-ctx-muted);
+}
+
+.si-map-toolbox-layer-popup-cfg__field select {
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(129, 140, 248, 0.28);
+  background: rgba(30, 41, 59, 0.55);
+  color: var(--si-ctx-text);
+  font-size: 12px;
+}
+
+.si-sat-ctx-dock--light .si-map-toolbox-layer-popup-cfg__field select {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(99, 102, 241, 0.25);
+  color: #0f172a;
+}
+
+.si-map-toolbox-layer-popup-cfg__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(52, 211, 153, 0.38);
+  background: rgba(16, 185, 129, 0.14);
+  color: var(--si-ctx-text);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.si-map-toolbox-layer-popup-cfg__btn:hover:not(:disabled) {
+  border-color: rgba(52, 211, 153, 0.55);
+  background: rgba(16, 185, 129, 0.22);
+}
+
+.si-map-toolbox-layer-popup-cfg__btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.si-sat-ctx-dock--light .si-map-toolbox-layer-popup-cfg__btn {
+  background: rgba(5, 150, 105, 0.1);
+  border-color: rgba(5, 150, 105, 0.35);
+  color: #0f172a;
+}
+
+.si-sat-ctx-toolbox-opt-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  justify-content: flex-start;
+  padding: 9px 11px;
+  border-radius: 10px;
+  border: 1px solid rgba(129, 140, 248, 0.28);
+  background: rgba(30, 41, 59, 0.45);
+  color: var(--si-ctx-text);
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.si-sat-ctx-dock--light .si-sat-ctx-toolbox-opt-btn {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(99, 102, 241, 0.28);
+  color: #0f172a;
+}
+
+.si-sat-ctx-toolbox-opt-btn:hover {
+  border-color: rgba(52, 211, 153, 0.45);
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.si-sat-ctx-toolbox-opt-btn i {
+  width: 1.1rem;
+  text-align: center;
+  color: #a5b4fc;
+}
+
+.si-sat-ctx-dock--light .si-sat-ctx-toolbox-opt-btn i {
+  color: #4f46e5;
+}
+
+.si-sat-ctx-rail-brand__mark {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgba(99, 102, 241, 0.16);
+  color: #a5b4fc;
+  font-size: 14px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.si-sat-ctx-rail-brand--open .si-sat-ctx-rail-brand__mark {
+  background: rgba(34, 197, 94, 0.18);
+  color: #6ee7b7;
+}
+
+.si-sat-ctx-rail-brand__title {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--si-ctx-muted);
+  line-height: 1.2;
+  min-width: 0;
+}
+
+.si-sat-ctx-dock--light .si-sat-ctx-rail-brand__mark {
+  background: rgba(79, 70, 229, 0.12);
+  color: #4338ca;
+}
+
+.si-sat-ctx-dock--light .si-sat-ctx-rail-brand--open .si-sat-ctx-rail-brand__mark {
+  background: rgba(5, 150, 105, 0.14);
+  color: #047857;
+}
+
+.si-sat-ctx-dock--light .si-sat-ctx-rail-brand__title {
+  color: rgba(15, 23, 42, 0.55);
+}
+
+.si-sat-ctx-rail-btn--map {
+  position: relative;
+}
+
+.si-sat-ctx-rail-btn--map .si-sat-ctx-rail-label {
+  transition:
+    opacity 0.22s ease,
+    max-width 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.22s ease,
+    max-height 0.22s ease;
+}
+
+.si-sat-ctx-rail-btn--map-collapsed {
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  min-height: 38px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.si-sat-ctx-rail-btn--map-collapsed .si-sat-ctx-rail-label {
+  flex: 0 0 auto;
+  opacity: 0;
+  max-width: 0;
+  max-height: 0;
+  overflow: hidden;
+  transform: translateX(6px);
+  pointer-events: none;
+  margin: 0;
+  padding: 0;
+}
+
+.si-sat-ctx-dock[dir='rtl'] .si-sat-ctx-rail-btn--map-collapsed .si-sat-ctx-rail-label {
+  transform: translateX(-6px);
+}
+
+.si-sat-ctx-rail-btn--map-expanded {
+  width: 100%;
+  min-height: 48px;
+  padding-block: 10px;
+  padding-inline: 10px;
+  border-radius: 12px;
+  justify-content: flex-start;
+  align-items: flex-start;
+  gap: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.si-sat-ctx-rail-btn--map-expanded .si-sat-ctx-rail-label-title {
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.3;
+  letter-spacing: 0.015em;
+}
+
+.si-sat-ctx-rail-btn--map-expanded .si-sat-ctx-rail-label-desc {
+  font-size: 11px;
+  line-height: 1.45;
+  opacity: 0.94;
+}
+
+.si-sat-ctx-rail-collapse__icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.si-sat-ctx-rail-collapse--map.si-sat-ctx-rail-collapse--labeled {
+  border: none;
+  background: transparent;
+}
+
+.si-sat-ctx-dock--light .si-sat-ctx-rail-collapse--map.si-sat-ctx-rail-collapse--labeled {
+  background: transparent;
+  border: none;
+}
+
+.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--rail-narrow .si-sat-ctx-rail-collapse--map {
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: 0;
+  padding: 0;
+  min-height: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.si-sat-ctx-dock--light.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--rail-narrow .si-sat-ctx-rail-collapse--map {
+  background: transparent;
+  border: none;
+}
+
+.si-sat-ctx-dock[dir='rtl'] .si-sat-ctx-rail-label {
+  align-items: flex-end;
+  text-align: end;
+}
+
+.si-sat-ctx-rail-btn:hover {
+  background: var(--si-ctx-bg2);
+  color: var(--si-ctx-text);
+  border-color: rgba(129, 140, 248, 0.25);
+}
+
+.si-sat-ctx-rail-btn--active {
+  background: rgba(34, 197, 94, 0.2);
+  color: #bbf7d0;
+  border-color: rgba(52, 211, 153, 0.45);
+}
+
+.si-sat-ctx-dock--light .si-sat-ctx-rail-btn--active {
+  color: #065f46;
+  background: rgba(16, 185, 129, 0.15);
+}
+
+.si-sat-ctx-rail-collapse {
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 4px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--si-ctx-muted);
+  cursor: pointer;
+  font-size: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  touch-action: manipulation;
+  transition:
+    color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.si-sat-ctx-rail-collapse i,
+.si-sat-ctx-rail-collapse__icon-wrap i {
+  font-size: 0.72rem;
+  line-height: 1;
+  opacity: 0.88;
+}
+
+.si-sat-ctx-rail-collapse--labeled {
+  justify-content: flex-start;
+  padding: 6px 8px;
+}
+
+.si-sat-ctx-rail-collapse-text {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.si-sat-ctx-dock--rail-narrow .si-sat-ctx-rail-collapse {
+  width: auto;
+  min-width: 0;
+  min-height: 34px;
+  align-self: center;
+  border: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+.si-sat-ctx-dock--rail-narrow .si-sat-ctx-rail-collapse i,
+.si-sat-ctx-dock--rail-narrow .si-sat-ctx-rail-collapse__icon-wrap i {
+  font-size: 0.72rem;
+}
+
+.si-sat-ctx-rail-collapse:hover {
+  color: var(--si-ctx-text);
+  background: transparent;
+}
+
+.si-sat-ctx-rail-collapse:hover i,
+.si-sat-ctx-rail-collapse:hover .si-sat-ctx-rail-collapse__icon-wrap i {
+  opacity: 1;
+}
+
+.si-sat-ctx-rail-collapse:focus-visible {
+  outline: 2px solid rgba(129, 140, 248, 0.75);
+  outline-offset: 2px;
+}
+
+.si-sat-ctx-panel-wrap {
+  overflow: hidden;
+  /* Critical: default `min-width: auto` prevents flex items from shrinking below
+   * intrinsic panel content width, leaving a wide dark gutter beside the rail
+   * when the inline style sets `width: 0` / `flex-basis: 0` (panel “closed”). */
+  min-width: 0;
+  transition:
+    width 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    flex-basis 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.22s ease;
+  opacity: 1;
+}
+
+.si-sat-ctx-dock--closed .si-sat-ctx-panel-wrap {
+  opacity: 0;
+  pointer-events: none;
+  max-width: 0;
+}
+
+.si-sat-ctx-panel {
+  position: relative;
+  height: 100%;
+  min-height: 280px;
+  max-height: min(86vh, 760px);
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px 0 0 16px;
+  background: var(--si-ctx-bg);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--si-ctx-border);
+  border-inline-end: none;
+  box-shadow: -12px 0 40px rgba(2, 6, 23, 0.25);
+}
+
+.si-sat-ctx-dock--embedded .si-sat-ctx-panel {
+  border-radius: 12px 0 0 12px;
+  max-height: min(70vh, 640px);
+}
+
+.si-sat-ctx-dock[dir='rtl'] .si-sat-ctx-panel {
+  border-radius: 0 16px 16px 0;
+}
+
+.si-sat-ctx-dock[dir='rtl'].si-sat-ctx-dock--embedded .si-sat-ctx-panel {
+  border-radius: 0 12px 12px 0;
+}
+
+.si-sat-ctx-panel-resize {
+  position: absolute;
+  inset-inline-end: 0;
+  top: 0;
+  bottom: 0;
+  width: 7px;
+  cursor: ew-resize;
+  z-index: 3;
+  background: linear-gradient(270deg, rgba(99, 102, 241, 0.12), transparent);
+}
+
+.si-sat-ctx-dock[dir='rtl'] .si-sat-ctx-panel-resize {
+  background: linear-gradient(90deg, rgba(99, 102, 241, 0.12), transparent);
+}
+
+.si-sat-ctx-panel-resize:hover {
+  background: linear-gradient(270deg, rgba(52, 211, 153, 0.25), transparent);
+}
+
+.si-sat-ctx-dock[dir='rtl'] .si-sat-ctx-panel-resize:hover {
+  background: linear-gradient(90deg, rgba(52, 211, 153, 0.25), transparent);
+}
+
+.si-sat-ctx-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 11px 8px 12px;
+  border-bottom: 1px solid var(--si-ctx-border);
+  flex-shrink: 0;
+}
+
+.si-sat-ctx-panel-kicker {
+  display: block;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--si-ctx-muted);
+  margin-bottom: 2px;
+}
+
+.si-sat-ctx-panel-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--si-ctx-text);
+  letter-spacing: 0.02em;
+}
+
+.si-sat-ctx-panel-title--toolbox-embed-root {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1.25;
+}
+
+.si-sat-ctx-panel-header-actions {
+  display: inline-flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.si-sat-ctx-icon-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(15, 23, 42, 0.35);
+  color: var(--si-ctx-text);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.si-sat-ctx-icon-btn:hover {
+  border-color: rgba(129, 140, 248, 0.45);
+  background: var(--si-ctx-bg2);
+}
+
+.si-sat-ctx-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 12px 8px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  flex-shrink: 0;
+}
+
+.si-sat-ctx-tab {
+  flex: 1;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--si-ctx-muted);
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.si-sat-ctx-tab--on {
+  background: rgba(99, 102, 241, 0.16);
+  color: var(--si-ctx-text);
+  border-color: rgba(129, 140, 248, 0.35);
+}
+
+.si-sat-ctx-panel-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.si-sat-ctx-panel-body-core {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 14px 12px 16px;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Embedded contextual dock: width-first tool strip (two rows) + scrollable detail */
+.si-sat-ctx-panel-body--embedded-analysis {
+  gap: 0;
+}
+
+.si-sat-ctx-analysis-launcher {
+  display: grid;
+  grid-template-rows: auto auto;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 6px 8px;
+  flex-shrink: 0;
+  padding: 10px 12px 10px 14px;
+  border-bottom: 1px solid var(--si-ctx-border);
+  background: rgba(2, 6, 23, 0.22);
+}
+
+.si-sat-ctx-dock--light .si-sat-ctx-analysis-launcher {
+  background: rgba(241, 245, 249, 0.65);
+}
+
+.si-sat-ctx-analysis-launcher-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 52px;
+  padding: 6px 4px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.35);
+  color: var(--si-ctx-muted);
+  cursor: pointer;
+  font-size: 15px;
+  transition:
+    background 0.18s ease,
+    color 0.18s ease,
+    border-color 0.18s ease,
+    transform 0.14s ease;
+}
+
+.si-sat-ctx-dock--light .si-sat-ctx-analysis-launcher-btn {
+  background: rgba(255, 255, 255, 0.88);
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+.si-sat-ctx-analysis-launcher-btn:hover {
+  border-color: rgba(129, 140, 248, 0.45);
+  color: var(--si-ctx-text);
+  background: var(--si-ctx-bg2);
+}
+
+.si-sat-ctx-analysis-launcher-btn--active {
+  border-color: rgba(52, 211, 153, 0.55);
+  background: rgba(6, 78, 59, 0.42);
+  color: #bbf7d0;
+  box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.2);
+}
+
+.si-sat-ctx-dock--light .si-sat-ctx-analysis-launcher-btn--active {
+  color: #047857;
+  background: rgba(16, 185, 129, 0.14);
+  border-color: rgba(5, 150, 105, 0.45);
+  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.18);
+}
+
+.si-sat-ctx-analysis-launcher-label {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1.15;
+  text-align: center;
+  text-transform: uppercase;
+  color: inherit;
+  opacity: 0.92;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* When the embedded panel is open, tool switching uses the launcher grid — hide duplicate rail icons */
+.si-sat-ctx-dock--embedded.si-map-analysis-toolbar--embedded.si-sat-ctx-dock--open .si-sat-ctx-rail-btn,
+.si-sat-ctx-dock--embedded.si-map-analysis-toolbar--embedded.si-sat-ctx-dock--open .si-sat-ctx-rail-sep,
+.si-sat-ctx-dock--embedded.si-map-analysis-toolbar--embedded.si-sat-ctx-dock--open .si-sat-ctx-rail-spacer {
+  display: none !important;
+}
+
+.si-sat-ctx-panel-body .si-map-toolbox-layers-card {
+  margin-bottom: 12px;
+}
+
+/* Layers block in map toolbox: same flat surface as Processing Options workspace */
+.si-sat-ctx-panel-body .si-map-toolbox-layers-card.si-env-section-card {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0 0 8px;
+  gap: 12px;
+}
+
+.si-sat-ctx-panel-footer {
+  flex-shrink: 0;
+  padding: 8px 14px 10px 16px;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(2, 6, 23, 0.2);
+}
+
+.si-sat-ctx-dock--light .si-sat-ctx-panel-footer {
+  background: rgba(241, 245, 249, 0.85);
+}
+
+.si-sat-ctx-footer-hint {
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--si-ctx-muted);
+}
+
+.si-sat-ctx-prose p {
+  margin: 0 0 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--si-ctx-text);
+}
+
+.si-sat-ctx-muted {
+  color: var(--si-ctx-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.si-sat-ctx-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 11px;
+  color: var(--si-ctx-muted);
+  line-height: 1.5;
+}
+
+.si-sat-ctx-primary-btn {
+  margin-top: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(145deg, #22c55e, #16a34a);
+  color: #fff;
+  font-weight: 800;
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: 0 8px 22px rgba(22, 163, 74, 0.35);
+}
+
+.si-sat-ctx-primary-btn:hover {
+  filter: brightness(1.05);
+}
+
+.si-sat-ctx-aoi-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.si-sat-ctx-aoi-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 6px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(15, 23, 42, 0.4);
+  color: var(--si-ctx-text);
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.si-sat-ctx-aoi-btn i {
+  font-size: 16px;
+}
+
+.si-sat-ctx-aoi-btn--on {
+  border-color: rgba(52, 211, 153, 0.55);
+  background: rgba(6, 78, 59, 0.45);
+  color: #bbf7d0;
+}
+
+.si-sat-ctx-aoi-btn--danger:not(:disabled):hover {
+  border-color: rgba(251, 146, 60, 0.55);
+  color: #fed7aa;
+}
+
+.si-sat-ctx-aoi-btn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.si-sat-ctx-charts-block .si-map-analysis-layer-toolbar {
+  margin-bottom: 10px;
+}
+
+.si-sat-ctx-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.si-field-analysis .si-map-analysis-toolbar--embedded {
+  margin: 0;
+  border: none;
+  background: transparent;
+}
+
+@media (max-width: 768px) {
+  .si-sat-ctx-dock--map {
+    inset-inline-end: 0;
+    inset-inline-start: auto;
+    top: auto;
+    bottom: 120px;
+    transform: none;
+    max-height: 48vh;
+    flex-direction: column-reverse;
+    width: auto;
+    max-width: calc(100vw - 16px);
+  }
+
+  .si-sat-ctx-dock--map .si-sat-ctx-rail {
+    flex-direction: row;
+    flex-wrap: wrap;
+    width: 100%;
+    max-width: 100%;
+    justify-content: flex-start;
+    align-items: stretch;
+    border-radius: 14px;
+  }
+
+  .si-sat-ctx-dock--map .si-sat-ctx-rail--labeled {
+    width: 100%;
+  }
+
+  .si-sat-ctx-dock--map .si-sat-ctx-rail-sep {
+    width: 100%;
+    height: 1px;
+    margin: 4px 0;
+  }
+
+  .si-sat-ctx-dock--map .si-sat-ctx-rail-footer {
+    width: 100%;
+    margin-top: 0;
+    padding-top: 4px;
+  }
+
+  .si-sat-ctx-dock--map .si-sat-ctx-rail-spacer {
+    display: none;
+  }
+
+  .si-sat-ctx-dock--map .si-sat-ctx-rail-btn--row {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .si-sat-ctx-dock--map .si-sat-ctx-panel {
+    border-radius: 16px;
+    border: 1px solid var(--si-ctx-border);
+    max-height: 38vh;
+  }
+
+  .si-sat-ctx-dock--map .si-sat-ctx-panel-wrap {
+    width: 100% !important;
+    flex-basis: auto !important;
+  }
+
+  /* Full-height toolbox: keep vertical rail on small screens */
+  .si-sat-ctx-dock--map.si-sat-ctx-dock--map-tall {
+    top: 0;
+    bottom: 0;
+    inset-inline-end: 0;
+    inset-inline-start: auto;
+    max-height: none;
+    flex-direction: row-reverse;
+    width: auto;
+    max-width: none;
+  }
+
+  .si-sat-ctx-dock--map.si-sat-ctx-dock--map-tall .si-sat-ctx-rail {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    width: auto;
+    max-width: min(220px, 42vw);
+    border-radius: 0;
+    border-start-end-radius: 14px;
+    border-end-end-radius: 14px;
+    overflow: hidden;
+  }
+
+  .si-sat-ctx-dock--map.si-sat-ctx-dock--map-tall .si-sat-ctx-rail__scroll {
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+
+  .si-sat-ctx-dock.si-sat-ctx-dock--map.si-sat-ctx-dock--map-tall[dir='rtl'] .si-sat-ctx-rail {
+    border-start-end-radius: 0;
+    border-end-end-radius: 0;
+    border-start-start-radius: 14px;
+    border-end-start-radius: 14px;
+  }
+
+  .si-sat-ctx-dock--map.si-sat-ctx-dock--map-tall.si-sat-ctx-dock--rail-narrow .si-sat-ctx-rail {
+    max-width: 52px;
+  }
+
+  .si-sat-ctx-dock--map.si-sat-ctx-dock--map-tall.si-sat-ctx-dock--map-strip-minimized .si-sat-ctx-rail {
+    max-width: 44px;
+    width: 44px;
+    min-width: 44px;
+  }
+}
+
+/* —— Smart Processing workflow (inside map toolbox panel) —— */
+.si-smart-proc {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 2px 2px 8px;
+  min-height: 0;
+}
+
+.si-sat-ctx-panel-body-core > .si-smart-proc + .si-sat-ctx-prose,
+.si-sat-ctx-panel-body > .si-smart-proc + .si-sat-ctx-prose {
+  margin-top: 12px;
+}
+
+/* Map toolbox: portal mounts here — flush with dock chrome (no nested panel-body shell) */
+.si-sat-ctx-map-toolbox-host {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0;
+}
+
+.si-sat-ctx-map-toolbox-host .si-env-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.si-sat-ctx-map-toolbox-host
+  .si-env-panel.si-env-panel--satellite-toolbox.si-env-panel--single-surface
+  > :not(.si-env-panel-header) {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* Map toolbox · compact lux density (Remote sensing + shared chrome) */
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-panel-header {
+  padding: 9px 11px 8px 12px;
+  gap: 8px;
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-panel-title,
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-panel-title--toolbox-embed-root {
+  font-size: 13px;
+  font-weight: 750;
+  letter-spacing: -0.018em;
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-panel-header .si-sat-ctx-icon-btn {
+  width: 28px;
+  height: 28px;
+  font-size: 11px;
+}
+
+.si-sat-ctx-map-toolbox-host .si-field-analysis {
+  gap: 9px;
+}
+
+.si-sat-ctx-map-toolbox-host .si-field-analysis-section {
+  gap: 5px;
+}
+
+.si-sat-ctx-map-toolbox-host .si-field-analysis-field {
+  gap: 4px;
+}
+
+.si-sat-ctx-map-toolbox-host .si-field-analysis-field--labeled {
+  gap: 5px;
+}
+
+.si-sat-ctx-map-toolbox-host .si-field-analysis-label {
+  font-size: 9px;
+  letter-spacing: 0.02em;
+}
+
+.si-sat-ctx-map-toolbox-host .si-field-analysis-kicker {
+  font-size: 8px;
+  letter-spacing: 0.11em;
+}
+
+.si-sat-ctx-map-toolbox-host .si-field-analysis-field input[type='date'],
+.si-sat-ctx-map-toolbox-host .si-field-analysis-select,
+.si-sat-ctx-map-toolbox-host .si-sat-provider-dd__trigger {
+  padding: 6px 8px;
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.si-sat-ctx-map-toolbox-host .si-sat-provider-dd__value {
+  font-size: 11px;
+}
+
+.si-sat-ctx-map-toolbox-host .si-field-analysis-date-row {
+  gap: 7px;
+}
+
+.si-sat-ctx-map-toolbox-host .si-field-analysis-timeline-btn,
+.si-sat-ctx-map-toolbox-host .si-field-analysis-aoi-upload-btn {
+  padding: 5px 8px;
+  font-size: 10px;
+  gap: 5px;
+}
+
+.si-sat-ctx-map-toolbox-host .si-field-analysis-layer-visibility {
+  margin-top: 6px;
+  padding: 5px 7px;
+}
+
+.si-sat-ctx-map-toolbox-host .si-field-analysis-checkbox-row,
+.si-sat-ctx-map-toolbox-host .si-field-analysis-checkbox-row--readonly {
+  gap: 7px;
+  font-size: 10px;
+}
+
+.si-sat-ctx-map-toolbox-host .si-field-analysis-checkbox-row input[type='checkbox'] {
+  width: 14px;
+  height: 14px;
+}
+
+.si-sat-ctx-map-toolbox-host .gis-fields-dock__tabs {
+  gap: 4px;
+  padding: 3px;
+}
+
+.si-sat-ctx-map-toolbox-host .gis-fields-dock__tab {
+  padding: 5px 8px;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.si-sat-ctx-map-toolbox-host .si-field-analysis-hint {
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.si-sat-ctx-map-toolbox-host
+  .si-env-panel--satellite-toolbox.si-env-panel--single-surface
+  .si-env-panel.si-env-panel--satellite-toolbox.si-env-panel--single-surface
+  .si-field-analysis-section {
+  margin: 0 0 10px;
+}
+
+.si-sat-ctx-panel.si-sat-ctx-panel--processing-embed-mode {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.si-sat-ctx-panel.si-sat-ctx-panel--processing-embed-mode .si-sat-ctx-panel-header {
+  flex-shrink: 0;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  border-bottom-color: rgba(148, 163, 184, 0.12);
+}
+
+.si-smart-proc__context {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(129, 140, 248, 0.22);
+  background: linear-gradient(165deg, rgba(30, 41, 59, 0.55), rgba(15, 23, 42, 0.35));
+}
+
+.si-sat-ctx-dock--light .si-smart-proc__context {
+  background: linear-gradient(165deg, rgba(248, 250, 252, 0.95), rgba(241, 245, 249, 0.88));
+  border-color: rgba(148, 163, 184, 0.4);
+}
+
+.si-smart-proc__context-kicker {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--si-ctx-muted);
+  margin-bottom: 6px;
+}
+
+.si-smart-proc__context-body {
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.45;
+  color: var(--si-ctx-text);
+}
+
+.si-smart-proc__context-hint {
+  margin: 8px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--si-ctx-muted);
+}
+
+.si-smart-proc__quick {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.si-smart-proc__cat-head {
+  display: flex;
+  align-items: center;
+}
+
+.si-smart-proc__cat-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.35);
+  color: var(--si-ctx-text);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease;
+}
+
+.si-sat-ctx-dock--light .si-smart-proc__cat-toggle {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(148, 163, 184, 0.35);
+  color: #0f172a;
+}
+
+.si-smart-proc__cat-toggle:hover {
+  border-color: rgba(129, 140, 248, 0.45);
+  background: rgba(30, 41, 59, 0.45);
+}
+
+.si-sat-ctx-dock--light .si-smart-proc__cat-toggle:hover {
+  background: rgba(241, 245, 249, 0.95);
+}
+
+.si-smart-proc__cat-toggle--on {
+  border-color: rgba(52, 211, 153, 0.45);
+  background: rgba(34, 197, 94, 0.12);
+}
+
+.si-smart-proc__cat-title {
+  text-align: start;
+}
+
+.si-smart-proc__cat-sub {
+  margin: -2px 0 0;
+  padding: 0 2px;
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--si-ctx-muted);
+}
+
+.si-smart-proc__chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.si-smart-proc__chip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 4.75rem;
+  padding: 8px 6px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(15, 23, 42, 0.25);
+  color: var(--si-ctx-text);
+  font-size: 10px;
+  font-weight: 650;
+  cursor: pointer;
+  transition:
+    transform 0.12s ease,
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.si-sat-ctx-dock--light .si-smart-proc__chip {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(148, 163, 184, 0.35);
+  color: #0f172a;
+}
+
+.si-smart-proc__chip:hover {
+  border-color: rgba(99, 102, 241, 0.45);
+  transform: translateY(-1px);
+}
+
+.si-smart-proc__chip i {
+  font-size: 15px;
+  color: #a5b4fc;
+}
+
+.si-sat-ctx-dock--light .si-smart-proc__chip i {
+  color: #4f46e5;
+}
+
+.si-smart-proc__cats {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.si-smart-proc__cat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.si-smart-proc__tool-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.si-smart-proc__tool {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 10px;
+  row-gap: 2px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(30, 41, 59, 0.28);
+  color: var(--si-ctx-text);
+  text-align: start;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.si-sat-ctx-dock--light .si-smart-proc__tool {
+  background: rgba(248, 250, 252, 0.92);
+  border-color: rgba(148, 163, 184, 0.32);
+}
+
+.si-smart-proc__tool:hover {
+  border-color: rgba(52, 211, 153, 0.35);
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.si-smart-proc__tool i {
+  grid-row: 1 / span 2;
+  align-self: center;
+  font-size: 15px;
+  color: #93c5fd;
+}
+
+.si-smart-proc__tool-label {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.si-smart-proc__tool-hint {
+  grid-column: 2;
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--si-ctx-muted);
+}
+
+/* ============================================================================
+ * Geosyntra · Map toolbox & analysis dock — One UI Glass redesign.
+ *
+ * Why this block lives at the bottom: the upstream `satelliteMapAnalysisChrome
+ * .css` ships an indigo-rail / green-active / violet-tab palette that pre-dates
+ * the Geosyntra pure black-glass identity. Refactoring 2,300+ inline
+ * declarations would explode the diff and risk regressions. Appending one
+ * cohesive override block instead lets us:
+ *   - retag every visible chrome element to the pure black-glass identity
+ *     (charcoal surfaces, white-silver rims, no green / violet / indigo cast),
+ *   - layer in modern glassmorphism polish (24px backdrop-blur + 140% saturate,
+ *     deep shadow, neon-thin rim, generous radii, glass scrollbars),
+ *   - keep hover / active / disabled states semantically distinct (lift +
+ *     soft glass for hover, white-glass glow ring for active, transparent
+ *     gray for disabled) — matching Samsung One UI Glass / VisionOS / ArcGIS
+ *     Online Modern UI / Cesium Enterprise reference UIs,
+ *   - leave every original rule untouched so future upstream merges stay
+ *     reviewable and a one-line revert restores the legacy theme.
+ *
+ * Spec sources: user request 2026-05-13 — "Black Glass One UI", floating
+ * glass panels with thin transparent borders + strong blur + soft shadow,
+ * 18-24px radius, animated accordions, glow active state, frosted overlay,
+ * unified per-state coloring.
+ * ========================================================================== */
+
+/* Token overrides — both palettes resolve to the same pure black-glass
+ * identity. The legacy `#22c55e` / `#059669` accent (green) is replaced with
+ * a neutral white-silver so the active glow reads as "polished glass" rather
+ * than "tagged emerald". */
+.si-sat-ctx-dock {
+  --si-ctx-bg: rgba(0, 0, 0, 0.72);
+  --si-ctx-bg2: rgba(255, 255, 255, 0.05);
+  --si-ctx-border: rgba(255, 255, 255, 0.1);
+  --si-ctx-text: #f4f4f8;
+  --si-ctx-muted: rgba(255, 255, 255, 0.62);
+  --si-ctx-accent: rgba(255, 255, 255, 0.92);
+  --si-ctx-glow: rgba(255, 255, 255, 0.22);
+  --si-ctx-radius-lg: 22px;
+  --si-ctx-radius-md: 16px;
+  --si-ctx-radius-sm: 12px;
+  --si-ctx-shadow-float:
+    0 30px 80px rgba(0, 0, 0, 0.65),
+    0 8px 22px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.si-sat-ctx-dock--light {
+  --si-ctx-bg: rgba(0, 0, 0, 0.72);
+  --si-ctx-bg2: rgba(255, 255, 255, 0.05);
+  --si-ctx-border: rgba(255, 255, 255, 0.12);
+  --si-ctx-text: #f4f4f8;
+  --si-ctx-muted: rgba(255, 255, 255, 0.62);
+  --si-ctx-accent: rgba(255, 255, 255, 0.92);
+  --si-ctx-glow: rgba(255, 255, 255, 0.26);
+}
+
+/* Outer shell — true floating glass island. Strong blur + saturate gives the
+ * VisionOS-style frosted depth; the deep shadow lifts the panel off the map
+ * so it stops feeling like a flat sticker. */
+.si-sat-ctx-dock,
+.si-sat-ctx-dock--light {
+  border-radius: var(--si-ctx-radius-lg);
+  box-shadow: var(--si-ctx-shadow-float);
+}
+
+/* Full-height map toolbox: skip the outer “island” shadow — rail/panel already carry glass depth;
+ * a second mega-shadow on a wide flex box was reading as a solid black strip beside the rail. */
+.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--map-tall,
+.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--map-tall.si-sat-ctx-dock--light {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.si-sat-ctx-dock--map .si-sat-ctx-rail,
+.si-sat-ctx-dock--dark .si-sat-ctx-rail,
+.si-sat-ctx-dock--light .si-sat-ctx-rail {
+  background: var(--gs-panel-glass-bg, linear-gradient(180deg, rgba(0, 0, 0, 0.68) 0%, rgba(0, 0, 0, 0.78) 100%));
+  border-color: var(--si-ctx-border);
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset -1px 0 0 rgba(255, 255, 255, 0.03);
+}
+
+/* Embedded panel (the right-hand content column) — same glass treatment so
+ * the rail + panel read as one continuous floating surface. */
+.si-sat-ctx-dock--map .si-sat-ctx-panel,
+.si-sat-ctx-dock--dark .si-sat-ctx-panel,
+.si-sat-ctx-dock--light .si-sat-ctx-panel {
+  background: var(--gs-panel-glass-bg, linear-gradient(180deg, rgba(0, 0, 0, 0.68) 0%, rgba(0, 0, 0, 0.78) 100%));
+  border-color: var(--si-ctx-border);
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+  border-radius: 0 var(--si-ctx-radius-lg) var(--si-ctx-radius-lg) 0;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 1px 0 0 rgba(255, 255, 255, 0.03);
+}
+
+.si-sat-ctx-dock--map[dir='rtl'] .si-sat-ctx-panel,
+.si-sat-ctx-dock--light[dir='rtl'] .si-sat-ctx-panel {
+  border-radius: var(--si-ctx-radius-lg) 0 0 var(--si-ctx-radius-lg);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset -1px 0 0 rgba(255, 255, 255, 0.03);
+}
+
+/* Brand strip ("MAP TOOLBOX" / "CONTEXT") — green chip → silver glass chip,
+ * caps title shifts to a soft silver gradient so it reads "premium" not "alert". */
+.si-sat-ctx-rail-brand__mark,
+.si-sat-ctx-rail-brand--open .si-sat-ctx-rail-brand__mark,
+.si-sat-ctx-dock--light .si-sat-ctx-rail-brand__mark,
+.si-sat-ctx-dock--light .si-sat-ctx-rail-brand--open .si-sat-ctx-rail-brand__mark {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04));
+  color: #f4f4f8;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 4px 14px rgba(0, 0, 0, 0.45);
+}
+
+.si-sat-ctx-rail-brand__title,
+.si-sat-ctx-dock--light .si-sat-ctx-rail-brand__title {
+  background: linear-gradient(180deg, #ffffff 0%, #c8c8d0 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.4);
+}
+
+/* Per-tool tile (Add data / Layers / Explore STAC / Remote sensing / AI /
+ * Geo AI). Hover = soft white-glass lift, active = white-glass ring + glow. */
+.si-sat-ctx-rail-btn {
+  border-radius: var(--si-ctx-radius-sm);
+  transition:
+    background 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.22s ease,
+    color 0.22s ease,
+    transform 0.18s ease,
+    box-shadow 0.22s ease;
+}
+
+.si-sat-ctx-rail-btn i {
+  color: rgba(232, 232, 238, 0.92);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+}
+
+.si-sat-ctx-rail-btn:hover,
+.si-sat-ctx-dock--light .si-sat-ctx-rail-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+
+.si-sat-ctx-rail-btn:hover i {
+  color: #ffffff;
+}
+
+.si-sat-ctx-rail-btn--active,
+.si-sat-ctx-dock--light .si-sat-ctx-rail-btn--active {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.06) 100%);
+  border-color: rgba(255, 255, 255, 0.24);
+  color: #ffffff;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 0 22px var(--si-ctx-glow),
+    0 6px 18px rgba(0, 0, 0, 0.55);
+}
+
+.si-sat-ctx-rail-btn--active i {
+  color: #ffffff;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.45);
+}
+
+.si-sat-ctx-rail-btn:disabled,
+.si-sat-ctx-rail-btn[aria-disabled='true'] {
+  opacity: 0.42;
+  color: rgba(160, 160, 170, 0.55);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+.si-sat-ctx-rail-btn:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.55);
+  outline-offset: 2px;
+}
+
+/* "Add data" map-rail tile — same glass treatment, no special green/blue cast. */
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-add-data.si-sat-ctx-rail-btn--map > i.fa-plus {
+  color: #f4f4f8;
+}
+
+/* Map-rail collapse / strip toggles — minimal chevrons (no pill chrome). */
+.si-sat-ctx-rail-collapse--map.si-sat-ctx-rail-collapse--labeled,
+.si-sat-ctx-dock--light .si-sat-ctx-rail-collapse--map.si-sat-ctx-rail-collapse--labeled,
+.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--rail-narrow .si-sat-ctx-rail-collapse--map,
+.si-sat-ctx-dock--light.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--rail-narrow .si-sat-ctx-rail-collapse--map {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: rgba(244, 244, 248, 0.92);
+}
+
+.si-sat-ctx-dock--light .si-sat-ctx-rail-collapse--map.si-sat-ctx-rail-collapse--labeled,
+.si-sat-ctx-dock--light.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--rail-narrow .si-sat-ctx-rail-collapse--map {
+  color: rgba(51, 65, 85, 0.78);
+}
+
+.si-sat-ctx-rail-strip-show,
+.si-sat-ctx-dock--light .si-sat-ctx-rail-strip-show {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.si-sat-ctx-rail-strip-show {
+  color: rgba(244, 244, 248, 0.92);
+}
+
+.si-sat-ctx-dock--light .si-sat-ctx-rail-strip-show {
+  color: rgba(51, 65, 85, 0.78);
+}
+
+.si-sat-ctx-rail-strip-show:hover {
+  background: transparent;
+  border: none;
+}
+
+.si-sat-ctx-rail-strip-hide,
+.si-sat-ctx-dock--light .si-sat-ctx-rail-strip-hide {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.si-sat-ctx-rail-strip-hide:hover {
+  background: transparent;
+  border: none;
+}
+
+/* Tabs (Main / Options) — was a violet `rgba(99, 102, 241, …)` pill.
+ * Now a clean white-glass pill. */
+.si-sat-ctx-tabs {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+.si-sat-ctx-tab {
+  border-radius: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: rgba(218, 218, 225, 0.78);
+  transition:
+    background 0.22s ease,
+    color 0.22s ease,
+    border-color 0.22s ease,
+    box-shadow 0.22s ease;
+}
+
+.si-sat-ctx-tab:hover {
+  color: #f4f4f8;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.si-sat-ctx-tab--on {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.06));
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 0 18px rgba(255, 255, 255, 0.12);
+}
+
+/* Panel header (the row that holds the title + small icon buttons) — green
+ * underline → neutral glass underline. */
+.si-sat-ctx-panel-header {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+.si-sat-ctx-panel-kicker {
+  color: rgba(220, 220, 228, 0.7);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 800;
+}
+
+.si-sat-ctx-panel-title {
+  color: #f4f4f8;
+  letter-spacing: -0.01em;
+  font-weight: 700;
+}
+
+/* Header icon buttons (settings cog / column-layout / X) — uniform glass
+ * squircles matching the rest of the system. */
+.si-sat-ctx-icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(232, 232, 238, 0.88);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    transform 0.16s ease;
+}
+
+.si-sat-ctx-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.si-sat-ctx-icon-btn:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.55);
+  outline-offset: 2px;
+}
+
+/* Layer chip in the "ADDED LAYERS" list — was a green-rim active card.
+ * Now glass with a white-silver rim + subtle inner glow when active. */
+.si-map-analysis-layer-chip,
+.si-sat-ctx-dock--light .si-map-analysis-layer-chip {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 14px;
+  color: #f4f4f8;
+  transition:
+    background 0.22s ease,
+    border-color 0.22s ease,
+    box-shadow 0.22s ease;
+}
+
+.si-map-analysis-layer-chip:hover,
+.si-sat-ctx-dock--light .si-map-analysis-layer-chip:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.si-map-analysis-layer-chip--active,
+.si-map-analysis-layer-chip.is-active,
+.si-map-analysis-layer-chip[data-active='true'] {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.04));
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 0 18px rgba(255, 255, 255, 0.10);
+}
+
+/* Chart card surface inside the dock body — same glass card treatment. */
+.si-map-analysis-chart-card,
+.si-sat-ctx-dock--light .si-map-analysis-chart-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: var(--si-ctx-radius-md);
+}
+
+/* Smart Processing workflow (inside the toolbox panel) — neutralise the
+ * indigo / emerald accents on cat-toggles, chips, and tools. */
+.si-smart-proc__context,
+.si-sat-ctx-dock--light .si-smart-proc__context {
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+  border-color: rgba(255, 255, 255, 0.10);
+}
+
+.si-smart-proc__cat-toggle,
+.si-sat-ctx-dock--light .si-smart-proc__cat-toggle {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.10);
+  color: #f4f4f8;
+  border-radius: 12px;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.si-smart-proc__cat-toggle:hover,
+.si-sat-ctx-dock--light .si-smart-proc__cat-toggle:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.si-smart-proc__cat-toggle--on {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.04));
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 0 16px rgba(255, 255, 255, 0.08);
+}
+
+.si-smart-proc__chip,
+.si-sat-ctx-dock--light .si-smart-proc__chip {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.10);
+  color: #f4f4f8;
+  border-radius: 12px;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.14s ease;
+}
+
+.si-smart-proc__chip:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.18);
+  transform: translateY(-1px);
+}
+
+.si-smart-proc__chip i,
+.si-sat-ctx-dock--light .si-smart-proc__chip i {
+  color: rgba(232, 232, 238, 0.92);
+}
+
+.si-smart-proc__tool,
+.si-sat-ctx-dock--light .si-smart-proc__tool {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #f4f4f8;
+  border-radius: 12px;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.si-smart-proc__tool:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.si-smart-proc__tool i {
+  color: rgba(232, 232, 238, 0.88);
+}
+
+/* Toolbox option button + popup config select — neutralise the indigo +
+ * cyan/teal hints. */
+.si-sat-ctx-toolbox-opt-btn,
+.si-sat-ctx-dock--light .si-sat-ctx-toolbox-opt-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f4f4f8;
+  border-radius: 12px;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.si-sat-ctx-toolbox-opt-btn:hover {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.si-sat-ctx-toolbox-opt-btn i,
+.si-sat-ctx-dock--light .si-sat-ctx-toolbox-opt-btn i {
+  color: rgba(232, 232, 238, 0.92);
+}
+
+.si-sat-ctx-dock--light .si-map-toolbox-layer-popup-cfg__field select,
+.si-map-toolbox-layer-popup-cfg__field select {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #f4f4f8;
+  border-radius: 10px;
+}
+
+.si-sat-ctx-dock--light .si-map-toolbox-layer-popup-cfg__btn,
+.si-map-toolbox-layer-popup-cfg__btn {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.06));
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  border-radius: 10px;
+}
+
+/* Sub-nav back button (drill-in / drill-out within the dock) — neutral. */
+.si-sat-ctx-subnav,
+.si-sat-ctx-dock--light .si-sat-ctx-subnav {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+.si-sat-ctx-subnav-back {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(232, 232, 238, 0.92);
+  border-radius: 10px;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.si-sat-ctx-subnav-back:hover {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
+.si-sat-ctx-subnav-crumb {
+  color: rgba(220, 220, 228, 0.78);
+}
+
+/* Glass scrollbar — slim white-glass thumb on transparent track, used inside
+ * any element that scrolls within the dock body. Keeps the chrome cohesive
+ * with the rest of the panel instead of dropping back to native browser
+ * scrollbars (which look like grey blobs on the dark glass surface). */
+.si-sat-ctx-dock *::-webkit-scrollbar,
+.si-sat-ctx-dock--light *::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.si-sat-ctx-dock *::-webkit-scrollbar-track,
+.si-sat-ctx-dock--light *::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.si-sat-ctx-dock *::-webkit-scrollbar-thumb,
+.si-sat-ctx-dock--light *::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.08));
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: background 0.2s ease;
+}
+
+.si-sat-ctx-dock *::-webkit-scrollbar-thumb:hover,
+.si-sat-ctx-dock--light *::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.14));
+  background-clip: padding-box;
+}
+
+.si-sat-ctx-dock,
+.si-sat-ctx-dock--light {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.20) transparent;
+}
+
+/* Reduced motion: kill hover lifts (the active glow stays — it's a state
+ * indicator, not a transition). */
+@media (prefers-reduced-motion: reduce) {
+  .si-sat-ctx-rail-btn,
+  .si-sat-ctx-icon-btn,
+  .si-sat-ctx-tab,
+  .si-smart-proc__chip,
+  .si-map-analysis-layer-chip {
+    transition: none !important;
+  }
+  .si-sat-ctx-rail-btn:hover,
+  .si-sat-ctx-icon-btn:hover,
+  .si-smart-proc__chip:hover {
+    transform: none !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * Map toolbox (full-height map dock): square 90° corners + flush stack.
+ * Scoped to `.si-sat-ctx-dock--map-toolbox` so embedded / float docks keep
+ * their softer chrome. Logical radii are zeroed for LTR + RTL.
+ * -------------------------------------------------------------------------- */
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail {
+  position: relative;
+  gap: 0;
+  padding: 0;
+  border-radius: 0 !important;
+  border-start-end-radius: 0 !important;
+  border-end-end-radius: 0 !important;
+  border-start-start-radius: 0 !important;
+  border-end-start-radius: 0 !important;
+}
+
+.si-sat-ctx-dock--map-toolbox[dir='rtl'] .si-sat-ctx-rail {
+  border-start-end-radius: 0 !important;
+  border-end-end-radius: 0 !important;
+  border-start-start-radius: 0 !important;
+  border-end-start-radius: 0 !important;
+}
+
+.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--map-strip-minimized .si-sat-ctx-rail {
+  padding-inline: 0;
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-brand {
+  margin-inline: 0;
+  margin-bottom: 0;
+  padding: 6px 8px 8px;
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-brand--minimized {
+  padding: 6px 8px;
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-brand__mark {
+  border-radius: 0 !important;
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail__scroll {
+  padding-bottom: max(4px, env(safe-area-inset-bottom, 0px));
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-btn,
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-btn--row {
+  border-radius: 0 !important;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-btn--map-collapsed {
+  border-radius: 0 !important;
+  width: 100%;
+  min-width: 0;
+  align-self: stretch;
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-btn--map-expanded {
+  border-radius: 0 !important;
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-collapse,
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-collapse__icon-wrap {
+  border-radius: 0 !important;
+}
+
+.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--rail-narrow .si-sat-ctx-rail-collapse {
+  width: 100%;
+  min-width: 0;
+  align-self: stretch;
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-strip-hide,
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-strip-show {
+  border-radius: 0 !important;
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-footer--map {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  justify-content: center;
+  gap: 0;
+  padding: 0;
+  border-top: 1px solid var(--si-ctx-border);
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-footer--map > button {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 22px;
+  height: 22px;
+  padding: 0;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-inline-end: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 0 !important;
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-footer--map > button:last-child {
+  border-inline-end: none;
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-footer--map > button:only-child {
+  flex: 1 1 100%;
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-collapse,
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-strip-hide,
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-strip-show {
+  min-height: 22px;
+  height: 22px;
+  padding: 0;
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-collapse i,
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-collapse__icon-wrap i,
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-strip-hide i,
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-strip-show i {
+  font-size: 0.58rem;
+  line-height: 1;
+  opacity: 0.82;
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail__footer {
+  padding: 0 0 max(4px, env(safe-area-inset-bottom, 0px));
+  border-top: none;
+  box-shadow: none;
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-sep {
+  margin: 0;
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-spacer {
+  display: none;
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-add-data {
+  margin-bottom: 0;
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-sym-wrap {
+  padding: 0;
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-sym-tool {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  border-radius: 0 !important;
+}
+
+/* Map toolbox — spectral / WMS legend rail control (atlas glyph) */
+.si-sat-ctx-rail-btn--legend-tool .si-sat-ctx-rail-legend-glyph {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98));
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 6px 16px rgba(0, 0, 0, 0.35);
+  color: #e2e8f0;
+  font-size: 15px;
+}
+
+.si-sat-ctx-rail-btn--legend-tool.si-sat-ctx-rail-btn--active .si-sat-ctx-rail-legend-glyph {
+  border-color: rgba(96, 165, 250, 0.45);
+  color: #93c5fd;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 0 0 1px rgba(59, 130, 246, 0.25),
+    0 8px 20px rgba(0, 0, 0, 0.4);
+}
+
+.si-sat-ctx-dock--rail-narrow .si-sat-ctx-rail-btn--legend-tool:not(.si-sat-ctx-rail-btn--map-expanded) .si-sat-ctx-rail-legend-glyph {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  border-radius: 50%;
+  font-size: 14px;
+}
+
+/* Map toolbox — print (neutral glass, no orange) */
+.si-sat-ctx-rail-btn--print-tool .si-sat-ctx-rail-print-glyph {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98));
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 6px 16px rgba(0, 0, 0, 0.35);
+  color: #e2e8f0;
+  font-size: 15px;
+}
+
+.si-sat-ctx-rail-btn--print-tool:hover .si-sat-ctx-rail-print-glyph {
+  border-color: rgba(203, 213, 225, 0.35);
+  color: #f8fafc;
+  background: linear-gradient(145deg, rgba(51, 65, 85, 0.95), rgba(15, 23, 42, 0.98));
+}
+
+.si-sat-ctx-dock--rail-narrow .si-sat-ctx-rail-btn--print-tool:not(.si-sat-ctx-rail-btn--map-expanded) .si-sat-ctx-rail-print-glyph {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  border-radius: 50%;
+  font-size: 14px;
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-btn--print-tool .si-sat-ctx-rail-print-glyph {
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  font-size: var(--si-map-rail-icon);
+}
+
+.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--rail-narrow
+  .si-sat-ctx-rail-btn--print-tool:not(.si-sat-ctx-rail-btn--map-expanded)
+  .si-sat-ctx-rail-print-glyph {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+}
+
+/* Map toolbox: sharp 90° panel shell (no outer rounding) */
+.si-sat-ctx-dock--map-toolbox {
+  --si-ctx-radius-lg: 0;
+  --si-ctx-radius-md: 0;
+  --si-ctx-radius-sm: 0;
+  /* Compact lux icon rail — narrow black-glass strip */
+  --si-map-rail-w: 38px;
+  --si-map-rail-w-labeled: min(200px, 34vw);
+  --si-map-rail-btn: 30px;
+  --si-map-rail-mark: 22px;
+  --si-map-rail-icon: 0.68rem;
+}
+
+/* Label mode: widen rail so titles/descriptions fit (was stuck at 38px → broken "map" overflow). */
+.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--rail-labeled:not(.si-sat-ctx-dock--map-strip-minimized) .si-sat-ctx-rail {
+  --si-map-rail-w: var(--si-map-rail-w-labeled);
+  width: var(--si-map-rail-w);
+  min-width: var(--si-map-rail-w);
+  max-width: var(--si-map-rail-w);
+  padding-inline: 5px 6px;
+}
+
+.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--rail-labeled:not(.si-sat-ctx-dock--map-strip-minimized) .si-sat-ctx-rail-brand {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 4px 6px;
+}
+
+.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--rail-labeled:not(.si-sat-ctx-dock--map-strip-minimized) .si-sat-ctx-rail-brand__title {
+  flex: 1;
+  min-width: 0;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Labeled toolbox — each tool row grows with title + description (no 30px clip). */
+.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--rail-labeled:not(.si-sat-ctx-dock--map-strip-minimized) .si-sat-ctx-rail__scroll {
+  gap: 2px;
+}
+
+.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--rail-labeled:not(.si-sat-ctx-dock--map-strip-minimized) .si-sat-ctx-rail-btn--map-expanded {
+  width: 100%;
+  height: auto;
+  min-height: var(--si-map-rail-btn);
+  padding: 7px 6px;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--rail-labeled:not(.si-sat-ctx-dock--map-strip-minimized)
+  .si-sat-ctx-rail-btn--map-expanded
+  > :not(.si-sat-ctx-rail-label) {
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin-top: 1px;
+}
+
+.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--rail-labeled:not(.si-sat-ctx-dock--map-strip-minimized)
+  .si-sat-ctx-rail-btn--map-expanded
+  .si-sat-ctx-rail-label {
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--rail-labeled:not(.si-sat-ctx-dock--map-strip-minimized)
+  .si-sat-ctx-rail-btn--map-expanded
+  .si-sat-ctx-rail-label-title {
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.22;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+}
+
+.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--rail-labeled:not(.si-sat-ctx-dock--map-strip-minimized)
+  .si-sat-ctx-rail-btn--map-expanded
+  .si-sat-ctx-rail-label-desc {
+  font-size: 9px;
+  line-height: 1.38;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  width: 100%;
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail {
+  width: var(--si-map-rail-w);
+  min-width: var(--si-map-rail-w);
+  max-width: var(--si-map-rail-w);
+  padding: 0 3px 5px;
+  gap: 0;
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail__scroll {
+  padding-bottom: max(4px, env(safe-area-inset-bottom, 0px));
+}
+
+.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--map-strip-minimized .si-sat-ctx-rail {
+  width: var(--si-map-rail-w);
+  min-width: var(--si-map-rail-w);
+  max-width: var(--si-map-rail-w);
+  padding-inline: 4px;
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-brand {
+  padding: 4px 5px 5px;
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-brand--minimized {
+  padding: 4px 5px;
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-brand__mark {
+  width: var(--si-map-rail-mark);
+  height: var(--si-map-rail-mark);
+  font-size: calc(var(--si-map-rail-icon) + 0.05rem);
+  border-radius: 0 !important;
+}
+
+.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--rail-narrow .si-sat-ctx-rail-btn--map-collapsed,
+.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--rail-narrow .si-sat-ctx-rail-btn--map:not(.si-sat-ctx-rail-btn--map-expanded) {
+  min-height: var(--si-map-rail-btn);
+  height: var(--si-map-rail-btn);
+  font-size: var(--si-map-rail-icon);
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-btn i {
+  font-size: var(--si-map-rail-icon);
+}
+
+.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--rail-narrow .si-sat-ctx-rail-collapse--map,
+.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--rail-narrow .si-sat-ctx-rail-collapse {
+  min-height: 22px;
+  height: 22px;
+  padding: 0;
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-strip-hide,
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-strip-show {
+  min-height: 22px;
+  height: 22px;
+  padding: 0;
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-sym-tool {
+  height: var(--si-map-rail-btn);
+  font-size: var(--si-map-rail-icon);
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-btn--legend-tool .si-sat-ctx-rail-legend-glyph {
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  font-size: var(--si-map-rail-icon);
+}
+
+.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--rail-narrow
+  .si-sat-ctx-rail-btn--legend-tool:not(.si-sat-ctx-rail-btn--map-expanded)
+  .si-sat-ctx-rail-legend-glyph {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-panel,
+.si-sat-ctx-dock--map-toolbox[dir='rtl'] .si-sat-ctx-panel,
+.si-sat-ctx-dock--map.si-sat-ctx-dock--map-toolbox .si-sat-ctx-panel,
+.si-sat-ctx-dock--map.si-sat-ctx-dock--map-toolbox[dir='rtl'] .si-sat-ctx-panel,
+.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--embedded .si-sat-ctx-panel,
+.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--embedded[dir='rtl'] .si-sat-ctx-panel {
+  border-radius: 0 !important;
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail,
+.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--map-tall .si-sat-ctx-rail,
+.si-sat-ctx-dock--map.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--map-tall .si-sat-ctx-rail,
+.si-sat-ctx-dock--map-toolbox[dir='rtl'] .si-sat-ctx-rail,
+.si-sat-ctx-dock--map.si-sat-ctx-dock--map-toolbox[dir='rtl'] .si-sat-ctx-rail {
+  border-radius: 0 !important;
+  border-start-end-radius: 0 !important;
+  border-end-end-radius: 0 !important;
+  border-start-start-radius: 0 !important;
+  border-end-start-radius: 0 !important;
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-panel-header .si-sat-ctx-icon-btn,
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-tab,
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-btn {
+  border-radius: 0;
+}
+
+@media (max-width: 900px) {
+  .si-sat-ctx-dock--map.si-sat-ctx-dock--map-toolbox .si-sat-ctx-panel {
+    border-radius: 0 !important;
+  }
+
+  .si-sat-ctx-dock--map.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--map-tall .si-sat-ctx-rail {
+    border-radius: 0 !important;
+    border-start-end-radius: 0 !important;
+    border-end-end-radius: 0 !important;
+    border-start-start-radius: 0 !important;
+    border-end-start-radius: 0 !important;
+  }
+}
+
+/* Phase-1 live AOI charts (no timeline) */
+.si-map-analysis-charts--live {
+  max-width: min(420px, calc(100vw - 24px));
+}
+
+.si-map-analysis-charts-subtitle--pad {
+  padding: 0.75rem 1rem 1rem;
+}
+
+.si-live-aoi-metrics {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+  padding: 0 1rem 0.75rem;
+}
+
+@media (min-width: 520px) {
+  .si-live-aoi-metrics {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.si-live-aoi-metric-card {
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.5rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.si-live-aoi-metric-k {
+  font-size: 0.6875rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.9);
+  margin-bottom: 0.25rem;
+}
+
+.si-live-aoi-metric-v {
+  font-size: 0.875rem;
+  color: #f1f5f9;
+  line-height: 1.35;
+}
+
+.si-live-aoi-metric-v--index {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.si-live-aoi-health-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.35rem;
+}
+
+.si-live-aoi-health-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  gap: 0.35rem 0.5rem;
+  align-items: center;
+  font-size: 0.75rem;
+}
+
+.si-live-aoi-health-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+}
+
+.si-live-aoi-health-lbl {
+  color: #e2e8f0;
+}
+
+.si-live-aoi-health-pct {
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+}
+
+.si-live-aoi-health-ha {
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+}
+
+.si-live-aoi-spectral-stats {
+  margin: 0 1rem 0.75rem;
+}
+
+.si-live-aoi-live-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0 0 0.5rem;
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.95);
+}
+
+.si-live-aoi-live-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: #34d399;
+  box-shadow: 0 0 8px rgba(52, 211, 153, 0.65);
+  flex-shrink: 0;
+}
+
+.si-live-aoi-spectral-sample {
+  margin: 0 0 0.65rem;
+  font-size: 0.75rem;
+  color: rgba(203, 213, 225, 0.88);
+}
+
+.si-live-aoi-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+@media (min-width: 520px) {
+  .si-live-aoi-stats-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.si-live-aoi-stats-grid > div {
+  padding: 0.55rem 0.65rem;
+  border-radius: 0.45rem;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.si-live-aoi-stat-k {
+  display: block;
+  font-size: 0.625rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.9);
+  margin-bottom: 0.2rem;
+}
+
+.si-live-aoi-stat-v {
+  display: block;
+  font-size: 1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #f8fafc;
+  letter-spacing: -0.02em;
+}
+
+.si-live-aoi-env-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+  margin-top: 0.65rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.si-live-aoi-env-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.6875rem;
+  color: rgba(148, 163, 184, 0.95);
+}
+
+.si-live-aoi-env-chip strong {
+  font-size: 0.9375rem;
+  font-weight: 650;
+  color: #e2e8f0;
+  font-variant-numeric: tabular-nums;
+}
+
+.si-live-aoi-error {
+  color: #fca5a5;
+}
+

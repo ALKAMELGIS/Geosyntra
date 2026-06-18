@@ -1,0 +1,123 @@
+/**
+ * Enterprise GIS responsive shell — mobile / tablet / laptop / ultra-wide.
+ * Breakpoints align with tailwind.config.js (sm/md/lg/xl/2xl/3xl/4xl). No Tailwind preflight.
+ */
+
+html {
+  overflow-x: clip;
+  /* iOS: smoother text scaling; desktop unaffected */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  overflow-x: clip;
+  -webkit-tap-highlight-color: rgba(56, 189, 248, 0.12);
+}
+
+#root {
+  min-height: 100dvh;
+  min-height: 100vh;
+  min-width: 0;
+}
+
+/* WCAG-aligned minimum touch target helper */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Flex/grid children that host Mapbox / Leaflet must shrink (prevents horizontal bleed) */
+.mapboxgl-map,
+.leaflet-container,
+.responsive-map-host {
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+/* Content mount: subtle entrance; disabled when user prefers reduced motion */
+@media (prefers-reduced-motion: no-preference) {
+  .app-layout > .content {
+    animation: app-shell-content-enter 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .app-layout > .content:has(> .si-page.si-page--map-canvas) {
+    animation: none;
+  }
+}
+
+@keyframes app-shell-content-enter {
+  from {
+    opacity: 0.96;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* --- Modals: safe-area, max height, scroll body (prevents clipped dialogs on phones) --- */
+.ds-modal-overlay {
+  align-items: safe center;
+  justify-content: safe center;
+  padding: max(12px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px))
+    max(12px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
+  box-sizing: border-box;
+}
+
+.ds-modal {
+  width: min(560px, calc(100vw - 24px));
+  max-width: 100%;
+  max-height: min(90dvh, calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 24px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ds-modal-body {
+  overflow-y: auto;
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* --- Page width: laptop → ultra-wide (map full-bleed pages opt out via .page-tight) --- */
+@media (min-width: 1280px) {
+  .page:not(.page-tight):not(.home-page) {
+    max-width: min(1680px, 100%);
+  }
+}
+
+@media (min-width: 1920px) {
+  .page:not(.page-tight):not(.home-page) {
+    max-width: min(1760px, 96vw);
+  }
+}
+
+@media (min-width: 2560px) {
+  .page:not(.page-tight):not(.home-page) {
+    max-width: min(2200px, 94vw);
+  }
+}
+
+/* Coarse pointers: slightly larger hit areas on primary icon rails (class opt-in) */
+@media (pointer: coarse) {
+  .touch-target-lg {
+    min-height: 48px;
+    min-width: 48px;
+  }
+}
+
+/* Ultra-wide: avoid edge-stretched empty canvas on non-map pages */
+@media (min-width: 2200px) {
+  .app-layout > .content .page:not(.page-tight) {
+    margin-inline: auto;
+  }
+}
+
+/* Map Canvas (Satellite Intelligence): full viewport grid — no page max-width cap */
+.app-layout > .content:has(> .si-page.si-page--map-canvas) {
+  max-width: none;
+  width: 100%;
+  margin-inline: 0;
+}

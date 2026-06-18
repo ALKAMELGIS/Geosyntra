@@ -1,0 +1,55 @@
+[package]
+name = "geosyntra-web"
+version = "0.1.0"
+edition = "2021"
+description = "GeoSyntra Dioxus web shell (Task 20+) — fullstack, desktop, mobile phases"
+
+[lib]
+name = "geosyntra_web"
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "geosyntra-web"
+path = "src/main.rs"
+
+[dependencies]
+dioxus = { version = "0.7.9", features = ["router", "fullstack"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+gloo-net = { version = "0.6", features = ["http", "json"], optional = true }
+web-sys = { version = "0.3", features = [
+  "Window",
+  "Storage",
+  "Document",
+  "Element",
+  "HtmlElement",
+  "Location",
+  "History",
+  "Event",
+  "EventTarget",
+  "CustomEvent",
+  "CustomEventInit",
+  "AddEventListenerOptions",
+  "HtmlInputElement",
+], optional = true }
+wasm-bindgen = { version = "0.2", optional = true, features = ["serde-serialize"] }
+js-sys = { version = "0.3", optional = true }
+
+[build-dependencies]
+grass = "0.13"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+dioxus-server = { version = "0.7.9", optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+
+[features]
+default = []
+web = ["dioxus/web", "dep:gloo-net", "dep:wasm-bindgen", "dep:js-sys", "dep:web-sys"]
+desktop = ["dioxus/desktop"]
+mobile = ["dioxus/mobile"]
+server = ["dioxus/server", "dep:dioxus-server"]

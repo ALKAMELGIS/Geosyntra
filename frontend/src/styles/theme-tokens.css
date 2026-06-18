@@ -1,0 +1,246 @@
+/**
+ * Geosyntra · Global theme tokens (single source for light / dark).
+ * Components should use these variables — not hardcoded rgba/hex — so
+ * `html[data-theme="light"]` flips the entire app from the root.
+ */
+
+:root,
+html[data-theme='dark'] {
+  color-scheme: dark;
+
+  /* Semantic aliases (ArcGIS-style naming) */
+  --bg-color: var(--ds-color-bg);
+  --text-color: var(--ds-color-text);
+  --text-muted-color: var(--ds-color-text-muted);
+  --border-color: var(--ds-color-border);
+  --border-strong-color: var(--ds-color-border-strong);
+  --surface-color: var(--ds-color-surface);
+  --surface-2-color: var(--ds-color-surface-2);
+  --glass-bg-color: var(--ds-glass-bg);
+  --glass-border-color: var(--ds-glass-border);
+
+  /* Unified lux black glass panels (no navy / slate gray) */
+  --gs-panel-glass-bg: linear-gradient(
+    168deg,
+    rgba(0, 0, 0, 0.56) 0%,
+    rgba(0, 0, 0, 0.72) 48%,
+    rgba(0, 0, 0, 0.64) 100%
+  );
+  --gs-panel-glass-bg-solid: rgba(0, 0, 0, 0.78);
+  --gs-panel-glass-bg-elevated: rgba(0, 0, 0, 0.86);
+  --gs-panel-glass-border: rgba(255, 255, 255, 0.1);
+  --gs-panel-glass-border-strong: rgba(255, 255, 255, 0.16);
+  --gs-panel-glass-text: rgba(248, 250, 252, 0.96);
+  --gs-panel-glass-muted: rgba(255, 255, 255, 0.62);
+  --gs-panel-glass-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.58),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --gs-panel-glass-blur: blur(24px) saturate(1.32);
+  --gs-panel-glass-header: linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent);
+  --gs-panel-glass-input-bg: rgba(255, 255, 255, 0.06);
+  --gs-panel-glass-input-border: rgba(255, 255, 255, 0.12);
+  --gs-panel-glass-hover: rgba(255, 255, 255, 0.06);
+  --gs-panel-glass-selected: rgba(255, 255, 255, 0.1);
+  --gs-panel-glass-accent: #22c55e;
+
+  /* Map / satellite floating chrome (dark glass) */
+  --si-chrome-panel-bg: var(--gs-panel-glass-bg);
+  --si-chrome-panel-bg-embedded: var(--gs-panel-glass-bg-solid);
+  --si-chrome-panel-border: var(--gs-panel-glass-border);
+  --si-chrome-panel-border-embedded: var(--gs-panel-glass-border);
+  --si-chrome-panel-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.35) inset,
+    0 12px 36px rgba(0, 0, 0, 0.45);
+  --si-chrome-btn-bg: rgba(255, 255, 255, 0.04);
+  --si-chrome-btn-border: rgba(255, 255, 255, 0.08);
+  --si-chrome-btn-text: var(--gs-panel-glass-text);
+  --si-chrome-label: var(--gs-panel-glass-muted);
+  --si-chrome-hint-bg: rgba(0, 0, 0, 0.55);
+  --si-chrome-hint-border: rgba(255, 255, 255, 0.06);
+  --si-chrome-hint-text: var(--gs-panel-glass-muted);
+  --si-chrome-menu-bg: var(--gs-panel-glass-bg-solid);
+  --si-chrome-menu-border: var(--gs-panel-glass-border);
+  --si-chrome-menu-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.45) inset,
+    0 16px 40px rgba(0, 0, 0, 0.55);
+  --si-chrome-menu-head-border: rgba(255, 255, 255, 0.06);
+  --si-chrome-menu-item-text: var(--gs-panel-glass-text);
+  --si-chrome-menu-muted: var(--gs-panel-glass-muted);
+  --si-chrome-menu-sep: rgba(255, 255, 255, 0.08);
+  --si-chrome-floating-bg: var(--gs-panel-glass-bg-solid);
+  --si-chrome-floating-border: var(--gs-panel-glass-border);
+  --si-chrome-floating-text: var(--ds-color-text);
+
+  /* Analysis timeline dock */
+  --si-tl-glass: rgba(0, 0, 0, 0.48);
+  --si-tl-glass-deep: rgba(0, 0, 0, 0.58);
+  --si-tl-panel: rgba(0, 0, 0, 0.42);
+  --si-tl-edge: rgba(255, 255, 255, 0.1);
+  --si-tl-edge-strong: rgba(255, 255, 255, 0.16);
+  --si-tl-text: rgba(248, 250, 252, 0.96);
+  --si-tl-muted: rgba(255, 255, 255, 0.62);
+  --si-tl-accent: rgba(255, 255, 255, 0.92);
+  --si-tl-accent-dim: rgba(255, 255, 255, 0.14);
+  --si-tl-accent-glow: rgba(255, 255, 255, 0.18);
+  --si-tl-fill-a: rgba(255, 255, 255, 0.22);
+  --si-tl-fill-b: rgba(255, 255, 255, 0.48);
+  --si-tl-blur: blur(22px) saturate(1.35);
+  --si-tl-drop-shadow: 0 12px 36px rgba(0, 0, 0, 0.38);
+
+  /* Modals / popups */
+  --lux-popup-overlay: rgba(0, 0, 0, 0.74);
+  --lux-popup-overlay-deep: rgba(0, 0, 0, 0.78);
+  --lux-popup-surface: var(--gs-panel-glass-bg);
+  --lux-popup-surface-header: var(--gs-panel-glass-header);
+  --lux-popup-border: rgba(255, 255, 255, 0.1);
+  --lux-popup-border-soft: rgba(255, 255, 255, 0.08);
+  --lux-popup-text: rgba(244, 244, 248, 0.95);
+  --lux-popup-title: rgba(248, 248, 252, 0.98);
+  --lux-popup-muted: var(--gs-panel-glass-muted);
+  --lux-popup-control-bg: rgba(0, 0, 0, 0.35);
+  --lux-popup-control-border: rgba(255, 255, 255, 0.14);
+  --lux-popup-control-text: rgba(248, 250, 252, 0.96);
+  --lux-popup-btn-bg: rgba(255, 255, 255, 0.06);
+  --lux-popup-btn-text: rgba(241, 245, 249, 0.94);
+  --lux-popup-card-bg: var(--gs-panel-glass-bg-elevated);
+  --lux-popup-shadow: 0 32px 90px rgba(0, 0, 0, 0.55);
+  --lux-popup-inset: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+html[data-theme='light'] {
+  color-scheme: light;
+
+  --bg-color: var(--ds-color-bg);
+  --text-color: var(--ds-color-text);
+  --text-muted-color: var(--ds-color-text-muted);
+  --border-color: var(--ds-color-border);
+  --border-strong-color: var(--ds-color-border-strong);
+  --surface-color: var(--ds-color-surface);
+  --surface-2-color: var(--ds-color-surface-2);
+  --glass-bg-color: var(--ds-glass-bg);
+  --glass-border-color: var(--ds-glass-border);
+
+  /* White-glass panel tokens — flip all lux panels to dark type on light surfaces */
+  --gs-panel-glass-bg: linear-gradient(
+    168deg,
+    rgba(255, 255, 255, 0.94) 0%,
+    rgba(248, 250, 253, 0.88) 48%,
+    rgba(255, 255, 255, 0.92) 100%
+  );
+  --gs-panel-glass-bg-solid: rgba(255, 255, 255, 0.94);
+  --gs-panel-glass-bg-elevated: rgba(255, 255, 255, 0.98);
+  --gs-panel-glass-border: rgba(15, 23, 42, 0.1);
+  --gs-panel-glass-border-strong: rgba(15, 23, 42, 0.16);
+  --gs-panel-glass-text: #1a1d2b;
+  --gs-panel-glass-muted: rgba(26, 29, 43, 0.62);
+  --gs-panel-glass-shadow:
+    0 4px 12px rgba(15, 23, 42, 0.06),
+    0 16px 40px rgba(15, 23, 42, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  --gs-panel-glass-blur: blur(20px) saturate(1.12);
+  --gs-panel-glass-header: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 253, 0.55));
+  --gs-panel-glass-input-bg: rgba(255, 255, 255, 0.88);
+  --gs-panel-glass-input-border: rgba(15, 23, 42, 0.12);
+  --gs-panel-glass-hover: rgba(15, 23, 42, 0.05);
+  --gs-panel-glass-selected: rgba(15, 23, 42, 0.08);
+  --gs-panel-glass-accent: #1a1d2b;
+
+  --si-chrome-panel-bg: linear-gradient(165deg, rgba(255, 255, 255, 0.92), rgba(246, 248, 252, 0.88));
+  --si-chrome-panel-bg-embedded: linear-gradient(165deg, rgba(255, 255, 255, 0.9), rgba(238, 242, 248, 0.92));
+  --si-chrome-panel-border: var(--ds-color-border);
+  --si-chrome-panel-border-embedded: rgba(15, 23, 42, 0.12);
+  --si-chrome-panel-shadow: var(--ds-shadow-md);
+  --si-chrome-btn-bg: var(--ds-color-surface-2);
+  --si-chrome-btn-border: var(--ds-color-border);
+  --si-chrome-btn-text: var(--ds-color-text);
+  --si-chrome-label: var(--ds-color-text-muted);
+  --si-chrome-hint-bg: rgba(255, 255, 255, 0.88);
+  --si-chrome-hint-border: var(--ds-color-border);
+  --si-chrome-hint-text: var(--ds-color-text-muted);
+  --si-chrome-menu-bg: linear-gradient(165deg, rgba(255, 255, 255, 0.96), rgba(246, 248, 252, 0.94));
+  --si-chrome-menu-border: var(--ds-color-border-strong);
+  --si-chrome-menu-shadow: var(--ds-shadow-lg);
+  --si-chrome-menu-head-border: var(--ds-color-border);
+  --si-chrome-menu-item-text: var(--ds-color-text);
+  --si-chrome-menu-muted: var(--ds-color-text-muted);
+  --si-chrome-menu-sep: var(--ds-color-border);
+  --si-chrome-floating-bg: linear-gradient(165deg, rgba(255, 255, 255, 0.98) 0%, rgba(246, 248, 252, 0.96) 100%);
+  --si-chrome-floating-border: var(--ds-color-border);
+  --si-chrome-floating-text: var(--ds-color-text);
+
+  --si-tl-glass: rgba(255, 255, 255, 0.72);
+  --si-tl-glass-deep: rgba(255, 255, 255, 0.85);
+  --si-tl-panel: rgba(255, 255, 255, 0.65);
+  --si-tl-edge: var(--ds-color-border);
+  --si-tl-edge-strong: var(--ds-color-border-strong);
+  --si-tl-text: var(--ds-color-text);
+  --si-tl-muted: var(--ds-color-text-muted);
+  --si-tl-accent: var(--ds-color-text);
+  --si-tl-accent-dim: var(--ds-color-primary-soft);
+  --si-tl-accent-glow: rgba(15, 23, 42, 0.08);
+  --si-tl-fill-a: rgba(148, 163, 184, 0.35);
+  --si-tl-fill-b: rgba(71, 85, 105, 0.55);
+  --si-tl-blur: blur(20px) saturate(1.1);
+  --si-tl-drop-shadow: var(--ds-shadow-md);
+
+  --lux-popup-overlay: rgba(15, 23, 42, 0.28);
+  --lux-popup-overlay-deep: rgba(15, 23, 42, 0.34);
+  --lux-popup-surface: linear-gradient(
+    168deg,
+    rgba(255, 255, 255, 0.94) 0%,
+    rgba(246, 248, 252, 0.92) 48%,
+    rgba(255, 255, 255, 0.9) 100%
+  );
+  --lux-popup-surface-header: linear-gradient(118deg, rgba(255, 255, 255, 0.88) 0%, rgba(238, 242, 248, 0.75) 100%);
+  --lux-popup-border: var(--ds-color-border);
+  --lux-popup-border-soft: var(--ds-color-border);
+  --lux-popup-text: var(--ds-color-text);
+  --lux-popup-title: var(--ds-color-text);
+  --lux-popup-muted: var(--ds-color-text-muted);
+  --lux-popup-control-bg: var(--ds-color-surface-2);
+  --lux-popup-control-border: var(--ds-color-border-strong);
+  --lux-popup-control-text: var(--ds-color-text);
+  --lux-popup-btn-bg: var(--ds-color-surface-2);
+  --lux-popup-btn-text: var(--ds-color-text);
+  --lux-popup-card-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(246, 248, 252, 0.88));
+  --lux-popup-shadow: var(--ds-shadow-lg);
+  --lux-popup-inset: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+/* Satellite Intelligence — follow global lite theme (dark text on white glass) */
+html[data-theme='light'] .si-page {
+  --si-panel-border: var(--gs-panel-glass-border);
+  --si-panel-glow: transparent;
+  --si-geo-deep: #eef1f6;
+  --si-geo-accent: #1a1d2b;
+  --si-geo-accent-2: rgba(26, 29, 43, 0.78);
+  --si-geo-surface: rgba(255, 255, 255, 0.88);
+  --si-geo-surface-elevated: rgba(255, 255, 255, 0.96);
+  --si-geo-surface-solid: rgba(255, 255, 255, 0.98);
+  --si-geo-border: var(--gs-panel-glass-border);
+  --si-geo-border-strong: var(--gs-panel-glass-border-strong);
+  --si-geo-text: var(--gs-panel-glass-text);
+  --si-geo-muted: var(--gs-panel-glass-muted);
+  --si-geo-table-sel-bg: rgba(15, 23, 42, 0.06);
+  --si-geo-table-sel-ring: rgba(15, 23, 42, 0.18);
+  color: var(--gs-panel-glass-text);
+}
+
+/* Dark theme keeps lux black glass on satellite page */
+html[data-theme='dark'] .si-page,
+.si-page {
+  --si-panel-border: var(--gs-panel-glass-border);
+  --si-panel-glow: transparent;
+  --si-geo-deep: #000000;
+  --si-geo-accent: rgba(255, 255, 255, 0.94);
+  --si-geo-accent-2: rgba(255, 255, 255, 0.82);
+  --si-geo-surface: rgba(0, 0, 0, 0.55);
+  --si-geo-surface-elevated: rgba(0, 0, 0, 0.72);
+  --si-geo-surface-solid: rgba(0, 0, 0, 0.88);
+  --si-geo-border: var(--gs-panel-glass-border);
+  --si-geo-border-strong: var(--gs-panel-glass-border-strong);
+  --si-geo-text: var(--gs-panel-glass-text);
+  --si-geo-muted: var(--gs-panel-glass-muted);
+  --si-geo-table-sel-bg: rgba(255, 255, 255, 0.08);
+  --si-geo-table-sel-ring: rgba(255, 255, 255, 0.22);
+}

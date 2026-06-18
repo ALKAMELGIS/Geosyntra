@@ -1,0 +1,94 @@
+/* Status line sits in `.si-map-wgs84-status-slot` directly under GeoSyntra. */
+.si-map-wgs84-status {
+  position: static;
+  z-index: 1;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  font-size: 7px;
+  font-weight: 500;
+  letter-spacing: 0.005em;
+  line-height: 1.2;
+  color: rgba(248, 250, 252, 0.92);
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  text-shadow:
+    0 0 3px rgba(0, 0, 0, 0.92),
+    0 1px 2px rgba(0, 0, 0, 0.85);
+}
+
+.si-map-wgs84-status__row {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.12rem;
+  max-width: 100%;
+}
+
+.si-map-wgs84-status__row--identify {
+  display: block;
+  width: 100%;
+}
+
+.si-map-wgs84-status__crs {
+  color: rgba(167, 243, 208, 0.95);
+}
+
+.si-map-wgs84-status__epsg {
+  margin-inline-start: 0.15rem;
+  font-weight: 400;
+  color: rgba(203, 213, 225, 0.9);
+}
+
+.si-map-wgs84-status__sep {
+  color: rgba(148, 163, 184, 0.65);
+  font-size: 1em;
+}
+
+.si-map-wgs84-status__proj {
+  color: rgba(191, 219, 254, 0.92);
+}
+
+.si-map-wgs84-status__coords {
+  font-variant-numeric: tabular-nums;
+  color: rgba(248, 250, 252, 0.96);
+}
+
+.si-map-wgs84-status__identify {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 7px;
+  color: rgba(253, 230, 138, 0.96);
+}
+
+html[data-theme='light'] .si-map-wgs84-status {
+  color: rgba(15, 23, 42, 0.88);
+  text-shadow:
+    0 0 2px rgba(255, 255, 255, 0.95),
+    0 1px 1px rgba(255, 255, 255, 0.85);
+}
+
+html[data-theme='light'] .si-map-wgs84-status__crs {
+  color: rgba(5, 150, 105, 0.95);
+}
+
+html[data-theme='light'] .si-map-wgs84-status__coords {
+  color: rgba(15, 23, 42, 0.92);
+}
+
+html[data-theme='light'] .si-map-wgs84-status__identify {
+  color: rgba(180, 83, 9, 0.95);
+}

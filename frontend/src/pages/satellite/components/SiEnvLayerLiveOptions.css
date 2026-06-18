@@ -1,0 +1,119 @@
+.si-env-layer-live-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.si-env-layer-live-options__hint {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.4;
+  color: rgba(148, 163, 184, 0.9);
+}
+
+.si-env-layer-live-options__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.si-env-layer-live-options__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.si-env-layer-live-options__main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.si-env-layer-live-options__label {
+  font-size: 11px;
+  font-weight: 650;
+  color: rgba(248, 250, 252, 0.96);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.si-env-layer-live-options__meta {
+  font-size: 10px;
+  color: rgba(148, 163, 184, 0.88);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+}
+
+.si-env-layer-live-options__vis {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(226, 232, 240, 0.9);
+  cursor: pointer;
+}
+
+.si-env-layer-live-options__vis:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.si-env-layer-live-options__badge {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: rgba(148, 163, 184, 0.85);
+}
+
+.si-env-layer-live-options__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(148, 163, 184, 0.95);
+}
+
+.si-env-layer-live-options__field select {
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.35);
+  color: rgba(248, 250, 252, 0.95);
+  font-size: 11px;
+  font-family: inherit;
+}
+
+html[data-theme='light'] .si-env-layer-live-options {
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+
+html[data-theme='light'] .si-env-layer-live-options__row {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+html[data-theme='light'] .si-env-layer-live-options__field select {
+  background: #fff;
+  border-color: rgba(0, 0, 0, 0.12);
+  color: #1e293b;
+}

@@ -1,0 +1,67 @@
+.si-aoi-spectral-mini {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.si-aoi-spectral-mini__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.si-aoi-spectral-mini__title {
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.85);
+}
+
+.si-aoi-spectral-mini__badge {
+  font-size: 8px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  padding: 0;
+  border: none;
+  background: none;
+  color: rgba(100, 116, 139, 0.95);
+}
+
+.si-aoi-spectral-mini__sub {
+  margin: 0 0 2px;
+  font-size: 9px;
+  line-height: 1.35;
+  color: rgba(148, 163, 184, 0.88);
+}
+
+.si-aoi-spectral-mini__svg {
+  width: 100%;
+  height: auto;
+  min-height: 108px;
+  max-height: 132px;
+  display: block;
+}
+
+.si-aoi-spectral-mini__tick {
+  font-size: 7px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  fill: AXIS_FILL;
+}
+
+.si-aoi-spectral-mini__lbl {
+  font-size: 7px;
+  font-weight: 600;
+  fill: rgba(203, 213, 225, 0.78);
+}
+
+.si-aoi-spectral-mini__val {
+  font-size: 6.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  fill: rgba(203, 213, 225, 0.65);
+}

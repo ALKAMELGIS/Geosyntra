@@ -1,0 +1,18 @@
+.si-map-projection-toggle {
+  padding: 0;
+}
+
+.si-map-projection-toggle__glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+}
+
+.si-map-projection-toggle--globe.active {
+  box-shadow: 0 0 0 1px var(--si-accent-ring), 0 0 18px rgba(56, 189, 248, 0.35);
+}
+
+.si-map-projection-toggle--mercator:not(.active) {
+  color: #cbd5e1;
+}

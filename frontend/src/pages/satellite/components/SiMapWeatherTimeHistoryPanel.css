@@ -1,0 +1,394 @@
+.si-map-wx-history {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(148, 163, 184, 0.22);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.si-map-wx-history__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 4px;
+  min-width: 0;
+}
+
+.si-map-wx-history__head-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.si-map-wx-history__title {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #bae6fd;
+  line-height: 1.2;
+}
+
+.si-map-wx-history__sub {
+  margin: 1px 0 0;
+  font-size: 8px;
+  color: rgba(148, 163, 184, 0.92);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.25;
+}
+
+.si-map-wx-history__head-actions {
+  display: flex;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.si-map-wx-history__icon-btn {
+  width: 24px;
+  height: 24px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.25);
+  color: #e2e8f0;
+  cursor: pointer;
+  font-size: 10px;
+}
+
+.si-map-wx-history__icon-btn:hover {
+  border-color: rgba(56, 189, 248, 0.45);
+  color: #7dd3fc;
+}
+
+.si-map-wx-history__controls {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 4px;
+  min-width: 0;
+}
+
+.si-map-wx-history__controls-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+}
+
+.si-map-wx-history__ranges {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.si-map-wx-history__chip {
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.2);
+  color: #cbd5e1;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 8px;
+  cursor: pointer;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+}
+
+.si-map-wx-history__chip.is-active {
+  border-color: rgba(56, 189, 248, 0.55);
+  background: rgba(56, 189, 248, 0.18);
+  color: #e0f2fe;
+}
+
+.si-map-wx-history__loc-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.si-map-wx-history__icon-chip {
+  width: 24px;
+  height: 24px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.18);
+  color: #7dd3fc;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+}
+
+.si-map-wx-history__icon-chip:hover {
+  border-color: rgba(56, 189, 248, 0.45);
+  color: #bae6fd;
+}
+
+.si-map-wx-history__vars-scroll {
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.si-map-wx-history__vars {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 3px;
+  min-width: min-content;
+}
+
+.si-map-wx-history__var {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.18);
+  color: #cbd5e1;
+  font-size: 9px;
+  font-weight: 600;
+  padding: 3px 7px;
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.si-map-wx-history__var.is-active {
+  border-color: var(--wx-var-color, #38bdf8);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--wx-var-color, #38bdf8) 40%, transparent);
+  color: #f8fafc;
+}
+
+.si-map-wx-history__chart-wrap {
+  position: relative;
+  height: 228px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.35) 0%, rgba(2, 6, 23, 0.5) 100%);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  padding: 22px 4px 4px;
+  flex: 1 1 auto;
+  min-height: 200px;
+}
+
+.si-map-wx-history__stats-overlay {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  right: 4px;
+  z-index: 2;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 3px;
+  pointer-events: none;
+}
+
+.si-map-wx-history__stats-overlay li {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  font-size: 7px;
+  color: #94a3b8;
+  line-height: 1.2;
+}
+
+.si-map-wx-history__stats-overlay strong {
+  font-size: 8px;
+  font-weight: 700;
+  color: #f1f5f9;
+  font-variant-numeric: tabular-nums;
+}
+
+.si-map-wx-history__chart-wrap.is-loading canvas {
+  opacity: 0.55;
+}
+
+.si-map-wx-history__chart-busy {
+  position: absolute;
+  right: 6px;
+  top: 24px;
+  margin: 0;
+  padding: 3px 6px;
+  border-radius: 5px;
+  font-size: 8px;
+  font-weight: 600;
+  color: #e0f2fe;
+  background: rgba(2, 132, 199, 0.85);
+  z-index: 3;
+}
+
+.si-map-wx-history__loading,
+.si-map-wx-history__error {
+  margin: 0;
+  padding: 8px 6px;
+  font-size: 10px;
+}
+
+.si-map-wx-history__error {
+  color: #fca5a5;
+}
+
+.si-map-wx-history__foot {
+  margin: 4px 0 0;
+  flex-shrink: 0;
+}
+
+.si-map-wx-history__foot-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.si-map-wx-history__foot-date {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 28px;
+  height: 26px;
+  padding: 0 6px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.25);
+  color: #e2e8f0;
+  font-size: 9px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease,
+    background 0.15s ease;
+}
+
+.si-map-wx-history__foot-date:hover {
+  border-color: rgba(56, 189, 248, 0.5);
+  color: #7dd3fc;
+}
+
+.si-map-wx-history__foot-date.is-custom {
+  border-color: rgba(56, 189, 248, 0.45);
+  background: rgba(56, 189, 248, 0.12);
+  color: #bae6fd;
+}
+
+.si-map-wx-history__foot-date > .fa-calendar,
+.si-map-wx-history__foot-date > .fa-calendar-check {
+  flex-shrink: 0;
+  font-size: 9px;
+}
+
+.si-map-wx-history__foot-date-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.si-map-wx-history__foot-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 28px;
+  height: 26px;
+  padding: 0 6px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.25);
+  color: #e2e8f0;
+  font-size: 9px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.si-map-wx-history__foot-btn:hover:not(:disabled) {
+  border-color: rgba(56, 189, 248, 0.5);
+  color: #7dd3fc;
+}
+
+.si-map-wx-history__foot-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.si-map-wx-history__foot-btn-label {
+  font-size: 8px;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+
+.si-map-wx-history__foot-btn--excel {
+  margin-left: auto;
+  min-width: 30px;
+  padding: 0;
+  color: #4ade80;
+}
+
+.si-map-wx-history__foot-btn--excel:hover:not(:disabled) {
+  border-color: rgba(74, 222, 128, 0.45);
+  color: #86efac;
+}
+
+.si-map-wx-intel--history-open .si-map-wx-history__chart-wrap {
+  height: 252px;
+  min-height: 220px;
+}
+
+.si-map-wx-history--light .si-map-wx-history__title {
+  color: #0369a1;
+}
+
+.si-map-wx-history--light .si-map-wx-history__chart-wrap {
+  background: rgba(241, 245, 249, 0.9);
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+.si-map-wx-history--light .si-map-wx-history__chip,
+.si-map-wx-history--light .si-map-wx-history__var,
+.si-map-wx-history--light .si-map-wx-history__icon-btn,
+.si-map-wx-history--light .si-map-wx-history__icon-chip,
+.si-map-wx-history--light .si-map-wx-history__foot-date {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(148, 163, 184, 0.45);
+  color: #0f172a;
+}
+
+.si-map-wx-history--light .si-map-wx-history__foot-btn {
+  background: #fff;
+  color: #475569;
+}
+
+.si-map-wx-history--light .si-map-wx-history__foot-btn--excel {
+  color: #15803d;
+}
+
+.si-map-wx-history--light .si-map-wx-history__stats-overlay li {
+  background: rgba(255, 255, 255, 0.88);
+  border-color: rgba(148, 163, 184, 0.3);
+}
+
+.si-map-wx-history--light .si-map-wx-history__stats-overlay strong {
+  color: #0f172a;
+}

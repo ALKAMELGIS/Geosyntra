@@ -1,0 +1,17 @@
+/* Light export — block timeline transport only (date shifts still allowed for change slots). */
+body.si-map-capture-light .si-map-analysis-timeline-transport,
+body.si-map-capture-light [data-si-timeline-play] {
+  pointer-events: none !important;
+}
+
+/* Full freeze — legacy; avoid for time-series change detection batches */
+body.si-map-capture-frozen .si-map-analysis-timeline,
+body.si-map-capture-frozen .si-map-analysis-timeline-transport,
+body.si-map-capture-frozen [data-si-timeline-play] {
+  pointer-events: none !important;
+  opacity: 0.72;
+}
+
+body.si-map-capture-frozen .mapboxgl-canvas {
+  will-change: auto;
+}

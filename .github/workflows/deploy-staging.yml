@@ -1,0 +1,41 @@
+name: Staging build
+
+# Builds the SPA for the dev branch — does NOT sync to main / GitHub Pages (production users).
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  staging-artifact:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: Build staging SPA
+        env:
+          VITE_GEOSYNTRA_ENV: staging
+          VITE_MAPBOX_TOKEN: ''
+          VITE_GEMINI_API_KEY: ''
+          VITE_GEOSYNTRA_API_SECRETS_URL: ${{ vars.STAGING_API_SECRETS_URL || '' }}
+        run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: geosyntra-staging-spa
+          path: frontend/dist
+          retention-days: 14
+      - name: Summary
+        run: |
+          {
+            echo "## Staging build"
+            echo "This workflow does **not** update GitHub Pages on \`main\`. Deploy the artifact to your staging host + API with \`GEOSYNTRA_ENV=staging\` and a separate \`GEOSYNTRA_DATA_DIR\` volume."
+          } >> "$GITHUB_STEP_SUMMARY"

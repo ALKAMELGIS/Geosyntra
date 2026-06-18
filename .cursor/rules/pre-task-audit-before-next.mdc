@@ -1,0 +1,56 @@
+---
+description: Before each new migration task, audit all prior tasks for bugs, missing features, and exit-criteria gaps
+globs: "**/*"
+alwaysApply: true
+---
+
+# Pre-task audit before next migration task
+
+On branch **`feature/axum-migration`**, **before starting task N**, audit tasks **0 through N−1** for regressions, missing deliverables, and known risk-register items still in scope for completed phases.
+
+## Required workflow
+
+1. Read the migration plan exit criteria for tasks **0 … N−1** and the [high-priority risk register](Geosyntra/migration/rbac-use-case-mapping.md).
+2. Recheck [`clean-architecture-guidelines.md`](Geosyntra/migration/clean-architecture-guidelines.md) — dependency rule, two-phase auth, RBAC/ABAC/billing separation, projection.
+3. Run verification:
+   ```bash
+   cd Geosyntra && cargo test --workspace
+   cd Geosyntra && cargo clippy --workspace --all-targets -- -D warnings
+   ```
+4. Grep for removed anti-patterns: `*Privilege`, `FieldProfile`, `raw_query`, `tenet_id`, `TenetId`.
+5. Confirm every use case in `packages/application/src/usecases/` implements `UseCaseDescriptor` and appears in [`rbac-use-case-mapping.md`](Geosyntra/migration/rbac-use-case-mapping.md) when RBAC-gated.
+6. Fix **bugs and clear gaps** that affect system behavior in completed tasks; defer items explicitly assigned to future tasks.
+7. Record audit verdict in `migration/pre-task-audit-{N-1}.md` (or update plan audit section).
+8. **Commit** audit fixes + rule/doc updates, then begin task N (see [`task-commit-before-next.mdc`](task-commit-before-next.mdc)).
+
+## Audit checklist (tasks 0–13 baseline)
+
+| Check | Pass criteria |
+|-------|---------------|
+| Tests + clippy | Workspace green |
+| Port split | User/role read+write; membership read+write |
+| Field auth | `readable_*_fields`; projectors mask denied fields |
+| Tenant attrs | Use cases call `with_resource_tenant_id` |
+| Self-read M3 | `with_target_user_id` on read/update/lifecycle use cases |
+| RBAC mapping | All 37 use cases / 33 descriptor pairs mapped |
+| ABAC chain | Stored policies before RBAC (C1 ✅) |
+| Interface CA | `interface` depends on `application` only — no sqlx/infra |
+| Infra ports | Task 11–12 adapters or tracked in next task |
+| Stale docs | Latest `pre-task-audit-*.md` matches code |
+
+Latest audit: [`migration/pre-task-audit-16.md`](Geosyntra/migration/pre-task-audit-16.md).
+
+## Recommended priorities for future tasks (apply after each audit)
+
+When starting **Task 18+**, carry these forward until exit criteria met:
+
+1. **Handlers → use cases** — every RBAC-gated Express route maps to a named use case; no business logic in handlers.
+2. **Composition root** — wire repos, `AuthorizationEngine`, `.with_id_allocator()` where required (`packages/api`).
+3. **H2-full tenant isolation** — handlers load entity/membership tenant; pass `with_resource_tenant_id` from loaded data (not only JWT tenant).
+4. **Two-phase auth + projection** — phase-1 allow/deny then `*Projector::present`; no raw repo DTOs to JSON.
+5. **Integration tests** — Axum handler tests + Postgres adapter tests for new routes before marking task done.
+
+## Do not skip
+
+- Do **not** start task N while the working tree has unaudited fixes from tasks 0…N−1.
+- Do **not** treat “deferred to Task 15+” items as audit failures unless they block the next task's design.

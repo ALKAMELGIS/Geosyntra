@@ -1,0 +1,60 @@
+{
+  "name": "geosyntra-platform",
+  "private": true,
+  "version": "0.1.0",
+  "description": "GeoSyntra Platform — npm workspaces (frontend + backend)",
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "engines": {
+    "node": ">=18.18.0",
+    "npm": ">=9.0.0"
+  },
+  "scripts": {
+    "setup": "node scripts/setup-env.mjs",
+    "validate": "node scripts/validate-startup.mjs",
+    "predev": "node scripts/validate-startup.mjs --quick",
+    "postinstall": "node scripts/setup-env.mjs",
+    "dev": "concurrently -n web,api -c cyan,magenta \"npm run dev:client:clean -w frontend\" \"npm run dev:clean -w backend\"",
+    "start": "npm run dev:server",
+    "dev:clean": "concurrently -n web,api -c cyan,magenta \"npm run dev:client:clean -w frontend\" \"npm run dev -w backend\"",
+    "dev:client": "npm run dev -w frontend",
+    "dev:server": "npm run dev -w backend",
+    "dev:client:clean": "npm run dev:client:clean -w frontend",
+    "build": "npm run build -w frontend",
+    "sync-pages-docs": "node scripts/sync-pages-docs.mjs",
+    "rbac:create-owner": "node scripts/create-owner.mjs",
+    "verify:dns": "node scripts/verify-dns-geosyntra.mjs",
+    "hostinger:api-env": "node scripts/apply-hostinger-api-env.mjs",
+    "hostinger:api-check": "node scripts/apply-hostinger-api-env.mjs --check",
+    "db:sync": "node scripts/db-sync.mjs",
+    "db:sync:dry": "node scripts/db-sync.mjs --dry-run",
+    "db:sync:test": "node scripts/db-sync.mjs --test-connections",
+    "db:sync:rollback": "node scripts/db-sync.mjs --rollback",
+    "db:sync:test:unit": "node --test scripts/db-sync/config.test.mjs",
+    "vps:deploy": "node scripts/vps-deploy.mjs",
+    "vps:env": "node scripts/vps-deploy.mjs --env",
+    "vps:ssh": "node scripts/vps-ssh.mjs",
+    "preview": "npm run preview -w frontend",
+    "typecheck": "npm run typecheck -w frontend",
+    "test": "npm run test -w frontend",
+    "test:e2e": "npm run test:e2e -w frontend",
+    "push": "node scripts/push.mjs",
+    "push:only": "node scripts/push.mjs --no-commit"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "pg": "^8.13.1"
+  },
+  "overrides": {
+    "vite": {
+      "rollup": "4.60.0"
+    }
+  },
+  "dependencies": {
+    "maplibre-gl": "^5.24.0",
+    "maplibre-gl-layer-control": "^0.14.1",
+    "openai": "^6.39.0"
+  }
+}

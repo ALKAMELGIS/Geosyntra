@@ -1,0 +1,118 @@
+/**
+ * Map toolbox trailing glass spine — single source of truth.
+ *
+ * The toolbox host is portaled to `document.body` and anchored from app chrome
+ * bottom to the viewport foot. This file owns the continuous glass column; do not
+ * re-add gap-bridge pseudo-elements or duplicate host ::before rules elsewhere.
+ */
+
+/* ── Glass tokens (map canvas only) ── */
+html[data-si-map-toolbox-page],
+body:has(.si-page.si-page--map-canvas) {
+  --si-map-toolbox-glass-bg:
+    linear-gradient(168deg, rgba(0, 0, 0, 0.62) 0%, rgba(0, 0, 0, 0.82) 52%, rgba(0, 0, 0, 0.74) 100%);
+  --si-map-toolbox-glass-blur: blur(24px) saturate(132%);
+  --si-map-toolbox-glass-border: rgba(255, 255, 255, 0.1);
+  --si-map-toolbox-glass-rim:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    inset -1px 0 0 rgba(255, 255, 255, 0.03);
+  --si-map-toolbox-spine-w: var(--si-map-rail-w, 38px);
+}
+
+html[data-theme='light'][data-si-map-toolbox-page],
+html[data-theme='light'] body:has(.si-page.si-page--map-canvas) {
+  --si-map-toolbox-glass-bg:
+    linear-gradient(168deg, rgba(255, 255, 255, 0.96) 0%, rgba(248, 250, 253, 0.92) 52%, rgba(255, 255, 255, 0.94) 100%);
+  --si-map-toolbox-glass-border: rgba(15, 23, 42, 0.08);
+  --si-map-toolbox-glass-rim:
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    inset -1px 0 0 rgba(15, 23, 42, 0.06);
+}
+
+/* ── Portaled host: one continuous trailing column (header seam → viewport foot) ── */
+html[data-si-map-toolbox-page] .si-map-tools-dock-host--viewport-anchored,
+body:has(.si-page.si-page--map-canvas) .si-map-tools-dock-host--viewport-anchored {
+  pointer-events: none;
+  overflow: visible;
+  box-sizing: border-box;
+  max-height: none;
+}
+
+html[data-si-map-toolbox-page] .si-map-tools-dock-host--viewport-anchored::before,
+body:has(.si-page.si-page--map-canvas) .si-map-tools-dock-host--viewport-anchored::before {
+  content: '';
+  position: absolute;
+  inset-inline-end: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--si-map-toolbox-spine-w, var(--si-map-rail-w, 38px));
+  pointer-events: none;
+  z-index: 0;
+  background: var(--si-map-toolbox-glass-bg);
+  backdrop-filter: var(--si-map-toolbox-glass-blur);
+  -webkit-backdrop-filter: var(--si-map-toolbox-glass-blur);
+  border-inline-end: 1px solid var(--si-map-toolbox-glass-border);
+  box-shadow: var(--si-map-toolbox-glass-rim);
+}
+
+/* ── Full-height dock inside portaled host (override map dock centering) ── */
+html[data-si-map-toolbox-page] .si-map-tools-dock-host .si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--map-tall,
+html[data-si-map-toolbox-page] .si-map-tools-dock-host--viewport-anchored .si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--map-tall,
+body:has(.si-page.si-page--map-canvas) .si-map-tools-dock-host .si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--map-tall,
+body:has(.si-page.si-page--map-canvas) .si-map-tools-dock-host--viewport-anchored .si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--map-tall {
+  position: absolute !important;
+  inset-inline-end: 0;
+  inset-inline-start: auto;
+  top: 0 !important;
+  bottom: 0 !important;
+  height: 100% !important;
+  max-height: none !important;
+  min-height: 100%;
+  transform: none !important;
+  margin: 0;
+  padding: 0;
+  z-index: 1;
+}
+
+html[data-si-map-toolbox-page] .si-map-tools-dock-host .si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--map-tall .si-sat-ctx-rail,
+html[data-si-map-toolbox-page] .si-map-tools-dock-host--viewport-anchored .si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--map-tall .si-sat-ctx-rail,
+body:has(.si-page.si-page--map-canvas) .si-map-tools-dock-host .si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--map-tall .si-sat-ctx-rail,
+body:has(.si-page.si-page--map-canvas) .si-map-tools-dock-host--viewport-anchored .si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--map-tall .si-sat-ctx-rail {
+  height: 100%;
+  min-height: 100%;
+  max-height: none;
+  align-self: stretch;
+  overflow: visible;
+  border-start-end-radius: 0 !important;
+  border-end-end-radius: 0 !important;
+  /* Spine paints glass; rail stays transparent to avoid double-layer seams. */
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    inset -1px 0 0 rgba(255, 255, 255, 0.03);
+}
+
+html[data-theme='light'][data-si-map-toolbox-page] .si-map-tools-dock-host .si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--map-tall .si-sat-ctx-rail,
+html[data-theme='light'][data-si-map-toolbox-page] .si-map-tools-dock-host--viewport-anchored .si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--map-tall .si-sat-ctx-rail,
+html[data-theme='light'] body:has(.si-page.si-page--map-canvas) .si-map-tools-dock-host .si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail,
+html[data-theme='light'] body:has(.si-page.si-page--map-canvas) .si-map-tools-dock-host--viewport-anchored .si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    inset -1px 0 0 rgba(15, 23, 42, 0.06);
+}
+
+html[data-si-map-toolbox-page] .si-map-tools-dock-host .si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail__scroll,
+html[data-si-map-toolbox-page] .si-map-tools-dock-host--viewport-anchored .si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail__scroll,
+body:has(.si-page.si-page--map-canvas) .si-map-tools-dock-host .si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail__scroll,
+body:has(.si-page.si-page--map-canvas) .si-map-tools-dock-host--viewport-anchored .si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail__scroll {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/* Header trailing edge: square corner where spine meets app chrome */
+html[data-si-map-toolbox-page] .geosyntra-header:not(.geosyntra-header--bottom-cloud) .header-right,
+body:has(.si-page.si-page--map-canvas) .geosyntra-header:not(.geosyntra-header--bottom-cloud) .header-right {
+  border-end-end-radius: 0;
+}

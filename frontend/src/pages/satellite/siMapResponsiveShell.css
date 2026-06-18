@@ -1,0 +1,313 @@
+/**
+ * GeoSyntra Map Canvas — universal responsive shell (100dvh grid, fit tiers, scroll chrome).
+ * Complements SatelliteIntelligence.css + satelliteMapAnalysisChrome.css without replacing them.
+ */
+
+/* ── Shell tokens ── */
+.si-page.si-page--map-canvas {
+  --si-shell-w: 100vw;
+  --si-shell-h: 100%;
+  --si-shell-h-fallback: 100%;
+  --si-map-toolbox-top: var(--header-stack-height);
+  --si-chrome-gap: 8px;
+  --si-chrome-inset-x: max(12px, env(safe-area-inset-left, 0px));
+  --si-chrome-inset-y: max(10px, env(safe-area-inset-top, 0px));
+  --si-panel-max-h: min(100dvh, 100vh);
+  --si-rail-max-w: min(220px, 38vw);
+  --si-floating-max-h: min(46vh, 360px);
+}
+
+.si-page.si-page--map-canvas[data-si-fit-mode='compact'] {
+  --si-chrome-gap: 6px;
+  --si-chrome-inset-x: max(8px, env(safe-area-inset-left, 0px));
+  --si-chrome-inset-y: max(8px, env(safe-area-inset-top, 0px));
+  --si-rail-max-w: min(52px, 14vw);
+  --si-floating-max-h: min(40vh, 280px);
+}
+
+.si-page.si-page--map-canvas[data-si-fit-mode='cozy'] {
+  --si-rail-max-w: min(180px, 34vw);
+  --si-floating-max-h: min(44vh, 320px);
+}
+
+/* ── App grid: main → page → map (single scroll owner = inner panels) ── */
+main.content:has(> .si-page.si-page--map-canvas) {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  overflow: clip;
+  padding: 0;
+  animation: none;
+}
+
+.si-page.si-page--map-canvas {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  overflow: clip;
+  contain: layout style;
+}
+
+.si-page.si-page--map-canvas > .si-main-content {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  overflow: clip;
+}
+
+.si-page.si-page--map-canvas .si-map-container {
+  grid-row: 1;
+  grid-column: 1;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  /* WebGL clips in `.si-map-gl-host`; keep chrome (3D elevation dock, overlays) visible */
+  overflow: visible;
+}
+
+.si-page.si-page--map-canvas .si-map-gl-host {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ── Floating top chrome: wrap + scroll instead of clip ── */
+.si-page.si-page--map-canvas .si-map-floating-controls {
+  left: var(--si-chrome-inset-x);
+  right: max(12px, env(safe-area-inset-right, 0px));
+  top: var(--si-chrome-inset-y);
+  max-width: calc(100% - var(--si-chrome-inset-x) - max(12px, env(safe-area-inset-right, 0px)));
+  pointer-events: none;
+}
+
+.si-page.si-page--map-canvas .si-map-floating-controls__row {
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--si-chrome-gap);
+  min-width: 0;
+}
+
+.si-page.si-page--map-canvas .si-map-floating-controls__left,
+.si-page.si-page--map-canvas .si-map-floating-controls__right {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.si-page.si-page--map-canvas .si-map-floating-controls__right--proc-stack {
+  max-height: var(--si-floating-max-h);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+  padding-inline-end: 2px;
+}
+
+.si-page.si-page--map-canvas .si-env-rail {
+  flex-wrap: wrap;
+  max-width: min(100%, calc(100vw - 32px));
+}
+
+.si-page.si-page--map-canvas .si-env-rail--proc-anchor {
+  align-items: flex-end;
+  gap: var(--si-chrome-gap);
+}
+
+/* Processing strip: wrap buttons instead of clipping */
+.si-page.si-page--map-canvas .si-proc-mb-row {
+  flex-wrap: wrap;
+  overflow: visible;
+  max-width: min(96vw, 560px);
+}
+
+/* ── Toolbox rail: scroll list + pinned footer (never clip collapse) ── */
+.si-page.si-page--map-canvas .si-sat-ctx-dock--map-tall {
+  max-height: 100%;
+  height: 100%;
+}
+
+.si-page.si-page--map-canvas .si-sat-ctx-dock--map-tall .si-sat-ctx-rail {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.si-page.si-page--map-canvas .si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--map-tall .si-sat-ctx-rail {
+  overflow: visible;
+  border-end-end-radius: 0 !important;
+}
+
+.si-page.si-page--map-canvas .si-sat-ctx-dock--map-tall .si-sat-ctx-rail--labeled {
+  width: var(--si-rail-max-w);
+  max-width: var(--si-rail-max-w);
+}
+
+.si-page.si-page--map-canvas
+  .si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--rail-labeled:not(.si-sat-ctx-dock--map-strip-minimized)
+  .si-sat-ctx-rail {
+  width: min(200px, var(--si-rail-max-w, 200px));
+  min-width: min(200px, var(--si-rail-max-w, 200px));
+  max-width: min(200px, var(--si-rail-max-w, 200px));
+}
+
+.si-page.si-page--map-canvas .si-sat-ctx-rail__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.si-page.si-page--map-canvas .si-sat-ctx-rail__footer {
+  flex-shrink: 0;
+  z-index: 2;
+}
+
+/* Panels: max viewport height + internal scroll */
+.si-page.si-page--map-canvas .si-sat-ctx-panel,
+.si-page.si-page--map-canvas .si-sat-ctx-dock--map-tall .si-sat-ctx-panel {
+  max-height: var(--si-panel-max-h);
+  min-height: 0;
+}
+
+.si-page.si-page--map-canvas .si-sat-ctx-panel-body,
+.si-page.si-page--map-canvas .si-sat-ctx-panel-body-core,
+.si-page.si-page--map-canvas .si-sat-ctx-map-toolbox-host,
+.si-page.si-page--map-canvas .si-sat-ctx-map-toolbox-host .si-env-panel {
+  min-height: 0;
+  max-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.si-page.si-page--map-canvas .si-map-tools-dock-host {
+  overflow: visible;
+  max-height: 100%;
+}
+
+/* Map toolbox trailing glass spine → map-toolbox-rail-spine.css (single source of truth) */
+
+/* Bottom-left elevation dock — lives in Mapbox bottom-left beside WGS 84 status */
+.si-page.si-page--map-canvas .si-map-elevation-dock {
+  overflow: visible;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: none;
+}
+
+/* Timeline — full width on narrow screens, no horizontal document spill */
+.si-page.si-page--map-canvas .si-map-analysis-timeline {
+  max-width: min(92vw, 900px);
+}
+
+/* ── Fit Mode: compact (mobile / short viewports) ── */
+.si-page.si-page--map-canvas[data-si-fit-mode='compact'] .si-map-floating-controls__row {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.si-page.si-page--map-canvas[data-si-fit-mode='compact'] .si-map-floating-controls__left,
+.si-page.si-page--map-canvas[data-si-fit-mode='compact'] .si-map-floating-controls__right {
+  width: 100%;
+  max-width: 100%;
+}
+
+.si-page.si-page--map-canvas[data-si-fit-mode='compact'] .si-env-rail--proc-anchor {
+  align-items: stretch;
+  width: 100%;
+}
+
+.si-page.si-page--map-canvas[data-si-fit-mode='compact'] .si-proc-mb-row {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.si-page.si-page--map-canvas[data-si-fit-mode='compact'] .si-sat-ctx-dock--map.si-sat-ctx-dock--map-tall {
+  max-width: 100%;
+}
+
+.si-page.si-page--map-canvas[data-si-fit-mode='compact']
+  .si-sat-ctx-dock--map.si-sat-ctx-dock--map-tall
+  .si-sat-ctx-rail--labeled {
+  width: min(52px, 14vw);
+  max-width: min(52px, 14vw);
+}
+
+.si-page.si-page--map-canvas[data-si-fit-mode='compact'] .si-map-container .mapboxgl-ctrl-bottom-left {
+  left: max(8px, env(safe-area-inset-left, 0px)) !important;
+  column-gap: 4px;
+}
+
+/* ── Fit Mode: cozy (tablet / small laptop) ── */
+.si-page.si-page--map-canvas[data-si-fit-mode='cozy'] .si-map-analysis-timeline {
+  width: min(94vw, 820px);
+}
+
+/* ── Breakpoints (desktop / laptop / tablet / mobile) ── */
+@media (max-width: 1024px) {
+  .si-page.si-page--map-canvas .si-map-floating-controls__row {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 768px) {
+  .si-page.si-page--map-canvas .si-sat-ctx-dock--map.si-sat-ctx-dock--map-tall .si-sat-ctx-panel {
+    max-height: min(56dvh, 56vh);
+  }
+
+  .si-page.si-page--map-canvas .si-map-analysis-timeline {
+    width: min(96vw, 100%);
+  }
+}
+
+@media (max-width: 640px) {
+  .si-page.si-page--map-canvas .si-basemap-widget--esri {
+    max-width: calc(100vw - 24px);
+  }
+}
+
+@media (max-height: 720px) {
+  .si-page.si-page--map-canvas {
+    --si-floating-max-h: min(36vh, 240px);
+  }
+
+  .si-page.si-page--map-canvas .si-sat-ctx-dock--map-tall .si-sat-ctx-rail__scroll {
+    scrollbar-width: thin;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .si-page.si-page--map-canvas .si-sat-ctx-rail__scroll,
+  .si-page.si-page--map-canvas .si-map-floating-controls__right--proc-stack,
+  .si-page.si-page--map-canvas .si-sat-ctx-panel-body {
+    scroll-behavior: auto;
+  }
+}
+
+/* Map toolbox header seam + spine → map-toolbox-rail-spine.css */

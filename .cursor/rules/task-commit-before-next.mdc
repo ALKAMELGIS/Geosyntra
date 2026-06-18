@@ -1,0 +1,32 @@
+---
+description: After each migration task passes exit criteria, git commit before starting the next task
+globs: "**/*"
+alwaysApply: true
+---
+
+# Git commit before next migration task
+
+On branch **`feature/axum-migration`**, each numbered task (0, 1, 2, 2b, 3, …) from the migration plan must end with a **git commit** before work on the following task begins.
+
+## Required workflow
+
+0. Run the [pre-task audit](pre-task-audit-before-next.mdc) for all prior tasks before starting work on a new task number.
+1. Confirm the task **exit criteria** from the plan (tests, clippy, checklist items).
+2. Run `cargo test --workspace` (and `cargo clippy --workspace --all-targets -- -D warnings` when application/domain changed).
+3. Review `git status` — stage only files belonging to the completed task.
+4. Commit with a clear message:
+   ```
+   task-N: <what was accomplished and why>
+   ```
+   Use a HEREDOC for the commit message body when needed.
+5. Only after the commit succeeds, start the next task.
+
+## Commit scope
+
+- **One task per commit** when practical (e.g. `task-1: domain remediation`, `task-2: aggregate transition methods`).
+- Do **not** commit secrets (`.env`, credentials).
+- Do **not** push unless the user asks.
+
+## Plan reference
+
+See **Development rules → Git commit per task** in the GeoSyntra migration plan.

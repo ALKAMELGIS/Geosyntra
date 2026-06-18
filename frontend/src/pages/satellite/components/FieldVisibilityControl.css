@@ -1,0 +1,360 @@
+/* Field visibility — table header trigger + popover (GIS Map / Satellite) */
+
+.gis-fieldvis-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  margin: 0;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(203, 213, 225, 0.95);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.gis-fieldvis-trigger:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.24);
+  color: rgba(248, 250, 252, 0.98);
+}
+
+.gis-fieldvis-trigger:focus-visible {
+  outline: 2px solid rgba(125, 211, 252, 0.55);
+  outline-offset: 2px;
+}
+
+.gis-fieldvis-trigger i {
+  font-size: 10px;
+  line-height: 1;
+}
+
+.gis-fieldvis-trigger--open {
+  border-color: rgba(56, 189, 248, 0.45);
+  background: rgba(56, 189, 248, 0.14);
+  color: rgba(224, 242, 254, 0.98);
+}
+
+/* Above si-layer-action-modal (12500) and layer menus (12850) */
+.gis-fieldvis-popover {
+  position: fixed;
+  z-index: 12950;
+  width: min(360px, calc(100vw - 24px));
+  max-height: min(72vh, 520px);
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(
+    168deg,
+    rgba(6, 8, 14, 0.92) 0%,
+    rgba(12, 14, 22, 0.88) 48%,
+    rgba(4, 6, 12, 0.94) 100%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset,
+    0 24px 56px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(22px) saturate(1.15);
+  -webkit-backdrop-filter: blur(22px) saturate(1.15);
+  overflow: hidden;
+  color: rgba(241, 245, 249, 0.96);
+  font-size: 12px;
+  pointer-events: auto;
+  isolation: isolate;
+}
+
+.gis-fieldvis-popover__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+.gis-fieldvis-popover__title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(248, 250, 252, 0.98);
+}
+
+.gis-fieldvis-popover__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(203, 213, 225, 0.95);
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.gis-fieldvis-popover__close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.gis-fieldvis-popover__close i {
+  font-size: 11px;
+}
+
+.gis-fieldvis-popover__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px 4px;
+  flex-shrink: 0;
+}
+
+.gis-fieldvis-popover__search-wrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  height: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.gis-fieldvis-popover__search-wrap:focus-within {
+  border-color: rgba(56, 189, 248, 0.45);
+  background: rgba(0, 0, 0, 0.32);
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.12);
+}
+
+.gis-fieldvis-popover__search-wrap > i {
+  font-size: 11px;
+  color: rgba(148, 163, 184, 0.95);
+  flex-shrink: 0;
+}
+
+.gis-fieldvis-popover__search {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font-size: 11px;
+  color: rgba(248, 250, 252, 0.96);
+  outline: none;
+}
+
+.gis-fieldvis-popover__search::placeholder {
+  color: rgba(148, 163, 184, 0.8);
+}
+
+.gis-fieldvis-popover__filter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(203, 213, 225, 0.95);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.gis-fieldvis-popover__filter:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.gis-fieldvis-popover__filter--on {
+  border-color: rgba(56, 189, 248, 0.4);
+  background: rgba(56, 189, 248, 0.14);
+  color: rgba(224, 242, 254, 0.98);
+}
+
+.gis-fieldvis-popover__filter i {
+  font-size: 11px;
+}
+
+.gis-fieldvis-popover__select-row {
+  padding: 2px 12px 6px;
+  flex-shrink: 0;
+}
+
+.gis-fieldvis-popover__select-all {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 11px;
+  font-weight: 650;
+  color: rgba(125, 211, 252, 0.95);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.gis-fieldvis-popover__select-all:hover {
+  text-decoration: underline;
+}
+
+.gis-fieldvis-popover__list {
+  flex: 1;
+  min-height: 100px;
+  overflow-y: auto;
+  padding: 4px 6px 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.gis-fieldvis-popover__empty {
+  padding: 16px 12px;
+  text-align: center;
+  color: rgba(148, 163, 184, 0.92);
+  font-size: 11px;
+}
+
+.gis-fieldvis-popover__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px;
+  border-radius: 7px;
+  transition: background 0.1s ease;
+}
+
+.gis-fieldvis-popover__row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.gis-fieldvis-popover__check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+  user-select: none;
+}
+
+.gis-fieldvis-popover__check input {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  margin: 0;
+  accent-color: #38bdf8;
+  cursor: pointer;
+}
+
+.gis-fieldvis-popover__label {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 550;
+  color: rgba(241, 245, 249, 0.95);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: start;
+}
+
+.gis-fieldvis-popover__info {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(148, 163, 184, 0.9);
+  cursor: default;
+  flex-shrink: 0;
+}
+
+.gis-fieldvis-popover__info:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(226, 232, 240, 0.95);
+}
+
+.gis-fieldvis-popover__info i {
+  font-size: 11px;
+}
+
+.gis-fieldvis-popover__footer {
+  padding: 8px 10px 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.gis-fieldvis-popover__done {
+  width: 100%;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  background: rgba(56, 189, 248, 0.12);
+  color: rgba(224, 242, 254, 0.98);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.gis-fieldvis-popover__done:hover {
+  background: rgba(56, 189, 248, 0.22);
+  border-color: rgba(56, 189, 248, 0.55);
+}
+
+.gis-fieldvis-popover__done:focus-visible {
+  outline: 2px solid rgba(125, 211, 252, 0.45);
+  outline-offset: 2px;
+}
+
+/* Table corner cell: compact gear in attribute table header */
+th.gis-layer-table-fieldvis,
+td.gis-layer-table-fieldvis {
+  width: 30px;
+  min-width: 30px;
+  max-width: 34px;
+  text-align: center;
+  vertical-align: middle;
+  padding: 4px 2px;
+  position: relative;
+  z-index: 1;
+}
+
+.si-layer-action-table-wrap {
+  overflow: auto;
+}
+
+html[data-theme='light'] .gis-fieldvis-popover {
+  background: linear-gradient(168deg, rgba(15, 18, 28, 0.94), rgba(8, 10, 18, 0.9));
+  color: rgba(248, 250, 252, 0.98);
+}
+
+/* Attribute table filter popover (same shell as field visibility) */
+.si-table-filter-popover .si-table-field-filter--popover {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px 12px 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  gap: 10px;
+}
+
+.si-table-filter-popover .si-table-field-filter__chips {
+  max-height: 120px;
+}

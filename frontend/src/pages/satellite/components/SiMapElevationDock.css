@@ -1,0 +1,728 @@
+/* Bottom-left map chrome */
+.si-map-elevation-dock {
+  --si-elevation-dock-lift: 2cm;
+  --si-elev-dock-zoom-btn: 1.75rem;
+  --si-elev-dock-fab: 2rem;
+  --si-elev-dock-gear: 1.65rem;
+  --si-elev-dock-zoom-pad: 2px;
+  --si-elev-dock-gap: 6px;
+  /* Luxury black glass — same tokens as si-sat-ctx-dock--dark / map-toolbox */
+  --si-glass-blur: 30px;
+  --si-glass-saturate: 150%;
+  --si-glass-border: rgba(255, 255, 255, 0.12);
+  --si-glass-rim-soft: rgba(255, 255, 255, 0.06);
+  --si-glass-highlight: rgba(255, 255, 255, 0.1);
+  --si-glass-text: #f2f3f8;
+  --si-glass-muted: rgba(214, 216, 224, 0.72);
+  /* Luxury *black* glass — neutral black tint, near-opaque (only slightly
+     see-through) so the surface stays a deep glossy black and the globe's
+     purple space never bleeds through. No violet/blue cast. */
+  --si-glass-bg:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.07) 0%, transparent 40%),
+    linear-gradient(180deg, rgba(16, 16, 19, 0.9) 0%, rgba(0, 0, 0, 0.95) 100%);
+  --si-glass-shadow:
+    0 28px 72px rgba(0, 0, 0, 0.58),
+    0 8px 24px rgba(0, 0, 0, 0.42),
+    0 0 0 1px var(--si-glass-rim-soft),
+    inset 0 1px 0 var(--si-glass-highlight),
+    inset 0 0 48px rgba(255, 255, 255, 0.02);
+  --si-elev-surface: rgba(255, 255, 255, 0.04);
+  --si-elev-surface-hover: rgba(255, 255, 255, 0.08);
+  --si-elev-rim: rgba(255, 255, 255, 0.1);
+  --si-elev-rim-active: rgba(255, 255, 255, 0.28);
+  position: fixed;
+  left: max(24px, env(safe-area-inset-left, 0px));
+  bottom: calc(
+    var(--si-map-bottom-safe, 12px) + var(--si-map-bottom-reserve, 0px) + var(--si-elevation-dock-lift, 0px)
+  );
+  z-index: 720;
+  opacity: 1;
+  visibility: visible;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--si-elev-dock-gap);
+  pointer-events: none;
+}
+
+:root[dir='rtl'] .si-map-elevation-dock {
+  left: auto;
+  right: max(24px, env(safe-area-inset-right, 0px));
+  align-items: flex-end;
+}
+
+.si-map-elevation-dock__controls {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--si-elev-dock-gap);
+  pointer-events: none;
+}
+
+:root[dir='rtl'] .si-map-elevation-dock__controls {
+  align-items: flex-end;
+}
+
+.si-map-elevation-dock__column {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  pointer-events: none;
+}
+
+.si-map-elevation-dock__primary {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+
+/* ── Luxury black glass panel (system chrome) ── */
+.si-map-elevation-dock__panel--floating {
+  --si-terrain-accent: rgba(238, 240, 248, 0.94);
+  --si-terrain-accent-dim: rgba(200, 206, 224, 0.62);
+  --si-daylight-track-fill: rgba(255, 255, 255, 0.75);
+  --si-daylight-thumb-ring: rgba(255, 255, 255, 0.14);
+
+  /* This panel is rendered as a SIBLING of `.si-map-elevation-dock` (fixed,
+     via AnimatePresence), so it does NOT inherit the glass tokens defined on
+     the dock root. Re-declare the unified luxury *black* glass here — neutral
+     tint, near-opaque (only slightly see-through) so the surface stays a deep
+     glossy black and the map never bleeds through. Keep these values in sync
+     with `.si-map-elevation-dock` and `siSatCtxDockLuxuryGlass.css`. */
+  --si-glass-blur: 30px;
+  --si-glass-saturate: 150%;
+  --si-glass-border: rgba(255, 255, 255, 0.12);
+  --si-glass-rim-soft: rgba(255, 255, 255, 0.06);
+  --si-glass-highlight: rgba(255, 255, 255, 0.1);
+  --si-glass-text: #f2f3f8;
+  --si-glass-muted: rgba(214, 216, 224, 0.72);
+  --si-glass-bg:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.07) 0%, transparent 40%),
+    linear-gradient(180deg, rgba(16, 16, 19, 0.9) 0%, rgba(0, 0, 0, 0.95) 100%);
+  --si-glass-shadow:
+    0 28px 72px rgba(0, 0, 0, 0.58),
+    0 8px 24px rgba(0, 0, 0, 0.42),
+    0 0 0 1px var(--si-glass-rim-soft),
+    inset 0 1px 0 var(--si-glass-highlight),
+    inset 0 0 48px rgba(255, 255, 255, 0.02);
+  --si-elev-surface: rgba(255, 255, 255, 0.04);
+  --si-elev-surface-hover: rgba(255, 255, 255, 0.08);
+  --si-elev-rim: rgba(255, 255, 255, 0.1);
+  --si-elev-rim-active: rgba(255, 255, 255, 0.28);
+
+  position: fixed;
+  z-index: 680;
+  width: min(256px, calc(100vw - 24px));
+  max-height: min(86vh, 520px);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-radius: 14px;
+  border: 1px solid var(--si-glass-border);
+  background: var(--si-glass-bg);
+  box-shadow: var(--si-glass-shadow);
+  backdrop-filter: blur(var(--si-glass-blur)) saturate(var(--si-glass-saturate));
+  -webkit-backdrop-filter: blur(var(--si-glass-blur)) saturate(var(--si-glass-saturate));
+  color: var(--si-glass-text);
+  pointer-events: auto;
+  overflow: hidden;
+  transform-origin: top center;
+  filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.28)) drop-shadow(0 22px 56px rgba(0, 0, 0, 0.52));
+}
+
+:root[dir='rtl'] .si-map-elevation-dock__panel--floating {
+  transform-origin: top center;
+}
+
+.si-map-elevation-dock__panel--dragging {
+  cursor: grabbing;
+  user-select: none;
+  will-change: left, top;
+}
+
+.si-map-elevation-dock__panel-head {
+  flex-shrink: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 8px 9px 7px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, transparent 100%);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.si-map-elevation-dock__panel-head::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 4px;
+  width: 32px;
+  height: 3px;
+  border-radius: 999px;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.14);
+  pointer-events: none;
+}
+
+.si-map-elevation-dock__panel-brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  pointer-events: none;
+}
+
+.si-map-elevation-dock__panel-brand > i {
+  font-size: 11px;
+  color: rgba(246, 247, 252, 0.9);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+.si-map-elevation-dock__panel-title {
+  margin: 0;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #f6f7fc;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+.si-map-elevation-dock__panel-actions {
+  display: flex;
+  gap: 3px;
+}
+
+.si-map-elevation-dock__panel-icon-btn {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  color: rgba(218, 222, 234, 0.88);
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  cursor: pointer;
+  font-size: 9px;
+}
+
+.si-map-elevation-dock__panel-icon-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.11);
+  border-color: var(--si-elev-rim-active);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+}
+
+.si-map-elevation-dock__panel-body {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 6px 8px 10px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.08) 100%);
+}
+
+.si-map-elevation-dock__panel--floating .si-map-elevation-dock__panel-body {
+  /* Scroll inside flex panel — keeps label controls reachable */
+  max-height: none;
+}
+
+/* Icon tabs (Weather-style presets) */
+.si-elev-panel__presets {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 5px;
+  margin-bottom: 8px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 380px) {
+  .si-elev-panel__presets {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.si-elev-panel__preset {
+  aspect-ratio: 1;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.32);
+  color: #cbd5e1;
+  font-size: 15px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition:
+    background 0.22s ease,
+    border-color 0.22s ease,
+    color 0.22s ease,
+    transform 0.22s ease,
+    box-shadow 0.22s ease;
+}
+
+.si-elev-panel__preset:hover {
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.08);
+  color: #f2f3f8;
+  transform: translateY(-1px);
+}
+
+.si-elev-panel__preset.is-active {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.06));
+  border-color: var(--si-elev-rim-active);
+  color: #fff;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.12) inset,
+    0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+.si-elev-panel__tab-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+}
+
+/* ── Collapsible sections (legacy; kept for shared chips) ── */
+.si-elev-group {
+  position: relative;
+  flex-shrink: 0;
+  border-radius: 10px;
+  border: 1px solid var(--si-elev-rim);
+  background: var(--si-elev-surface);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  overflow: visible;
+}
+
+.si-elev-group__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--si-glass-muted);
+  cursor: pointer;
+  text-align: left;
+}
+
+.si-elev-group__head--open {
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+.si-elev-group__head > i:first-child {
+  font-size: 9px;
+  opacity: 0.75;
+}
+
+.si-elev-group__chevron {
+  margin-left: auto;
+  font-size: 8px;
+  opacity: 0.5;
+}
+
+.si-elev-group__body {
+  padding: 5px 7px 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow: visible;
+}
+
+.si-elev-label-block {
+  padding: 5px 6px 6px;
+  border-radius: 8px;
+  border: 1px solid rgba(125, 211, 252, 0.22);
+  background: rgba(14, 116, 144, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.si-elev-divider {
+  height: 1px;
+  margin: 2px 0;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.si-elev-kicker {
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: rgba(200, 206, 224, 0.62);
+  margin: 1px 0 2px;
+}
+
+/* ── Compact controls ── */
+.si-map-elevation-dock__row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0;
+}
+
+.si-map-elevation-dock__label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 9px;
+  font-weight: 600;
+  color: rgba(218, 222, 234, 0.88);
+  line-height: 1.2;
+}
+
+.si-map-elevation-dock__value {
+  font-size: 9px;
+  font-weight: 700;
+  color: rgba(248, 250, 252, 0.9);
+  font-variant-numeric: tabular-nums;
+}
+
+.si-map-elevation-dock__slider-row {
+  width: 100%;
+}
+
+.si-map-elevation-dock__panel-body .si-esri-slider__track-wrap .si-map-elevation-dock__range {
+  width: 100%;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  outline: none;
+  cursor: pointer;
+}
+
+.si-map-elevation-dock__panel-body
+  .si-esri-slider__track-wrap
+  .si-map-elevation-dock__range::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    var(--si-daylight-track-fill) 0%,
+    var(--si-daylight-track-fill) var(--si-range-fill, 50%),
+    rgba(255, 255, 255, 0.12) var(--si-range-fill, 50%),
+    rgba(255, 255, 255, 0.12) 100%
+  );
+}
+
+.si-map-elevation-dock__panel-body .si-esri-slider__track-wrap .si-map-elevation-dock__range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 11px;
+  height: 11px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+}
+
+.si-map-elevation-dock__panel-body .si-esri-slider__track-wrap .si-map-elevation-dock__range::-moz-range-track {
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.si-map-elevation-dock__panel-body .si-esri-slider__track-wrap .si-map-elevation-dock__range::-moz-range-thumb {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+/* Toggle chips row */
+.si-elev-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.si-elev-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 7px;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--si-elev-surface);
+  font-size: 9px;
+  font-weight: 600;
+  color: rgba(218, 222, 234, 0.88);
+  cursor: pointer;
+  line-height: 1.2;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.si-elev-chip:hover {
+  border-color: var(--si-elev-rim-active);
+  background: var(--si-elev-surface-hover);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.32);
+}
+
+.si-elev-chip--on {
+  border-color: rgba(255, 255, 255, 0.32);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.06));
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 0 18px rgba(255, 255, 255, 0.14);
+}
+
+.si-elev-chip input {
+  width: 11px;
+  height: 11px;
+  margin: 0;
+  accent-color: #fff;
+  cursor: pointer;
+}
+
+/* Mode segment (Elevation / Density / Gradient) */
+.si-elev-segment {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px;
+}
+
+.si-elev-segment__btn {
+  padding: 5px 4px;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--si-elev-surface);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--si-glass-muted);
+  cursor: pointer;
+  text-align: center;
+  line-height: 1.15;
+}
+
+.si-elev-segment__btn:hover:not(:disabled) {
+  border-color: var(--si-elev-rim-active);
+  background: var(--si-elev-surface-hover);
+  color: #fff;
+}
+
+.si-elev-segment__btn--on {
+  border-color: rgba(255, 255, 255, 0.34);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.06));
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 0 16px rgba(255, 255, 255, 0.16);
+}
+
+/* Interval inline */
+.si-map-elevation-dock__interval-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.si-map-elevation-dock__interval-input-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 5px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.si-map-elevation-dock__num-input {
+  width: 2.5rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-size: 9px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #f1f5f9;
+  text-align: right;
+  outline: none;
+}
+
+.si-map-elevation-dock__unit {
+  font-size: 8px;
+  font-weight: 600;
+  color: rgba(148, 163, 184, 0.85);
+}
+
+/* Label row — 2 columns */
+.si-elev-label-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.si-map-elevation-dock__color-input {
+  width: 24px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 5px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.si-elev-hint {
+  font-size: 8px;
+  font-weight: 500;
+  color: rgba(148, 163, 184, 0.65);
+  line-height: 1.2;
+}
+
+/* Dock FAB / zoom — luxury glass slab */
+.si-map-elevation-dock__zoom {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--si-elev-dock-zoom-pad);
+  border-radius: 10px;
+  pointer-events: auto;
+  border: 1px solid var(--si-glass-border);
+  background: var(--si-glass-bg);
+  backdrop-filter: blur(var(--si-glass-blur)) saturate(var(--si-glass-saturate));
+  -webkit-backdrop-filter: blur(var(--si-glass-blur)) saturate(var(--si-glass-saturate));
+  box-shadow: var(--si-glass-shadow);
+}
+
+.si-map-elevation-dock__zoom-btn {
+  width: var(--si-elev-dock-zoom-btn);
+  height: var(--si-elev-dock-zoom-btn);
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  color: var(--si-glass-text);
+  background: rgba(255, 255, 255, 0.02);
+  cursor: pointer;
+  font-size: 0.65rem;
+}
+
+.si-map-elevation-dock__zoom-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--si-elev-rim-active);
+}
+
+.si-map-elevation-dock__fab {
+  width: var(--si-elev-dock-fab);
+  height: var(--si-elev-dock-fab);
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  cursor: pointer;
+  pointer-events: auto;
+  color: var(--si-glass-text);
+  border: 1px solid var(--si-glass-border);
+  background: var(--si-glass-bg);
+  backdrop-filter: blur(var(--si-glass-blur)) saturate(var(--si-glass-saturate));
+  -webkit-backdrop-filter: blur(var(--si-glass-blur)) saturate(var(--si-glass-saturate));
+  box-shadow: var(--si-glass-shadow);
+}
+
+.si-map-elevation-dock__fab--on {
+  color: #fff;
+  border-color: var(--si-elev-rim-active);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.06) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 0 24px rgba(255, 255, 255, 0.32),
+    0 8px 22px rgba(0, 0, 0, 0.48);
+}
+
+.si-map-elevation-dock__fab-icon {
+  font-size: 0.72rem;
+}
+
+.si-map-elevation-dock__gear {
+  width: var(--si-elev-dock-gear);
+  height: var(--si-elev-dock-gear);
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  border: 1px solid var(--si-glass-border);
+  color: var(--si-glass-muted);
+  background: var(--si-glass-bg);
+  backdrop-filter: blur(var(--si-glass-blur)) saturate(var(--si-glass-saturate));
+  -webkit-backdrop-filter: blur(var(--si-glass-blur)) saturate(var(--si-glass-saturate));
+  box-shadow: var(--si-glass-shadow);
+  cursor: pointer;
+  pointer-events: auto;
+  font-size: 0.62rem;
+}
+
+.si-map-elevation-dock__gear--on {
+  color: #fff;
+  border-color: var(--si-elev-rim-active);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.05));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 0 20px rgba(255, 255, 255, 0.12);
+}
+
+/* Map canvas — always luxury dark glass (matches si-sat-ctx-rail) */
+html[data-theme='light'] .si-page.si-page--map-canvas .si-map-elevation-dock__panel--floating {
+  background: var(--si-glass-bg);
+  border-color: var(--si-glass-border);
+  color: var(--si-glass-text);
+}
+
+html[data-theme='light'] .si-page.si-page--map-canvas .si-map-elevation-dock__panel-body {
+  background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.08) 100%);
+}
+
+@media (max-width: 640px) {
+  .si-map-elevation-dock {
+    left: max(12px, env(safe-area-inset-left, 0px));
+  }
+
+  .si-map-elevation-dock__panel--floating {
+    width: min(236px, calc(100vw - 20px));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .si-elev-chip,
+  .si-elev-segment__btn,
+  .si-map-elevation-dock__panel-icon-btn {
+    transition: none !important;
+  }
+}
