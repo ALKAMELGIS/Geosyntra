@@ -4,6 +4,13 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+if [[ -f "${ROOT}/.envrc.local" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "${ROOT}/.envrc.local"
+  set +a
+fi
+
 export DATABASE_URL="${DATABASE_URL:-postgres://geosyntra:geosyntra@127.0.0.1:5433/geosyntra_dev}"
 export JWT_SECRET="${JWT_SECRET:-geosyntra-staging-smoke-secret}"
 export RBAC_JWT_SECRET="${RBAC_JWT_SECRET:-$JWT_SECRET}"
@@ -45,17 +52,7 @@ echo "==> Smoke (SSR + release wasm + admin API via ${STAGING_URL})"
 GEOSYNTRA_WEB_URL="$STAGING_URL" GEOSYNTRA_API_URL="$STAGING_URL" bash scripts/smoke-dioxus-web.sh
 
 if [[ "${RUN_PLAYWRIGHT:-1}" == "1" ]]; then
-  echo "==> Dioxus debug bundle for Playwright (Axum SSR + wasm — release hydration fix tracked for Task 27)"
-  DEBUG_DIST="${ROOT}/target/dx/geosyntra-web/debug/web/public"
-  if [[ ! -f "${DEBUG_DIST}/index.html" || ! -f "${DEBUG_DIST}/wasm/geosyntra-web.js" ]]; then
-    (cd packages/web && dx build --platform web)
-  else
-    echo "Using existing debug bundle at ${DEBUG_DIST}"
-  fi
-  export GEOSYNTRA_WEB_DIST="${DEBUG_DIST}"
-  start_axum
-
-  echo "==> Playwright against local staging (${STAGING_URL})"
+  echo "==> Playwright against release bundle on local staging (${STAGING_URL})"
   GEOSYNTRA_WEB_URL="$STAGING_URL" GEOSYNTRA_API_URL="$STAGING_URL" bash scripts/run-dioxus-playwright.sh
 fi
 

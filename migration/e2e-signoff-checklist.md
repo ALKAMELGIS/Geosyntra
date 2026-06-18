@@ -70,7 +70,7 @@ bash scripts/run-local-staging-smoke.sh
 - [x] `bash scripts/build-dioxus-web.sh`; Axum serves bundle via `GEOSYNTRA_WEB_DIST`
 - [x] Dioxus SSR fallback on Axum (hydration data injected; not static index-only)
 - [x] `bash scripts/smoke-dioxus-web.sh` against `:3004` (release assets)
-- [x] Playwright against `:3004` (debug wasm client + Axum SSR — release wasm hydration fix deferred to Task 27)
+- [x] Playwright against `:3004` (release wasm client + Axum SSR — Task 27.0)
 
 ## Release readiness (feature branch)
 

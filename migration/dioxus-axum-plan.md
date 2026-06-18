@@ -12,7 +12,7 @@
 
 | Order | Task | Status |
 |-------|------|--------|
-| **1 — NOW** | **27 — Deploy hardening** (wasm SSR, Mapbox proxy, rollback docs) | ▶ Active |
+| **1 — NOW** | **27 — Deploy hardening** (27.2–27.4 deploy/rollback docs) | ▶ Active |
 | 2 | **23.6 — Redis auth cache** | Optional / parallel |
 | 3 | **28.8+ — GIS parity follow-ups** | Optional / parallel |
 | 4 | **29–32 — Desktop / mobile** | After 27 |
@@ -260,11 +260,11 @@ bash scripts/run-local-staging-smoke.sh   # release curl smoke + debug Playwrigh
 
 | Step | Action |
 |------|--------|
-| **27.0** | Release wasm hydration on Axum SSR; Playwright on release bundle |
-| **27.0-dev** | Mapbox local dev proxy for URL-restricted tokens |
-| **27.2** | Dioxus web static bundle deploy script (`deploy-dioxus-production.sh`) |
-| **27.3** | Express retirement docs (when applicable) |
-| **27.4** | Rollback runbook ([nix-deploy-hostinger.md](./nix-deploy-hostinger.md)) |
+| **27.0** | Release wasm hydration on Axum SSR; Playwright on release bundle | ✅ |
+| **27.0-dev** | Mapbox local dev proxy for URL-restricted tokens | ✅ |
+| **27.2** | Dioxus web static bundle deploy script (`deploy-dioxus-production.sh`) | ✅ |
+| **27.3** | Express retirement docs (when applicable) | Deferred (post-merge) |
+| **27.4** | Rollback runbook ([nix-deploy-hostinger.md](./nix-deploy-hostinger.md)) | ✅ |
 
 **Exit criteria:** Release bundle and deploy scripts validated on feature branch staging.
 

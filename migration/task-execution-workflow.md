@@ -6,7 +6,7 @@
 
 | Phase | Tasks |
 |-------|-------|
-| Deploy hardening | **27.0–27.4** (active — wasm SSR, Mapbox proxy, deploy scripts, rollback docs) |
+| Deploy hardening | **27.2–27.4** (deploy scripts, rollback docs; 27.0/27.0-dev ✅) |
 | Tenant cache (optional) | 23.6 |
 | GIS parity follow-ups | 28.8+ |
 | Desktop | 29–30 |
@@ -41,8 +41,7 @@ Execute in order; run `bash scripts/run-all-tests.sh` before each commit.
 
 | # | Commit message (draft) | Scope |
 |---|------------------------|-------|
-| 1 | `Task 27.0: Mapbox proxy and release wasm bundle` | API + web build |
-| 2 | `Task 27.1–27.4: deploy scripts and rollback docs` | Nix/scripts/docs |
+| 1 | `Task 27.2–27.4: deploy scripts and rollback docs` | Nix/scripts/docs |
 | 3+ | Tasks 23.6, 28.8+, 29–32 as needed | See axum-migration-plan |
 
 Docs-only updates may fold into the next implementation commit or commit as `docs: …`.

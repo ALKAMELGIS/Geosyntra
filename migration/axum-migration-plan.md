@@ -12,7 +12,7 @@ Latest audit: [pre-task-audit-16.md](./pre-task-audit-16.md)
 
 ## Execution priority — GeoSyntra (GOS)
 
-**Tasks 23.5, 25, 28, 33, and 34 are ✅ complete** on this branch. **Next:** Task **27** deploy hardening (wasm SSR, Mapbox proxy, rollback docs) and optional **28.8+** GIS parity follow-ups. Task **23.6** Redis cache is parallel/optional until VPS multi-instance.
+**Tasks 23.5, 25, 28, 33, and 34 are ✅ complete** on this branch. **Next:** Task **27.2–27.4** deploy/rollback validation (27.0 release wasm + Mapbox proxy ✅). Optional **28.8+** GIS parity and **23.6** Redis cache remain parallel.
 
 | Phase | Tasks | Deliverable |
 |-------|-------|-------------|
