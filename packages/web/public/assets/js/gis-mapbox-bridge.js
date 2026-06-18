@@ -5,6 +5,51 @@
   'use strict';
 
   const maps = new Map();
+  const PROXY_INIT_TOKEN = 'pk.geosyntra.gl-init-placeholder';
+
+  function messageOf(err) {
+    if (err instanceof Error) return err.message;
+    if (typeof err === 'string') return err;
+    var maybe = err && err.message;
+    return typeof maybe === 'string' ? maybe : '';
+  }
+
+  /** Recoverable Mapbox worker/style errors — Express parity (mapboxWorkerErrorGuard.ts). */
+  function isRecoverableMapboxError(err) {
+    var msg = messageOf(err);
+    if (!msg) return false;
+    return (
+      msg.indexOf("Can't serialize object of unregistered class") !== -1 ||
+      msg.indexOf('unregistered class "DOMException"') !== -1 ||
+      msg.indexOf('errorCb is not a function') !== -1 ||
+      msg.indexOf('Unimplemented type:') !== -1 ||
+      msg.indexOf('unknown command 0') !== -1 ||
+      msg.toLowerCase().indexOf('style is not done loading') !== -1 ||
+      msg.toLowerCase().indexOf('style is not loaded') !== -1
+    );
+  }
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener(
+      'error',
+      function (event) {
+        var candidate = event.error || event.message;
+        if (!isRecoverableMapboxError(candidate)) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      },
+      true,
+    );
+    window.addEventListener(
+      'unhandledrejection',
+      function (event) {
+        if (!isRecoverableMapboxError(event.reason)) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      },
+      true,
+    );
+  }
 
   function dispatch(name, detail) {
     window.dispatchEvent(new CustomEvent(name, { detail: detail || {} }));
@@ -22,28 +67,60 @@
     }
   }
 
+  function isMapboxVendorUrl(url) {
+    try {
+      var host = new URL(url).hostname.toLowerCase();
+      return host === 'mapbox.com' || host.endsWith('.mapbox.com');
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function resolveMapboxProxyUrl(upstreamUrl) {
+    var origin =
+      (typeof window !== 'undefined' && window.location && window.location.origin) ||
+      'http://127.0.0.1:8080';
+    return origin + '/api/mapbox-proxy?url=' + encodeURIComponent(upstreamUrl);
+  }
+
   window.GeoSyntraMapbox = {
     create(containerId, accessToken, optionsJson) {
       ensureMapbox();
-      const opts = optionsJson ? JSON.parse(optionsJson) : {};
-      mapboxgl.accessToken = accessToken;
-      const container = document.getElementById(containerId);
+      var opts = optionsJson ? JSON.parse(optionsJson) : {};
+      var useProxy = opts.proxyMode === true;
+      var glToken = useProxy ? PROXY_INIT_TOKEN : accessToken;
+      mapboxgl.accessToken = glToken || accessToken || PROXY_INIT_TOKEN;
+      var container = document.getElementById(containerId);
       if (!container) throw new Error('map container not found: ' + containerId);
 
-      const map = new mapboxgl.Map({
+      var mapOptions = {
         container: containerId,
         style: opts.style || 'mapbox://styles/mapbox/satellite-streets-v12',
         center: opts.center || [0, 20],
         zoom: opts.zoom != null ? opts.zoom : 1.5,
         attributionControl: true,
         preserveDrawingBuffer: true,
-      });
+      };
+
+      if (useProxy) {
+        mapOptions.transformRequest = function (url, _resourceType) {
+          if (url.indexOf('events.mapbox.com') !== -1) {
+            return { url: '' };
+          }
+          if (isMapboxVendorUrl(url)) {
+            return { url: resolveMapboxProxyUrl(url) };
+          }
+          return { url: url };
+        };
+      }
+
+      var map = new mapboxgl.Map(mapOptions);
 
       map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
       map.addControl(new mapboxgl.ScaleControl({ maxWidth: 120 }), 'bottom-left');
 
-      const mapId = 'map-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
-      let draw = null;
+      var mapId = 'map-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+      var draw = null;
 
       map.on('load', function () {
         dispatch('geosyntra-map-load', { mapId: mapId });
@@ -62,7 +139,7 @@
     },
 
     destroy(mapId) {
-      const entry = maps.get(mapId);
+      var entry = maps.get(mapId);
       if (!entry) return;
       if (entry.draw) {
         try { entry.map.removeControl(entry.draw); } catch (_) {}
@@ -72,12 +149,12 @@
     },
 
     resize(mapId) {
-      const entry = maps.get(mapId);
+      var entry = maps.get(mapId);
       if (entry) entry.map.resize();
     },
 
     fitBounds(mapId, west, south, east, north, padding) {
-      const entry = maps.get(mapId);
+      var entry = maps.get(mapId);
       if (!entry) return;
       entry.map.fitBounds(
         [[west, south], [east, north]],
@@ -86,17 +163,17 @@
     },
 
     flyTo(mapId, lng, lat, zoom) {
-      const entry = maps.get(mapId);
+      var entry = maps.get(mapId);
       if (!entry) return;
       entry.map.flyTo({ center: [lng, lat], zoom: zoom != null ? zoom : 12, duration: 900 });
     },
 
     initDraw(mapId) {
       ensureDraw();
-      const entry = maps.get(mapId);
+      var entry = maps.get(mapId);
       if (!entry) throw new Error('unknown mapId');
       if (entry.draw) return;
-      const draw = new MapboxDraw({
+      var draw = new MapboxDraw({
         displayControlsDefault: false,
         controls: {},
         defaultMode: 'simple_select',
@@ -115,28 +192,28 @@
     },
 
     setDrawMode(mapId, mode) {
-      const entry = maps.get(mapId);
+      var entry = maps.get(mapId);
       if (!entry || !entry.draw) return;
       entry.draw.changeMode(mode);
     },
 
     getDrawGeoJson(mapId) {
-      const entry = maps.get(mapId);
+      var entry = maps.get(mapId);
       if (!entry || !entry.draw) return JSON.stringify({ type: 'FeatureCollection', features: [] });
       return JSON.stringify(entry.draw.getAll());
     },
 
     setDrawGeoJson(mapId, geojsonStr) {
-      const entry = maps.get(mapId);
+      var entry = maps.get(mapId);
       if (!entry || !entry.draw) return;
       entry.draw.set(JSON.parse(geojsonStr));
     },
 
     addGeoJsonSource(mapId, sourceId, geojsonStr, layerPaintJson) {
-      const entry = maps.get(mapId);
+      var entry = maps.get(mapId);
       if (!entry) return;
-      const map = entry.map;
-      const paint = layerPaintJson ? JSON.parse(layerPaintJson) : {};
+      var map = entry.map;
+      var paint = layerPaintJson ? JSON.parse(layerPaintJson) : {};
       if (map.getSource(sourceId)) {
         map.getSource(sourceId).setData(JSON.parse(geojsonStr));
         return;
@@ -164,9 +241,9 @@
     },
 
     removeSource(mapId, sourceId) {
-      const entry = maps.get(mapId);
+      var entry = maps.get(mapId);
       if (!entry) return;
-      const map = entry.map;
+      var map = entry.map;
       [sourceId + '-fill', sourceId + '-line'].forEach(function (lid) {
         if (map.getLayer(lid)) map.removeLayer(lid);
       });
@@ -174,9 +251,9 @@
     },
 
     addWmsLayer(mapId, layerId, tileUrl) {
-      const entry = maps.get(mapId);
+      var entry = maps.get(mapId);
       if (!entry) return;
-      const map = entry.map;
+      var map = entry.map;
       if (map.getSource(layerId)) return;
       map.addSource(layerId, {
         type: 'raster',
@@ -187,10 +264,10 @@
     },
 
     setLayerVisibility(mapId, layerId, visible) {
-      const entry = maps.get(mapId);
+      var entry = maps.get(mapId);
       if (!entry) return;
-      const map = entry.map;
-      const lid = layerId + '-raster';
+      var map = entry.map;
+      var lid = layerId + '-raster';
       if (map.getLayer(lid)) {
         map.setLayoutProperty(lid, 'visibility', visible ? 'visible' : 'none');
       }

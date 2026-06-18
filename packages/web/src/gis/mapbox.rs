@@ -6,6 +6,7 @@ pub struct MapInitOptions {
     pub center_lng: f64,
     pub center_lat: f64,
     pub zoom: f64,
+    pub proxy_mode: bool,
 }
 
 impl Default for MapInitOptions {
@@ -15,6 +16,7 @@ impl Default for MapInitOptions {
             center_lng: 0.0,
             center_lat: 20.0,
             zoom: 1.5,
+            proxy_mode: false,
         }
     }
 }
@@ -53,6 +55,7 @@ impl MapboxBridge {
             "style": options.style,
             "center": [options.center_lng, options.center_lat],
             "zoom": options.zoom,
+            "proxyMode": options.proxy_mode,
         });
         let id = js_create(container_id, token, &opts.to_string())?;
         Some(MapHandle { id })

@@ -14,6 +14,7 @@ fi
 export DATABASE_URL="${DATABASE_URL:-postgres://geosyntra:geosyntra@127.0.0.1:5433/geosyntra_dev}"
 export JWT_SECRET="${JWT_SECRET:-geosyntra-dev-jwt-secret-change-me}"
 export RBAC_JWT_SECRET="${RBAC_JWT_SECRET:-$JWT_SECRET}"
+export MAPBOX_DEV_REFERER="${MAPBOX_DEV_REFERER:-https://www.geosyntra.org}"
 API_LOG="${GEOSYNTRA_API_LOG:-/tmp/geosyntra-api.log}"
 DX_LOG="${GEOSYNTRA_DX_LOG:-/tmp/dx-serve.log}"
 

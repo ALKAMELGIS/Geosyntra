@@ -62,8 +62,8 @@ export async function persistSession(page: Page, body: LoginResponse) {
     },
     { timeout: 20_000 },
   )
-  await page.goto('/satellite/indices', { waitUntil: 'networkidle' })
-  await expect(page.getByText('Satellite intelligence')).toBeVisible({
+  await page.goto('/dashboard', { waitUntil: 'domcontentloaded' })
+  await expect(page.getByRole('heading', { name: /dashboard/i })).toBeVisible({
     timeout: 20_000,
   })
 }

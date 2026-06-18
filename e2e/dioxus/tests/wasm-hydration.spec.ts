@@ -1,4 +1,4 @@
-import { expect, test } from 'playwright/test'
+import { expect, test } from '../fixtures/test'
 
 test.describe('wasm hydration', () => {
   test('loads wasm client bundle', async ({ page }) => {

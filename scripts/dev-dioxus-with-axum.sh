@@ -16,6 +16,7 @@ export JWT_SECRET="${JWT_SECRET:-geosyntra-dev-jwt-secret-change-me}"
 export RBAC_JWT_SECRET="${RBAC_JWT_SECRET:-$JWT_SECRET}"
 export GEOSYNTRA_API_PORT="${GEOSYNTRA_API_PORT:-3003}"
 export APP_ORIGIN="${APP_ORIGIN:-http://127.0.0.1:8080}"
+export MAPBOX_DEV_REFERER="${MAPBOX_DEV_REFERER:-https://www.geosyntra.org}"
 export CORS_ORIGINS="${CORS_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}"
 # SSR/server-side API calls use Axum directly; wasm client uses same-origin /api via dx proxy.
 unset GEOSYNTRA_WEB_API_BASE

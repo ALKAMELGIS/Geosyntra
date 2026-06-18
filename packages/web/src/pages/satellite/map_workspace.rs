@@ -15,6 +15,8 @@ use crate::{
 };
 
 const MAP_CONTAINER_ID: &str = "gs-map-canvas";
+/// Mapbox GL requires a pk.* at init even when tiles use the server proxy (Express parity).
+const MAPBOX_PROXY_INIT_TOKEN: &str = "pk.geosyntra.gl-init-placeholder";
 
 /// `/satellite` → `/satellite/indices` (Task 28.1).
 #[component]
@@ -50,6 +52,7 @@ pub fn SatelliteIndices() -> Element {
     let mut map_error = use_signal(|| None::<String>);
     let mut map_handle = use_signal(|| None::<MapHandle>);
     let mut token = use_signal(|| None::<String>);
+    let mut map_proxy_mode = use_signal(|| false);
     let mut aois = use_signal(Vec::<AoiRecord>::new);
     let mut layers = use_signal(|| LayerStore::load(&tenant));
     let mut draw_mode = use_signal(|| DrawMode::Select);
@@ -88,7 +91,11 @@ pub fn SatelliteIndices() -> Element {
                 match fetch_mapbox_config().await {
                     Ok(cfg) => {
                         if cfg.configured.unwrap_or(false) {
-                            if let Some(t) = cfg.public_token.filter(|s| !s.is_empty()) {
+                            let use_proxy = cfg.proxy_mode.unwrap_or(true);
+                            map_proxy_mode.set(use_proxy);
+                            if use_proxy {
+                                token.set(Some(MAPBOX_PROXY_INIT_TOKEN.into()));
+                            } else if let Some(t) = cfg.public_token.filter(|s| !s.is_empty()) {
                                 token.set(Some(t));
                             } else {
                                 map_error.set(Some(
@@ -122,7 +129,10 @@ pub fn SatelliteIndices() -> Element {
                 if map_handle.read().is_some() {
                     return;
                 }
-                let opts = MapInitOptions::default();
+                let opts = MapInitOptions {
+                    proxy_mode: *map_proxy_mode.read(),
+                    ..MapInitOptions::default()
+                };
                 if let Some(handle) = MapboxBridge::create(MAP_CONTAINER_ID, &tok, &opts) {
                     MapboxBridge::init_draw(&handle);
                     let collection = load_aoi_geojson_collection(&tenant, &email);
@@ -146,6 +156,14 @@ pub fn SatelliteIndices() -> Element {
                 let _ = tok;
                 map_error.set(Some("Map renders in wasm client only (dx serve --platform web).".into()));
             }
+        }
+    });
+
+    // Tear down Mapbox when leaving the satellite workspace.
+    use_drop(move || {
+        #[cfg(all(feature = "web", target_arch = "wasm32"))]
+        if let Some(handle) = map_handle.read().clone() {
+            MapboxBridge::destroy(&handle);
         }
     });
 

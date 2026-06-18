@@ -23,7 +23,7 @@ Latest audit: [pre-task-audit-16.md](./pre-task-audit-16.md)
 | **B3 — SaaS UX** | 24 | Full platform parity |
 | **B5 — GIS map** | **28** | Full interactive map in Dioxus | ✅ MVP |
 | **B4 — Browser E2E** | 25 | Playwright | ✅ 46 specs local |
-| **C — Deploy hardening** | 26–27 (27.0–27.4) | Staging + release scripts (no merge) | ▶ 27 active |
+| **C — Deploy hardening** | 26–27 (27.0 ✅; 27.2–27.4) | Staging + release scripts (no merge) | ▶ 27.2 active |
 | **D — Desktop** | 29–30 | Dioxus desktop app | |
 | **E — Mobile** | 31–32 | Dioxus mobile / PWA | |
 | **G — Governance** | **33** | Admin CRUD + Geosyntra super-tenant + 3-admin quorum | ✅ |

@@ -31,12 +31,20 @@ fn is_allowed_mapbox_url(raw: &str) -> bool {
 
 fn mapbox_url_with_token(raw: &str, access_token: &str) -> Option<String> {
     let mut parsed = url::Url::parse(raw).ok()?;
-    if parsed.query_pairs().any(|(k, _)| k == "access_token") {
-        return Some(parsed.to_string());
+    // Proxy always injects the server token — never forward client/placeholder tokens.
+    let other: Vec<(String, String)> = parsed
+        .query_pairs()
+        .filter(|(k, _)| k != "access_token")
+        .map(|(k, v)| (k.into_owned(), v.into_owned()))
+        .collect();
+    parsed.set_query(None);
+    {
+        let mut qp = parsed.query_pairs_mut();
+        for (k, v) in &other {
+            qp.append_pair(k, v);
+        }
+        qp.append_pair("access_token", access_token);
     }
-    parsed
-        .query_pairs_mut()
-        .append_pair("access_token", access_token);
     Some(parsed.to_string())
 }
 
@@ -107,8 +115,9 @@ async fn proxy_mapbox_request(
     let upstream_url = mapbox_url_with_token(target, &token).ok_or_else(|| {
         AppErrorResponse::validation("invalid_mapbox_url", StatusCode::BAD_REQUEST)
     })?;
-    let referer = env_config::trim_env_public("APP_ORIGIN")
-        .unwrap_or_else(|| "http://127.0.0.1:8080".into())
+    let referer = env_config::trim_env_public("MAPBOX_DEV_REFERER")
+        .or_else(|| env_config::trim_env_public("APP_ORIGIN"))
+        .unwrap_or_else(|| "https://www.geosyntra.org".into())
         .trim_end_matches('/')
         .to_string()
         + "/";

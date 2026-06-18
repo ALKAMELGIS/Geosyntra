@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Geosyntra Geospatial AI" fill="none">
+  <!--
+    Geosyntra browser-tab mark.
+    - No background fill — sits transparent on whatever the tab paints behind it.
+    - Strokes default to near-black so the mark stays sharp on light tabs.
+    - `prefers-color-scheme: dark` flips them to near-white for dark browser chrome
+      and dark Edge / Chrome / Safari themes.
+    - Padded inset (3px on every side) keeps the line work breathing inside the
+      16/32 px favicon box rather than touching the corners.
+  -->
+  <style>
+    .gs-line { stroke: #0a0a10; }
+    @media (prefers-color-scheme: dark) {
+      .gs-line { stroke: #f4f4f8; }
+    }
+  </style>
+  <g class="gs-line" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <!-- Hexagon frame -->
+    <path d="M32 5 L55.4 18.5 L55.4 45.5 L32 59 L8.6 45.5 L8.6 18.5 Z" stroke-width="2.4" />
+    <!-- Stylized G letter -->
+    <path d="M44 24 A12 12 0 1 0 44 40 L36 40 L36 32 L30 32" stroke-width="3.4" />
+    <!-- Faint satellite arc -->
+    <ellipse cx="32" cy="32" rx="20" ry="5.6" stroke-width="1" opacity="0.55" transform="rotate(-22 32 32)" />
+  </g>
+</svg>

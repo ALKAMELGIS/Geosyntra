@@ -1,4 +1,4 @@
-import { expect, test } from 'playwright/test'
+import { expect, test } from '../fixtures/test'
 
 /**
  * Task 24 — public landing parity with React Home.

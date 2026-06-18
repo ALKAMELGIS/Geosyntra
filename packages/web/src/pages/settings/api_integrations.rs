@@ -22,16 +22,26 @@ pub fn SettingsApiIntegrations() -> Element {
 
     let can_integrations = session.can_manage_api_integrations();
 
-    use_effect(move || {
+    use_effect({
+        let session = session.clone();
+        move || {
         if !can_integrations {
             loading.set(false);
             return;
         }
+        let token = match bearer_token(&session) {
+            Ok(t) => Some(t),
+            Err(err) => {
+                error.set(Some(display_api_error(&err)));
+                loading.set(false);
+                return;
+            }
+        };
         spawn(async move {
             loading.set(true);
             error.set(None);
-            match bearer_token(&auth.session.read()) {
-                Ok(token) => match fetch_config_status(&token).await {
+            if let Some(token) = token {
+                match fetch_config_status(&token).await {
                     Ok(status) => {
                         providers.set(provider_rows(&status.capabilities));
                         env_rows.set(status.environment);
@@ -42,13 +52,10 @@ pub fn SettingsApiIntegrations() -> Element {
                         error.set(Some(display_api_error(&err)));
                         loading.set(false);
                     }
-                },
-                Err(err) => {
-                    error.set(Some(display_api_error(&err)));
-                    loading.set(false);
                 }
             }
         });
+        }
     });
 
     if !can_integrations {

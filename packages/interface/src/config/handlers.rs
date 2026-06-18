@@ -30,11 +30,13 @@ fn mapbox_response() -> Json<serde_json::Value> {
         }));
     }
 
+    let has_public = public_token.is_some();
+
     Json(json!({
         "ok": true,
         "configured": true,
-        "publicToken": public_token,
-        "publicOnly": public_token.is_some(),
+        "publicToken": if has_public { public_token } else { None },
+        "publicOnly": has_public,
         "proxyMode": true,
         "source": "environment",
         "gatewayPath": "/api/mapbox-proxy",
