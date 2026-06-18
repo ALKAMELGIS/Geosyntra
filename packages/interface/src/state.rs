@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use application::{
-    ports::{MembershipReadRepository, PlatformConfigRepository, PolicyReloadService, SubjectContextResolver},
+    ports::{MembershipReadRepository, PlatformConfigRepository, PolicyReloadService, SubjectContextResolver, TokenVault},
     usecases::{
         membership::{
             CreateMembershipUseCase, DeleteMembershipUseCase, GetMembershipUseCase,
@@ -113,4 +113,5 @@ pub struct AppState {
     pub membership: Arc<dyn MembershipReadRepository>,
     pub policy_reload: Arc<dyn PolicyReloadService>,
     pub subject_resolver: Arc<dyn SubjectContextResolver>,
+    pub tokens: Arc<dyn TokenVault>,
 }

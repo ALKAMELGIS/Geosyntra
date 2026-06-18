@@ -14,6 +14,7 @@ pub mod role;
 pub mod sort;
 pub mod tenant;
 pub mod temporary_grant;
+pub mod token_vault;
 pub mod user;
 
 pub use audit::AuditRepository;
@@ -37,4 +38,5 @@ pub use policy_reload::PolicyReloadService;
 pub use sort::{RoleSortBy, RoleSortField, SortOrder, TenantSortBy, UserSortBy, UserSortField};
 pub use tenant::TenantRepository;
 pub use temporary_grant::TemporaryGrantRepository;
+pub use token_vault::{SystemTokenStatus, TokenVault, UserTokenStatus};
 pub use user::{UserIdAllocator, UserReadRepository, UserRepository, UserWriteRepository};

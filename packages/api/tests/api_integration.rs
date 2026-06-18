@@ -385,11 +385,13 @@ async fn integration_public_routes(srv: &TestServer) {
     assert_ok(&body);
     assert!(body.get("capabilities").is_some());
 
-    let (status, _body) = TestServer::json(
+    let (status, body) = TestServer::json(
         srv.get_auth("/api/user/api-tokens", &owner).await.unwrap(),
     )
     .await;
-    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(status, StatusCode::OK);
+    assert_ok(&body);
+    assert!(body.get("tokens").and_then(|v| v.as_array()).is_some());
 
     let (status, body) = TestServer::json(
         srv.get_auth("/api/system/tokens/status", &owner)

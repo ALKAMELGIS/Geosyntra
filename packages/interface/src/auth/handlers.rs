@@ -3,7 +3,7 @@ use std::sync::Arc;
 use application::{
     dto::auth::{LoginCommand, RegisterCommand},
     error::AppError,
-    ports::{MembershipReadRepository, PlatformConfigRepository, PolicyReloadService, SubjectContextResolver},
+    ports::{MembershipReadRepository, PlatformConfigRepository, PolicyReloadService, SubjectContextResolver, TokenVault},
     usecases::{GetAuthMeUseCase, LoginUseCase, RefreshTokenUseCase, RegisterUseCase},
 };
 use axum::{extract::State, Json};
@@ -216,6 +216,7 @@ pub fn app_state(
     membership: Arc<dyn MembershipReadRepository>,
     policy_reload: Arc<dyn PolicyReloadService>,
     subject_resolver: Arc<dyn SubjectContextResolver>,
+    tokens: Arc<dyn TokenVault>,
 ) -> AppState {
     AppState {
         login,
@@ -234,5 +235,6 @@ pub fn app_state(
         membership,
         policy_reload,
         subject_resolver,
+        tokens,
     }
 }

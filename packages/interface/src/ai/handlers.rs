@@ -1,5 +1,7 @@
-use axum::Json;
+use axum::{extract::State, Json};
 use serde_json::json;
+
+use crate::state::AppState;
 
 /// Demo analyze endpoint — mirrors Express `POST /api/ai/analyze`.
 pub async fn analyze() -> Json<serde_json::Value> {
@@ -11,6 +13,7 @@ pub async fn analyze() -> Json<serde_json::Value> {
 
 /// AI chat stub — live OpenAI/DeepSeek deferred.
 pub async fn chat(
+    State(state): State<AppState>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, crate::error::AppErrorResponse> {
     use axum::http::StatusCode;
@@ -25,7 +28,9 @@ pub async fn chat(
             "model": "Geosyntra-Basic (Simulated)",
         })));
     }
-    if !crate::config::token_configured("openai") && !crate::config::token_configured("deepseek") {
+    let openai = state.tokens.is_configured("openai").await?;
+    let deepseek = state.tokens.is_configured("deepseek").await?;
+    if !openai && !deepseek {
         return Err(crate::error::AppErrorResponse::validation(
             "ai_not_configured",
             StatusCode::SERVICE_UNAVAILABLE,

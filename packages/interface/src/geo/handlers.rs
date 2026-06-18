@@ -1,12 +1,12 @@
 use axum::{
-    extract::Query,
+    extract::{Query, State},
     http::StatusCode,
     Json,
 };
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::{config, env_config, error::AppErrorResponse};
+use crate::{env_config, error::AppErrorResponse, state::AppState};
 
 const GROUNDING_TOOLS: &[&str] = &["geocode", "places_text_search", "compute_route", "elevation"];
 
@@ -17,10 +17,10 @@ fn google_maps_configured() -> bool {
 }
 
 /// Public grounding provider status — mirrors Express `GET /api/geo/grounding/status`.
-pub async fn grounding_status() -> Json<serde_json::Value> {
+pub async fn grounding_status(State(state): State<AppState>) -> Json<serde_json::Value> {
     let google = google_maps_configured();
-    let ors = config::token_configured("openrouteservice");
-    let gh = config::token_configured("graphhopper");
+    let ors = state.tokens.is_configured("openrouteservice").await.unwrap_or(false);
+    let gh = state.tokens.is_configured("graphhopper").await.unwrap_or(false);
     Json(json!({
         "ok": true,
         "configured": google || ors || gh,
@@ -35,6 +35,7 @@ pub async fn grounding_status() -> Json<serde_json::Value> {
 
 /// Grounding invoke stub — validates tool id; live Google/ORS calls deferred.
 pub async fn grounding_invoke(
+    State(state): State<AppState>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, crate::error::AppErrorResponse> {
     use axum::http::StatusCode;
@@ -52,8 +53,8 @@ pub async fn grounding_invoke(
     }
 
     let google = google_maps_configured();
-    let ors = config::token_configured("openrouteservice");
-    let gh = config::token_configured("graphhopper");
+    let ors = state.tokens.is_configured("openrouteservice").await?;
+    let gh = state.tokens.is_configured("graphhopper").await?;
     if !google && !ors && !gh && tool != "compute_route" {
         return Err(crate::error::AppErrorResponse::validation(
             "geo_grounding_not_configured",

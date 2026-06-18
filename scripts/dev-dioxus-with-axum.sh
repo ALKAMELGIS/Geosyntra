@@ -4,6 +4,13 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+if [[ -f "${ROOT}/.envrc.local" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "${ROOT}/.envrc.local"
+  set +a
+fi
+
 export DATABASE_URL="${DATABASE_URL:-postgres://geosyntra:geosyntra@127.0.0.1:5433/geosyntra_dev}"
 export JWT_SECRET="${JWT_SECRET:-geosyntra-dev-jwt-secret-change-me}"
 export RBAC_JWT_SECRET="${RBAC_JWT_SECRET:-$JWT_SECRET}"

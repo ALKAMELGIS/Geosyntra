@@ -7,6 +7,7 @@ pub mod cache;
 pub mod crypto;
 pub mod error;
 pub mod postgres;
+pub mod tokens;
 
 pub use auth::{JwtSubjectContextResolver, ReloadableAuthorizationService};
 pub use cache::build_auth_cache_from_env;
@@ -25,3 +26,4 @@ pub use postgres::{
     PostgresRoleRepository,     PostgresSubscriptionRepository, PostgresTenantRepository, PostgresUserIdAllocator,
     PostgresUserRepository,
 };
+pub use tokens::PostgresTokenVault;

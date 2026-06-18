@@ -6,19 +6,18 @@ use axum::{
 use serde_json::Value;
 
 use crate::{
-    config::token_configured,
     error::AppErrorResponse,
     extract::{AuthSubject, RequestEnvironment},
     state::AppState,
 };
 
 pub async fn gemini_generate_content(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     AuthSubject(_ctx): AuthSubject,
     RequestEnvironment(_env): RequestEnvironment,
     Json(body): Json<Value>,
 ) -> Result<Json<Value>, AppErrorResponse> {
-    if !token_configured("gemini") {
+    if !state.tokens.is_configured("gemini").await? {
         return Err(AppErrorResponse::validation(
             "gemini_not_configured",
             StatusCode::SERVICE_UNAVAILABLE,
@@ -47,12 +46,12 @@ pub async fn gemini_generate_content(
 }
 
 pub async fn openai_chat(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     AuthSubject(_ctx): AuthSubject,
     RequestEnvironment(_env): RequestEnvironment,
     Json(body): Json<Value>,
 ) -> Result<Json<Value>, AppErrorResponse> {
-    if !token_configured("openai") {
+    if !state.tokens.is_configured("openai").await? {
         return Err(AppErrorResponse::validation(
             "openai_not_configured",
             StatusCode::SERVICE_UNAVAILABLE,
@@ -91,12 +90,12 @@ fn claude_messages_nonempty(body: &Value) -> bool {
 }
 
 pub async fn claude_messages(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     AuthSubject(_ctx): AuthSubject,
     RequestEnvironment(_env): RequestEnvironment,
     Json(body): Json<Value>,
 ) -> Result<Json<Value>, AppErrorResponse> {
-    if !token_configured("claude") {
+    if !state.tokens.is_configured("claude").await? {
         return Err(AppErrorResponse::validation(
             "claude_not_configured",
             StatusCode::SERVICE_UNAVAILABLE,
@@ -115,12 +114,12 @@ pub async fn claude_messages(
 }
 
 pub async fn deepseek_chat(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     AuthSubject(_ctx): AuthSubject,
     RequestEnvironment(_env): RequestEnvironment,
     Json(body): Json<Value>,
 ) -> Result<Json<Value>, AppErrorResponse> {
-    if !token_configured("deepseek") {
+    if !state.tokens.is_configured("deepseek").await? {
         return Err(AppErrorResponse::validation(
             "deepseek_not_configured",
             StatusCode::SERVICE_UNAVAILABLE,

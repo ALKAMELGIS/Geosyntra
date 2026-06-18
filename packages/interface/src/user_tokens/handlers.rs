@@ -21,9 +21,9 @@ pub(crate) fn is_platform_owner(ctx: &application::SubjectContext) -> bool {
     })
 }
 
-/// Session token hydration — env-based capabilities until user token vault lands.
+/// Session token hydration — DB-backed capabilities with optional client hydration in dev.
 pub async fn api_tokens_session(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     AuthSubject(ctx): AuthSubject,
     RequestEnvironment(_env): RequestEnvironment,
 ) -> Result<Json<Value>, AppErrorResponse> {
@@ -31,29 +31,46 @@ pub async fn api_tokens_session(
     let allow_hydration = env_config::trim_env_public("GEOSYNTRA_ALLOW_CLIENT_SECRET_HYDRATION")
         .as_deref()
         == Some("true");
+    let capabilities = state.tokens.capabilities_snapshot().await?;
     Ok(Json(json!({
         "ok": true,
-        "revision": 0,
-        "persisted": false,
-        "capabilities": config::build_platform_capabilities(),
-        "encrypted": env_config::env_non_empty("API_VAULT_MASTER_KEY"),
+        "revision": 1,
+        "persisted": state.tokens.ready(),
+        "capabilities": capabilities,
+        "encrypted": state.tokens.encrypted_at_rest(),
         "readOnly": !owner,
         "gatewayMode": !allow_hydration,
     })))
 }
 
 pub async fn list_api_tokens(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     AuthSubject(ctx): AuthSubject,
     RequestEnvironment(_env): RequestEnvironment,
 ) -> Result<Json<Value>, AppErrorResponse> {
     if !is_platform_owner(&ctx) {
         return Err(AppErrorResponse::from(application::error::AppError::Forbidden));
     }
-    Err(AppErrorResponse::validation(
-        "token_store_unavailable",
-        StatusCode::SERVICE_UNAVAILABLE,
-    ))
+    if !state.tokens.ready() {
+        return Err(AppErrorResponse::validation(
+            "token_store_unavailable",
+            StatusCode::SERVICE_UNAVAILABLE,
+        ));
+    }
+    let user_id = ctx.user_id().as_str().to_string();
+    let rows = state.tokens.list_user_tokens(&user_id).await?;
+    let tokens: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            json!({
+                "provider": r.provider,
+                "configured": r.configured,
+                "active": r.active,
+                "masked": r.masked,
+            })
+        })
+        .collect();
+    Ok(Json(json!({ "ok": true, "tokens": tokens })))
 }
 
 #[derive(Debug, Deserialize)]
@@ -62,7 +79,7 @@ pub struct UpsertUserTokenRequest {
 }
 
 pub async fn upsert_api_token(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     AuthSubject(ctx): AuthSubject,
     RequestEnvironment(_env): RequestEnvironment,
     Path(provider): Path<String>,
@@ -87,23 +104,46 @@ pub async fn upsert_api_token(
             StatusCode::BAD_REQUEST,
         ));
     }
-    Err(AppErrorResponse::validation(
-        "token_store_unavailable",
-        StatusCode::SERVICE_UNAVAILABLE,
-    ))
+    if !state.tokens.ready() {
+        return Err(AppErrorResponse::validation(
+            "token_store_unavailable",
+            StatusCode::SERVICE_UNAVAILABLE,
+        ));
+    }
+    let user_id = ctx.user_id().as_str().to_string();
+    let email = ctx.user_id().as_str().to_string();
+    let row = state
+        .tokens
+        .upsert_user_token(&user_id, &email, &provider, value)
+        .await?;
+    Ok(Json(json!({
+        "ok": true,
+        "token": {
+            "provider": row.provider,
+            "configured": row.configured,
+            "active": row.active,
+            "masked": row.masked,
+        },
+    })))
 }
 
 pub async fn delete_api_token(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     AuthSubject(ctx): AuthSubject,
     RequestEnvironment(_env): RequestEnvironment,
-    Path(_provider): Path<String>,
+    Path(provider): Path<String>,
 ) -> Result<Json<Value>, AppErrorResponse> {
     if !is_platform_owner(&ctx) {
         return Err(AppErrorResponse::from(application::error::AppError::Forbidden));
     }
-    Err(AppErrorResponse::validation(
-        "token_store_unavailable",
-        StatusCode::SERVICE_UNAVAILABLE,
-    ))
+    if !state.tokens.ready() {
+        return Err(AppErrorResponse::validation(
+            "token_store_unavailable",
+            StatusCode::SERVICE_UNAVAILABLE,
+        ));
+    }
+    let user_id = ctx.user_id().as_str().to_string();
+    let provider = provider.trim().to_lowercase();
+    let deleted = state.tokens.delete_user_token(&user_id, &provider).await?;
+    Ok(Json(json!({ "ok": true, "deleted": deleted })))
 }

@@ -6,7 +6,6 @@ use axum::{
 use serde_json::Value;
 
 use crate::{
-    config::token_configured,
     error::AppErrorResponse,
     extract::{AuthSubject, RequestEnvironment},
     state::AppState,
@@ -14,13 +13,13 @@ use crate::{
 
 /// OpenRouteService authenticated proxy — upstream fetch deferred.
 pub async fn openrouteservice_proxy(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     AuthSubject(_ctx): AuthSubject,
     RequestEnvironment(_env): RequestEnvironment,
     Path(_path): Path<String>,
     Json(_body): Json<Value>,
 ) -> Result<Json<Value>, AppErrorResponse> {
-    if !token_configured("openrouteservice") {
+    if !state.tokens.is_configured("openrouteservice").await? {
         return Err(AppErrorResponse::validation(
             "ors_not_configured",
             StatusCode::SERVICE_UNAVAILABLE,
@@ -34,12 +33,12 @@ pub async fn openrouteservice_proxy(
 
 /// GraphHopper authenticated GET proxy — upstream fetch deferred.
 pub async fn graphhopper_proxy(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     AuthSubject(_ctx): AuthSubject,
     RequestEnvironment(_env): RequestEnvironment,
     Path(_path): Path<String>,
 ) -> Result<Json<Value>, AppErrorResponse> {
-    if !token_configured("graphhopper") {
+    if !state.tokens.is_configured("graphhopper").await? {
         return Err(AppErrorResponse::validation(
             "graphhopper_not_configured",
             StatusCode::SERVICE_UNAVAILABLE,
@@ -53,12 +52,12 @@ pub async fn graphhopper_proxy(
 
 /// OpenWeatherMap authenticated GET proxy — upstream fetch deferred.
 pub async fn openweathermap_proxy(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     AuthSubject(_ctx): AuthSubject,
     RequestEnvironment(_env): RequestEnvironment,
     Path(_path): Path<String>,
 ) -> Result<Json<Value>, AppErrorResponse> {
-    if !token_configured("openweathermap") {
+    if !state.tokens.is_configured("openweathermap").await? {
         return Err(AppErrorResponse::validation(
             "openweathermap_not_configured",
             StatusCode::SERVICE_UNAVAILABLE,

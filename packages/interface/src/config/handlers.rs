@@ -2,7 +2,7 @@ use axum::{extract::State, http::HeaderValue, response::IntoResponse, Json};
 use serde_json::json;
 
 use crate::{
-    config::tokens::{self, mapbox_public_token, token_configured},
+    config::tokens::{self, mapbox_public_token},
     env_config,
     error::AppErrorResponse,
     extract::{AuthSubject, RequestEnvironment},
@@ -53,25 +53,26 @@ pub async fn mapbox_config() -> impl IntoResponse {
 }
 
 pub async fn config_status(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     AuthSubject(_ctx): AuthSubject,
     RequestEnvironment(_env): RequestEnvironment,
 ) -> Result<Json<serde_json::Value>, AppErrorResponse> {
+    let capabilities = state.tokens.capabilities_snapshot().await?;
     Ok(Json(json!({
         "ok": true,
-        "revision": 0,
-        "capabilities": tokens::build_platform_capabilities(),
+        "revision": 1,
+        "capabilities": capabilities,
         "environment": tokens::audit_environment_bindings(),
         "gatewayMode": true,
     })))
 }
 
 pub async fn gateway_status(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     AuthSubject(_ctx): AuthSubject,
     RequestEnvironment(_env): RequestEnvironment,
 ) -> Result<Json<serde_json::Value>, AppErrorResponse> {
-    let capabilities = tokens::build_platform_capabilities();
+    let capabilities = state.tokens.capabilities_snapshot().await?;
     Ok(Json(json!({
         "ok": true,
         "revision": 0,
@@ -95,13 +96,13 @@ pub async fn gateway_status(
 pub async fn provider_config(
     gateway_path: &'static str,
     token_name: &'static str,
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     AuthSubject(_ctx): AuthSubject,
     RequestEnvironment(_env): RequestEnvironment,
 ) -> Result<Json<serde_json::Value>, AppErrorResponse> {
     Ok(Json(json!({
         "ok": true,
-        "configured": token_configured(token_name),
+        "configured": state.tokens.is_configured(token_name).await?,
         "gatewayPath": gateway_path,
     })))
 }
@@ -188,7 +189,8 @@ pub async fn sentinel_config(
     ctx: AuthSubject,
     env: RequestEnvironment,
 ) -> Result<Json<serde_json::Value>, AppErrorResponse> {
-    let configured = token_configured("sentinelhub") || token_configured("sentinelhub_wms");
+    let configured = state.tokens.is_configured("sentinelhub").await?
+        || state.tokens.is_configured("sentinelhub_wms").await?;
     if !configured {
         return Ok(Json(json!({
             "ok": true,

@@ -47,6 +47,7 @@ use infrastructure::{
         PostgresTemporaryGrantRepository, PostgresUserIdAllocator, PostgresUserRepository,
     },
     JwtSubjectContextResolver, ReloadableAuthorizationService, build_auth_cache_from_env,
+    PostgresTokenVault,
 };
 use interface::{
     app_state, billing::BillingUseCases, health_router as interface_health_router,
@@ -308,6 +309,9 @@ pub async fn build_app_state(pool: Arc<PgPool>) -> interface::AppState {
             .with_cache(auth_cache),
     );
 
+    let token_vault: Arc<dyn application::ports::TokenVault> =
+        Arc::new(PostgresTokenVault::new(pool.clone()));
+
     app_state(
         login,
         register,
@@ -325,6 +329,7 @@ pub async fn build_app_state(pool: Arc<PgPool>) -> interface::AppState {
         membership_repo,
         auth_service.clone(),
         subject_resolver,
+        token_vault,
     )
 }
 

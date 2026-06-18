@@ -25,5 +25,7 @@ pub async fn bootstrap(pool: &PgPool) -> InfraResult<()> {
     crate::authz::seed_default_tenant_matrix(pool).await?;
     crate::authz::seed_default_abac_policy(pool, crate::authz::DEFAULT_TENANT_ID).await?;
     crate::postgres::tenant_isolation_fixture::ensure_tenant_isolation_fixture(pool).await?;
+    let vault = crate::tokens::PostgresTokenVault::new(std::sync::Arc::new(pool.clone()));
+    application::ports::TokenVault::sync_environment(&vault).await?;
     Ok(())
 }
