@@ -74,6 +74,26 @@
     }
   }
 
+  function haversineM(a, b) {
+    var R = 6371000;
+    var dLat = ((b[1] - a[1]) * Math.PI) / 180;
+    var dLng = ((b[0] - a[0]) * Math.PI) / 180;
+    var lat0 = (a[1] * Math.PI) / 180;
+    var lat1 = (b[1] * Math.PI) / 180;
+    var h =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat0) * Math.cos(lat1) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+  }
+
+  function lineLengthM(coords) {
+    var total = 0;
+    for (var i = 0; i < coords.length - 1; i++) {
+      total += haversineM(coords[i], coords[i + 1]);
+    }
+    return total;
+  }
+
   function getEntry(mapId) {
     return MAPS.get(mapId) || null;
   }
@@ -209,27 +229,57 @@
     entry.drawPoints = [];
 
     map.on('click', function (e) {
-      if (entry.drawMode !== 'polygon') return;
-      entry.drawPoints.push([e.lngLat.lng, e.lngLat.lat]);
-      var coords = entry.drawPoints.slice();
-      if (coords.length >= 3) coords.push(coords[0]);
-      var geo = {
-        type: 'Feature',
-        geometry: {
-          type: coords.length >= 4 ? 'Polygon' : 'LineString',
-          coordinates: coords.length >= 4 ? [coords] : coords,
-        },
-        properties: {},
-      };
-      entry.drawGeojson = {
-        id: '__draw__',
-        kind: 'geojson',
-        geojson: geo,
-        visible: true,
-        paint: { 'fill-color': '#4ade80', 'fill-opacity': 0.3, 'line-color': '#4ade80' },
-      };
-      applyOverlaySpec(mapId, entry.drawGeojson);
-      dispatch('draw-change', { mapId: mapId, geojson: geo, pointCount: entry.drawPoints.length });
+      if (entry.drawMode === 'polygon') {
+        entry.drawPoints.push([e.lngLat.lng, e.lngLat.lat]);
+        var coords = entry.drawPoints.slice();
+        if (coords.length >= 3) coords.push(coords[0]);
+        var geo = {
+          type: 'Feature',
+          geometry: {
+            type: coords.length >= 4 ? 'Polygon' : 'LineString',
+            coordinates: coords.length >= 4 ? [coords] : coords,
+          },
+          properties: {},
+        };
+        entry.drawGeojson = {
+          id: '__draw__',
+          kind: 'geojson',
+          geojson: geo,
+          visible: true,
+          paint: { 'fill-color': '#4ade80', 'fill-opacity': 0.3, 'line-color': '#4ade80' },
+        };
+        applyOverlaySpec(mapId, entry.drawGeojson);
+        dispatch('draw-change', { mapId: mapId, geojson: geo, pointCount: entry.drawPoints.length, mode: 'polygon' });
+        return;
+      }
+      if (entry.drawMode === 'line') {
+        entry.drawPoints.push([e.lngLat.lng, e.lngLat.lat]);
+        var pts = entry.drawPoints.slice();
+        var lineGeo = {
+          type: 'Feature',
+          geometry: {
+            type: pts.length >= 2 ? 'LineString' : 'Point',
+            coordinates: pts.length >= 2 ? pts : pts[0],
+          },
+          properties: { name: 'Measure' },
+        };
+        entry.drawGeojson = {
+          id: '__draw__',
+          kind: 'geojson',
+          geojson: lineGeo,
+          visible: true,
+          paint: { 'line-color': '#fbbf24', 'line-width': 3 },
+        };
+        applyOverlaySpec(mapId, entry.drawGeojson);
+        var lenM = pts.length >= 2 ? lineLengthM(pts) : 0;
+        dispatch('draw-change', {
+          mapId: mapId,
+          geojson: lineGeo,
+          pointCount: entry.drawPoints.length,
+          mode: 'line',
+          lengthM: lenM,
+        });
+      }
     });
   }
 
@@ -251,7 +301,7 @@
     });
     map.on('click', function (e) {
       var entry = getEntry(mapId);
-      if (entry && entry.drawMode === 'polygon') return;
+      if (entry && (entry.drawMode === 'polygon' || entry.drawMode === 'line')) return;
       var features = [];
       try {
         features = map.queryRenderedFeatures(e.point, {
@@ -478,8 +528,8 @@
     setDrawMode: function (mapId, mode) {
       var entry = getEntry(mapId);
       if (!entry) return;
-      entry.drawMode = mode === 'polygon' ? 'polygon' : 'none';
-      if (mode !== 'polygon') entry.drawPoints = [];
+      entry.drawMode = mode === 'polygon' || mode === 'line' ? mode : 'none';
+      if (entry.drawMode === 'none') entry.drawPoints = [];
       dispatch('draw-mode', { mapId: mapId, mode: entry.drawMode });
     },
 
@@ -510,8 +560,33 @@
       };
       entry.drawMode = 'none';
       entry.drawPoints = [];
-      dispatch('draw-change', { mapId: mapId, geojson: feature, pointCount: 0 });
+      dispatch('draw-change', { mapId: mapId, geojson: feature, pointCount: 0, mode: 'polygon' });
       return feature;
+    },
+
+    setSearchMarker: function (mapId, lng, lat, label) {
+      var geo = {
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [lng, lat] },
+        properties: { name: label || 'Search result' },
+      };
+      upsertOverlay(mapId, {
+        id: '__search__',
+        kind: 'geojson',
+        geojson: geo,
+        visible: true,
+        paint: { 'circle-color': '#f472b6', 'circle-radius': 8, 'circle-stroke-width': 2, 'circle-stroke-color': '#fff' },
+      });
+    },
+
+    exportMapPng: function (mapId) {
+      var entry = getEntry(mapId);
+      if (!entry) return null;
+      try {
+        return entry.map.getCanvas().toDataURL('image/png');
+      } catch (_) {
+        return null;
+      }
     },
   };
 })();

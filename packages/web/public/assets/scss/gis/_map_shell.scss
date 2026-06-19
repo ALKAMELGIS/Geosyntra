@@ -649,3 +649,133 @@
   font-size: 0.65rem;
   color: #ecfdf5;
 }
+
+/* Search (31.14) */
+.gs-native-search-wrap {
+  position: relative;
+}
+
+.gs-native-search-panel {
+  position: absolute;
+  top: 0;
+  left: calc(100% + 0.5rem);
+  z-index: 25;
+  width: min(16rem, 52vw);
+  padding: 0.45rem;
+  border-radius: 12px;
+  background: rgba(8, 12, 22, 0.94);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+.gs-native-search-panel__input {
+  width: 100%;
+  margin-bottom: 0.35rem;
+  padding: 0.35rem 0.45rem;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(15, 23, 42, 0.85);
+  color: #e2e8f0;
+  font-size: 0.72rem;
+}
+
+.gs-native-search-panel__btn {
+  width: 100%;
+  padding: 0.35rem;
+  border-radius: 8px;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  background: rgba(56, 189, 248, 0.12);
+  color: #7dd3fc;
+  cursor: pointer;
+  font-size: 0.72rem;
+}
+
+.gs-native-search-panel__hits {
+  margin: 0.45rem 0 0;
+  padding: 0;
+  list-style: none;
+  max-height: 8rem;
+  overflow-y: auto;
+}
+
+.gs-native-search-panel__hit {
+  width: 100%;
+  text-align: left;
+  padding: 0.35rem 0.4rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #cbd5e1;
+  cursor: pointer;
+  font-size: 0.68rem;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
+}
+
+/* Geo AI chat (31.10) */
+.gs-native-geo-ai__log {
+  max-height: 10rem;
+  overflow-y: auto;
+  margin-bottom: 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.gs-native-geo-ai__msg {
+  padding: 0.4rem 0.5rem;
+  border-radius: 8px;
+  font-size: 0.72rem;
+  line-height: 1.4;
+
+  &--user {
+    background: rgba(56, 189, 248, 0.15);
+    color: #e0f2fe;
+    align-self: flex-end;
+  }
+
+  &--bot {
+    background: rgba(30, 41, 59, 0.85);
+    color: #cbd5e1;
+  }
+}
+
+.gs-native-geo-ai__composer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.gs-native-tool-panel__input {
+  width: 100%;
+  padding: 0.35rem 0.45rem;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(15, 23, 42, 0.85);
+  color: #e2e8f0;
+  font-size: 0.72rem;
+}
+
+.gs-native-tool-panel__error {
+  color: #fca5a5;
+  font-size: 0.68rem;
+}
+
+.gs-native-measure-readout,
+.gs-native-weather-summary {
+  font-weight: 600;
+  color: #e2e8f0;
+  margin: 0.35rem 0;
+}
+
+.gs-native-fields-list__name {
+  display: block;
+}
+
+.gs-native-fields-list__meta {
+  display: block;
+  font-size: 0.65rem;
+  color: #94a3b8;
+}

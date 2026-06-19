@@ -3,6 +3,7 @@
 mod basemap;
 mod camera;
 mod geo_stats;
+mod measure;
 mod mapbox_bridge;
 mod mapbox_token;
 
@@ -14,5 +15,6 @@ pub use camera::{
     GLOBE_HOME_LAT, GLOBE_HOME_LNG, GLOBE_HOME_ZOOM, PROJECTION_GLOBE, PROJECTION_MERCATOR,
 };
 pub use mapbox_bridge::{MapboxBridge, MapCreateOptions, MapHandle, MapViewState, MAP_CONTAINER_ID};
+pub use measure::{haversine_km, line_length_km};
 pub use geo_stats::polygon_area_km2;
 pub use mapbox_token::{is_gl_init_placeholder, resolve_gl_access_token, GL_INIT_PLACEHOLDER};

@@ -143,6 +143,14 @@ impl MapboxBridge {
     pub fn fit_bounds(handle: &MapHandle, west: f64, south: f64, east: f64, north: f64) {
         js_call_fit_bounds(&handle.id, west, south, east, north, 48.0);
     }
+
+    pub fn set_search_marker(handle: &MapHandle, lng: f64, lat: f64, label: &str) {
+        js_call_marker(&handle.id, lng, lat, label);
+    }
+
+    pub fn export_map_png(handle: &MapHandle) -> Option<String> {
+        js_call_return_string(&handle.id, "exportMapPng")
+    }
 }
 
 #[cfg(all(feature = "web", target_arch = "wasm32"))]
@@ -380,3 +388,36 @@ fn js_call_raster(_map_id: &str, _layer_id: &str, _tiles: &str, _opacity: f64) {
 fn js_call_return_json(_map_id: &str, _method: &str) -> Option<Value> {
     None
 }
+
+#[cfg(all(feature = "web", target_arch = "wasm32"))]
+fn js_call_return_string(map_id: &str, method_name: &str) -> Option<String> {
+    use wasm_bindgen::JsValue;
+    let f = method(method_name)?;
+    let args = js_sys::Array::of1(&JsValue::from_str(map_id));
+    let out = js_sys::Reflect::apply(&f, &bridge(), &args).ok()?;
+    if out.is_null() || out.is_undefined() {
+        return None;
+    }
+    out.as_string()
+}
+
+#[cfg(all(feature = "web", target_arch = "wasm32"))]
+fn js_call_marker(map_id: &str, lng: f64, lat: f64, label: &str) {
+    let Some(f) = method("setSearchMarker") else {
+        return;
+    };
+    let args = js_sys::Array::new();
+    args.push(&wasm_bindgen::JsValue::from_str(map_id));
+    args.push(&wasm_bindgen::JsValue::from_f64(lng));
+    args.push(&wasm_bindgen::JsValue::from_f64(lat));
+    args.push(&wasm_bindgen::JsValue::from_str(label));
+    let _ = js_sys::Reflect::apply(&f, &bridge(), &args);
+}
+
+#[cfg(not(all(feature = "web", target_arch = "wasm32")))]
+fn js_call_return_string(_map_id: &str, _method: &str) -> Option<String> {
+    None
+}
+
+#[cfg(not(all(feature = "web", target_arch = "wasm32")))]
+fn js_call_marker(_map_id: &str, _lng: f64, _lat: f64, _label: &str) {}

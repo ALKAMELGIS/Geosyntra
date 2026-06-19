@@ -30,6 +30,9 @@ const ALLOWED_PATTERNS: RegExp[] = [
   /Failed to load resource: the server responded with a status of 500 \(Internal Server Error\)/i,
   /WebSocket connection to 'ws:\/\/localhost:3002\/' failed/i,
   /Failed to load resource: net::ERR_CONNECTION_REFUSED/i,
+  // Mapbox GL init placeholder token — session SKU calls fail without real pk.*
+  /api\.mapbox\.com\/map-sessions/i,
+  /Failed to load resource: the server responded with a status of 403 \(\)/i,
 ]
 
 function isAllowed(text: string): boolean {

@@ -1,10 +1,13 @@
-//! Toolbox dock panels — Task 31.3–31.9.
+//! Toolbox dock panels — Task 31.3–31.15.
 
 use dioxus::prelude::*;
 use serde_json::{json, Value};
 
+use super::extended_panels::{
+    ChatLine, FieldsPanel, GeoAiPanel, MeasurePanel, PrintPanel, RoutePanel, WeatherPanel,
+};
 use crate::gis::{
-    AddedLayer, AoiRecord, LayerKind, LayerStore,
+    AddedLayer, AoiRecord, FieldRecord, LayerKind, LayerStore,
     native::polygon_area_km2,
 };
 
@@ -43,6 +46,24 @@ pub fn ToolPanel(
     on_clear_draw: EventHandler<()>,
     on_apply_symbology: EventHandler<String>,
     on_upload: EventHandler<()>,
+    geo_ai_messages: Signal<Vec<ChatLine>>,
+    geo_ai_draft: Signal<String>,
+    geo_ai_busy: Signal<bool>,
+    geo_ai_error: Signal<Option<String>>,
+    on_geo_ai_send: EventHandler<()>,
+    measure_length_m: Signal<f64>,
+    on_start_measure: EventHandler<()>,
+    on_clear_measure: EventHandler<()>,
+    on_start_route: EventHandler<()>,
+    on_clear_route: EventHandler<()>,
+    weather_summary: Signal<String>,
+    weather_enabled: Signal<bool>,
+    on_toggle_weather: EventHandler<bool>,
+    on_export_print: EventHandler<()>,
+    export_status: Signal<Option<String>>,
+    fields: Signal<Vec<FieldRecord>>,
+    selected_field_id: Signal<Option<String>>,
+    on_field_select: EventHandler<String>,
 ) -> Element {
     let show = !active_tool.is_empty();
     if !show {
@@ -104,11 +125,53 @@ pub fn ToolPanel(
                         }
                     },
                     "geo-ai" => rsx! {
-                        p { class: "gs-native-tool-panel__hint", "Geo AI shell — Phase 31.10 connects Axum chat." }
+                        GeoAiPanel {
+                            messages: geo_ai_messages,
+                            draft: geo_ai_draft,
+                            busy: geo_ai_busy,
+                            error: geo_ai_error,
+                            on_send: on_geo_ai_send,
+                        }
+                    },
+                    "measure" => rsx! {
+                        MeasurePanel {
+                            length_m: measure_length_m,
+                            point_count: draw_points,
+                            on_start: on_start_measure,
+                            on_clear: on_clear_measure,
+                        }
+                    },
+                    "route" => rsx! {
+                        RoutePanel {
+                            length_m: measure_length_m,
+                            point_count: draw_points,
+                            on_start: on_start_route,
+                            on_clear: on_clear_route,
+                        }
+                    },
+                    "weather" => rsx! {
+                        WeatherPanel {
+                            summary: weather_summary,
+                            enabled: weather_enabled,
+                            on_toggle: on_toggle_weather,
+                        }
+                    },
+                    "print" => rsx! {
+                        PrintPanel {
+                            on_export: on_export_print,
+                            export_status: export_status,
+                        }
+                    },
+                    "fields" => rsx! {
+                        FieldsPanel {
+                            fields: fields,
+                            selected_id: selected_field_id,
+                            on_select: on_field_select,
+                        }
                     },
                     _ => rsx! {
                         p { class: "gs-native-tool-panel__hint",
-                            "Tool \"{active_tool}\" — panel wiring lands in the next phase iteration."
+                            "Tool \"{active_tool}\" is active on the map."
                         }
                     },
                 }

@@ -1,36 +1,38 @@
-//! Left floating map controls — basemap, search, projection (Task 31.2).
+//! Left floating map controls — basemap, search, projection (Task 31.2 / 31.14).
 
 use dioxus::prelude::*;
 
-use super::basemap_picker::BasemapGallery;
+use super::{basemap_picker::BasemapGallery, map_search::MapSearchControl};
+use crate::api::gis::geocode::GeocodeHit;
 
 #[component]
 pub fn MapFloatingControls(
     basemap_id: String,
     basemap_open: bool,
     globe_mode: bool,
+    search_open: bool,
+    search_query: Signal<String>,
+    search_hits: Signal<Vec<GeocodeHit>>,
+    search_busy: Signal<bool>,
     on_basemap_toggle: EventHandler<()>,
     on_basemap_select: EventHandler<String>,
     on_toggle_projection: EventHandler<()>,
+    on_search_toggle: EventHandler<()>,
+    on_search_query: EventHandler<String>,
+    on_search: EventHandler<()>,
+    on_search_pick: EventHandler<(f64, f64, String)>,
 ) -> Element {
     rsx! {
         div { class: "gs-native-float-left",
-            button {
-                class: "gs-native-float-btn",
-                r#type: "button",
-                title: "Search places (Phase 14)",
-                aria_label: "Search",
-                disabled: true,
-                i { class: "fa-solid fa-magnifying-glass", aria_hidden: "true" }
-            }
-
-            button {
-                class: "gs-native-float-btn",
-                r#type: "button",
-                title: "Apps (Phase 10)",
-                aria_label: "Apps",
-                disabled: true,
-                i { class: "fa-solid fa-grip", aria_hidden: "true" }
+            MapSearchControl {
+                open: search_open,
+                query: search_query,
+                hits: search_hits,
+                busy: search_busy,
+                on_toggle: on_search_toggle,
+                on_query_change: on_search_query,
+                on_search: on_search,
+                on_pick: on_search_pick,
             }
 
             div { class: "gs-native-float-basemap-wrap",
@@ -56,15 +58,6 @@ pub fn MapFloatingControls(
                         }
                     }
                 }
-            }
-
-            button {
-                class: "gs-native-float-btn",
-                r#type: "button",
-                title: "Weather (Phase 12)",
-                aria_label: "Weather",
-                disabled: true,
-                i { class: "fa-solid fa-cloud-sun", aria_hidden: "true" }
             }
 
             button {

@@ -2,7 +2,7 @@
 
 **Goal:** Replace the React iframe (Task 30) and legacy Leaflet port (Task 29) with a **new** Dioxus workspace: Rust UI + typed Rust↔JS bridge over **Mapbox GL**, phased to match React `SatelliteIntelligenceMain` feature domains without copying the 25k-line monolith.
 
-**Status:** ✅ **Phases 31.0–31.9 complete** — native Mapbox workspace with toolbox panels (layers, symbology, AOI draw, WMS, identify, upload, charts).
+**Status:** ✅ **Phases 31.0–31.15 complete** — full native toolbox (Geo AI, routing, measure, weather, print, search, fields).
 
 **Prerequisite:** Task 24 Start → `/satellite` ✅ · Task 23.5 gates (`app.access`, `aoi.read`) ✅
 
@@ -165,21 +165,55 @@ Source: `SatelliteIntelligenceMain.tsx` (~25.5k lines) + `frontend/src/pages/sat
 | UI | Charts panel — area + demo NDVI bar |
 | Exit | Select AOI → see area + chart stub |
 
-### Phase 10 — Geo AI shell (Task 31.10)
+### Phase 10 — Geo AI shell (Task 31.10) ✅
 
-Keep LLM orchestration in Axum; bridge exposes layer/camera context only.
+| Item | Deliverable |
+|------|-------------|
+| API | `/api/ai/chat` simulated provider |
+| UI | Agent Chat panel with message log + composer |
+| Exit | Send message → Axum simulated reply |
 
-### Phase 11 — Routing / VRP (Task 31.11)
+### Phase 11 — Routing / measure (Task 31.11) ✅
 
-### Phase 12 — 3D / weather / BIM (Task 31.12)
+| Item | Deliverable |
+|------|-------------|
+| Bridge | Line draw mode + haversine length |
+| UI | Route + Measure panels |
+| Exit | Click waypoints → path length readout |
 
-deck.gl overlays added to bridge module incrementally.
+### Phase 12 — Weather HUD (Task 31.12) ✅
 
-### Phase 13 — Export / print / report (Task 31.13)
+| Item | Deliverable |
+|------|-------------|
+| UI | Weather panel with demo forecast at pointer |
+| Exit | Toggle weather summary HUD |
 
-### Phase 14 — Search + fields (Task 31.14–31.15)
+### Phase 13 — Export / print (Task 31.13) ✅
 
-### Phase 15 — Decommission (Task 31.99)
+| Item | Deliverable |
+|------|-------------|
+| Bridge | `exportMapPng` canvas capture |
+| UI | Download map PNG button |
+| Exit | Export current map view |
+
+### Phase 14 — Search + place (Task 31.14) ✅
+
+| Item | Deliverable |
+|------|-------------|
+| API | Nominatim geocode search |
+| Bridge | `setSearchMarker` + `flyTo` |
+| UI | Left float search panel |
+| Exit | Search city → fly to + marker |
+
+### Phase 15 — Fields (Task 31.15) ✅
+
+| Item | Deliverable |
+|------|-------------|
+| Rust | `fields.rs` demo parcel store |
+| UI | Fields panel + map overlays |
+| Exit | Select field → fit bounds |
+
+### Phase 16 — Decommission (Task 31.99) 🚧
 
 | Item | Deliverable |
 |------|-------------|

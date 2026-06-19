@@ -5,6 +5,8 @@ use serde_json::{json, Value};
 
 use super::{
     basemap_picker::normalize_basemap_id,
+    extended_panels::ChatLine,
+    map_floating_controls::MapFloatingControls,
     map_shell::MapShell,
     map_status_bar::MapPointer,
     tool_panel::{
@@ -13,11 +15,16 @@ use super::{
     },
 };
 use crate::{
-    api::settings::config::fetch_mapbox_config,
+    api::{
+        ai::chat::send_chat,
+        gis::geocode::{search_places, GeocodeHit},
+        settings::config::fetch_mapbox_config,
+    },
     auth_session::AuthContext,
     components::{AppNavBar, AppNavSection},
     gis::{
-        aoi_bounds, list_aois, upsert_aoi_from_geojson, AddedLayer, AoiRecord, LayerKind,
+        aoi_bounds, list_aois, load_fields, upsert_aoi_from_geojson, AddedLayer,
+        AoiRecord, FieldRecord, LayerKind,
         native::{
             resolve_gl_access_token, MapboxBridge, MapCreateOptions, MapHandle, PROJECTION_GLOBE,
             PROJECTION_MERCATOR, DEFAULT_BASEMAP_ID, MAP_CONTAINER_ID, style_for_basemap,
@@ -30,7 +37,17 @@ fn aoi_layer_id(aoi_id: &str) -> String {
     format!("aoi-{aoi_id}")
 }
 
-fn sync_map_layers(handle: &MapHandle, layers: &[AddedLayer], aois: &[AoiRecord], sym_color: &str) {
+fn field_layer_id(field_id: &str) -> String {
+    format!("field-{field_id}")
+}
+
+fn sync_map_layers(
+    handle: &MapHandle,
+    layers: &[AddedLayer],
+    aois: &[AoiRecord],
+    fields: &[FieldRecord],
+    sym_color: &str,
+) {
     let paint = paint_for_color(sym_color);
 
     if let Some(demo) = layers.iter().find(|l| l.id == DEMO_LAYER_ID) {
@@ -58,7 +75,37 @@ fn sync_map_layers(handle: &MapHandle, layers: &[AddedLayer], aois: &[AoiRecord]
         MapboxBridge::add_geojson_layer(handle, &lid, &aoi.geojson, &aoi_paint);
         MapboxBridge::set_layer_visibility(handle, &lid, true);
     }
+
+    for field in fields {
+        let lid = field_layer_id(&field.id);
+        let field_paint = json!({
+            "fill-color": "#a78bfa",
+            "fill-opacity": 0.18,
+            "line-color": "#8b5cf6",
+        });
+        MapboxBridge::add_geojson_layer(handle, &lid, &field.geojson, &field_paint);
+        MapboxBridge::set_layer_visibility(handle, &lid, true);
+    }
 }
+
+#[cfg(all(feature = "web", target_arch = "wasm32"))]
+fn download_png(data_url: &str) {
+    use wasm_bindgen::JsCast;
+    if let Some(window) = web_sys::window() {
+        if let Some(document) = window.document() {
+            if let Ok(el) = document.create_element("a") {
+                let _ = el.set_attribute("href", data_url);
+                let _ = el.set_attribute("download", "geosyntra-map.png");
+                if let Ok(anchor) = el.dyn_into::<web_sys::HtmlAnchorElement>() {
+                    anchor.click();
+                }
+            }
+        }
+    }
+}
+
+#[cfg(not(all(feature = "web", target_arch = "wasm32")))]
+fn download_png(_data_url: &str) {}
 
 #[component]
 pub fn NativeSatelliteWorkspace() -> Element {
@@ -90,6 +137,24 @@ pub fn NativeSatelliteWorkspace() -> Element {
     let mut symbology_color = use_signal(|| "blue".to_string());
     let mut upload_json = use_signal(String::new);
     let mut draw_points = use_signal(|| 0_usize);
+    let mut measure_length_m = use_signal(|| 0.0_f64);
+
+    let mut geo_ai_messages = use_signal(Vec::<ChatLine>::new);
+    let mut geo_ai_draft = use_signal(String::new);
+    let mut geo_ai_busy = use_signal(|| false);
+    let mut geo_ai_error = use_signal(|| None::<String>);
+
+    let mut weather_enabled = use_signal(|| false);
+    let mut weather_summary = use_signal(String::new);
+    let mut export_status = use_signal(|| None::<String>);
+
+    let mut fields = use_signal(|| load_fields(&tenant_id));
+    let mut selected_field_id = use_signal(|| None::<String>);
+
+    let mut search_open = use_signal(|| false);
+    let mut search_query = use_signal(String::new);
+    let mut search_hits = use_signal(Vec::<GeocodeHit>::new);
+    let mut search_busy = use_signal(|| false);
 
     let session_gate = session.clone();
     use_effect(move || {
@@ -151,14 +216,30 @@ pub fn NativeSatelliteWorkspace() -> Element {
     use_effect({
         let layer_list = layers();
         let aoi_list = aois();
+        let field_list = fields();
         let color = symbology_color();
         move || {
             if !*map_ready.read() {
                 return;
             }
             if let Some(handle) = map_handle.read().clone() {
-                sync_map_layers(&handle, &layer_list, &aoi_list, &color);
+                sync_map_layers(&handle, &layer_list, &aoi_list, &field_list, &color);
             }
+        }
+    });
+
+    use_effect(move || {
+        if !weather_enabled() {
+            return;
+        }
+        if let Some(p) = pointer() {
+            let temp = 22.0 + (p.lat.abs() % 12.0) - 6.0;
+            weather_summary.set(format!(
+                "Partly cloudy · {:.0}°C · wind 12 km/h NE (demo at {:.2}°, {:.2}°)",
+                temp, p.lat, p.lng
+            ));
+        } else {
+            weather_summary.set("Move pointer over map for demo forecast.".into());
         }
     });
 
@@ -222,6 +303,11 @@ pub fn NativeSatelliteWorkspace() -> Element {
                                 .and_then(|v| v.as_f64())
                                 .unwrap_or(0.0) as usize;
                             draw_points.set(count);
+                            let len = js_sys::Reflect::get(detail, &"lengthM".into())
+                                .ok()
+                                .and_then(|v| v.as_f64())
+                                .unwrap_or(0.0);
+                            measure_length_m.set(len);
                         }
                     }
                 }
@@ -330,7 +416,7 @@ pub fn NativeSatelliteWorkspace() -> Element {
     let on_layers_changed = move |_| {
         persist_layers(&tenant_for_layers, &layers());
         if let Some(handle) = map_handle.read().clone() {
-            sync_map_layers(&handle, &layers(), &aois(), &symbology_color());
+            sync_map_layers(&handle, &layers(), &aois(), &fields(), &symbology_color());
         }
     };
 
@@ -398,7 +484,7 @@ pub fn NativeSatelliteWorkspace() -> Element {
             aois.set(updated);
             selected_aoi_id.set(Some(rec.id.clone()));
             draw_points.set(0);
-            sync_map_layers(&handle, &layers(), &aois(), &symbology_color());
+            sync_map_layers(&handle, &layers(), &aois(), &fields(), &symbology_color());
             if let Some([w, s, e, n]) = aoi_bounds(&feature) {
                 MapboxBridge::fit_bounds(&handle, w, s, e, n);
             }
@@ -442,6 +528,127 @@ pub fn NativeSatelliteWorkspace() -> Element {
         upload_json.set(String::new());
     };
 
+    let on_start_measure = move |_| {
+        if let Some(handle) = map_handle.read().clone() {
+            MapboxBridge::set_draw_mode(&handle, "line");
+            draw_points.set(0);
+            measure_length_m.set(0.0);
+        }
+    };
+    let on_clear_measure = move |_| {
+        if let Some(handle) = map_handle.read().clone() {
+            MapboxBridge::clear_draw(&handle);
+            draw_points.set(0);
+            measure_length_m.set(0.0);
+        }
+    };
+    let on_start_route = move |_| {
+        if let Some(handle) = map_handle.read().clone() {
+            MapboxBridge::set_draw_mode(&handle, "line");
+            draw_points.set(0);
+            measure_length_m.set(0.0);
+        }
+    };
+    let on_clear_route = move |_| {
+        if let Some(handle) = map_handle.read().clone() {
+            MapboxBridge::clear_draw(&handle);
+            draw_points.set(0);
+            measure_length_m.set(0.0);
+        }
+    };
+
+    let on_toggle_weather = move |on: bool| weather_enabled.set(on);
+
+    let on_export_print = move |_| {
+        if let Some(handle) = map_handle.read().clone() {
+            if let Some(data_url) = MapboxBridge::export_map_png(&handle) {
+                download_png(&data_url);
+                export_status.set(Some("Map PNG downloaded.".into()));
+            } else {
+                export_status.set(Some("Export failed — try again after map loads.".into()));
+            }
+        }
+    };
+
+    let on_field_select = move |id: String| {
+        selected_field_id.set(Some(id.clone()));
+        if let Some(field) = fields().into_iter().find(|f| f.id == id) {
+            if let Some(handle) = map_handle.read().clone() {
+                if let Some([w, s, e, n]) = aoi_bounds(&field.geojson) {
+                    MapboxBridge::fit_bounds(&handle, w, s, e, n);
+                }
+            }
+        }
+    };
+
+    let token_geo = session.bearer().map(str::to_string);
+    let on_geo_ai_send = move |_| {
+        let text = geo_ai_draft.read().trim().to_string();
+        if text.is_empty() || *geo_ai_busy.read() {
+            return;
+        }
+        let ctx = pointer.read().as_ref().map(|p| {
+            format!(
+                "[Map context: {:.4}°, {:.4}° · tool={}]",
+                p.lat,
+                p.lng,
+                active_tool()
+            )
+        });
+        let user_line = if let Some(c) = ctx {
+            format!("{c}\n{text}")
+        } else {
+            text.clone()
+        };
+        let mut msgs = geo_ai_messages();
+        msgs.push(ChatLine {
+            role: "user".into(),
+            text: text.clone(),
+        });
+        geo_ai_messages.set(msgs);
+        geo_ai_draft.set(String::new());
+        geo_ai_busy.set(true);
+        geo_ai_error.set(None);
+        let token = token_geo.clone();
+        spawn(async move {
+            match send_chat(&user_line, token.as_deref()).await {
+                Ok(resp) => {
+                    geo_ai_messages.with_mut(|m| {
+                        m.push(ChatLine {
+                            role: "model".into(),
+                            text: resp.reply,
+                        });
+                    });
+                }
+                Err(err) => geo_ai_error.set(Some(err.user_message())),
+            }
+            geo_ai_busy.set(false);
+        });
+    };
+
+    let on_search = move |_| {
+        let q = search_query.read().trim().to_string();
+        if q.len() < 2 {
+            return;
+        }
+        search_busy.set(true);
+        spawn(async move {
+            match search_places(&q).await {
+                Ok(list) => search_hits.set(list),
+                Err(_) => search_hits.set(Vec::new()),
+            }
+            search_busy.set(false);
+        });
+    };
+
+    let on_search_pick = move |(lng, lat, label): (f64, f64, String)| {
+        if let Some(handle) = map_handle.read().clone() {
+            MapboxBridge::fly_to(&handle, lng, lat, 10.0);
+            MapboxBridge::set_search_marker(&handle, lng, lat, &label);
+        }
+        search_open.set(false);
+    };
+
     let tenant_reload = tenant_id.clone();
     let email_reload = email.clone();
     let on_aois_changed = move |_| {
@@ -465,24 +672,42 @@ pub fn NativeSatelliteWorkspace() -> Element {
             }
 
             MapShell {
-                basemap_id: basemap_id(),
-                basemap_open: *basemap_open.read(),
                 active_tool: active_tool(),
-                globe_mode: *globe_mode.read(),
                 map_ready: *map_ready.read(),
                 map_error: map_error.read().clone(),
                 pointer: pointer.read().clone(),
                 projection_label: projection_label(),
-                on_basemap_toggle: move |_| basemap_open.set(!basemap_open()),
-                on_basemap_select: move |id: String| {
-                    basemap_id.set(normalize_basemap_id(&id));
-                    basemap_open.set(false);
+                on_tool_select: move |id: String| {
+                    if active_tool() == id {
+                        active_tool.set(String::new());
+                    } else {
+                        active_tool.set(id);
+                    }
                 },
-                on_tool_select: move |id: String| active_tool.set(id),
-                on_toggle_projection: toggle_projection,
                 on_zoom_in: zoom_in,
                 on_zoom_out: zoom_out,
                 on_go_home: go_home,
+                floating_controls: rsx! {
+                    MapFloatingControls {
+                        basemap_id: basemap_id(),
+                        basemap_open: *basemap_open.read(),
+                        globe_mode: *globe_mode.read(),
+                        search_open: *search_open.read(),
+                        search_query: search_query,
+                        search_hits: search_hits,
+                        search_busy: search_busy,
+                        on_basemap_toggle: move |_| basemap_open.set(!basemap_open()),
+                        on_basemap_select: move |id: String| {
+                            basemap_id.set(normalize_basemap_id(&id));
+                            basemap_open.set(false);
+                        },
+                        on_toggle_projection: toggle_projection,
+                        on_search_toggle: move |_| search_open.set(!search_open()),
+                        on_search_query: move |q: String| search_query.set(q),
+                        on_search: on_search,
+                        on_search_pick: on_search_pick,
+                    }
+                },
                 tool_panel: rsx! {
                     ToolPanel {
                         active_tool: active_tool(),
@@ -502,6 +727,24 @@ pub fn NativeSatelliteWorkspace() -> Element {
                         on_clear_draw: on_clear_draw,
                         on_apply_symbology: on_apply_symbology,
                         on_upload: on_upload,
+                        geo_ai_messages: geo_ai_messages,
+                        geo_ai_draft: geo_ai_draft,
+                        geo_ai_busy: geo_ai_busy,
+                        geo_ai_error: geo_ai_error,
+                        on_geo_ai_send: on_geo_ai_send,
+                        measure_length_m: measure_length_m,
+                        on_start_measure: on_start_measure,
+                        on_clear_measure: on_clear_measure,
+                        on_start_route: on_start_route,
+                        on_clear_route: on_clear_route,
+                        weather_summary: weather_summary,
+                        weather_enabled: weather_enabled,
+                        on_toggle_weather: on_toggle_weather,
+                        on_export_print: on_export_print,
+                        export_status: export_status,
+                        fields: fields,
+                        selected_field_id: selected_field_id,
+                        on_field_select: on_field_select,
                     }
                 },
             }

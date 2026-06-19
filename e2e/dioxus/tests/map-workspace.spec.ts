@@ -35,8 +35,25 @@ test.describe('GIS map workspace (Task 31 native Mapbox)', () => {
     await loginViaApi(page)
     await page.goto('/satellite/indices', { waitUntil: 'domcontentloaded' })
     await expectNativeMapWorkspace(page)
-    await page.locator('.gs-native-toolbox-rail__btn[title*="Layer"]').click()
+    await page.locator('.gs-native-toolbox-rail__btn[title="Layer settings"]').click()
     await expect(page.getByRole('heading', { name: 'Layers' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Add demo field polygon' })).toBeVisible()
+  })
+
+  test('geo-ai panel opens and accepts input', async ({ page }) => {
+    await loginViaApi(page)
+    await page.goto('/satellite/indices', { waitUntil: 'domcontentloaded' })
+    await expectNativeMapWorkspace(page)
+    await page.locator('.gs-native-toolbox-rail__btn[title="Geo AI assistant"]').click()
+    await expect(page.getByRole('heading', { name: 'Agent Chat' })).toBeVisible()
+    await expect(page.getByPlaceholder('Ask Geo AI…')).toBeVisible()
+  })
+
+  test('place search panel opens from float control', async ({ page }) => {
+    await loginViaApi(page)
+    await page.goto('/satellite/indices', { waitUntil: 'domcontentloaded' })
+    await expectNativeMapWorkspace(page)
+    await page.getByRole('button', { name: 'Search', exact: true }).click()
+    await expect(page.getByTestId('map-search-panel')).toBeVisible()
   })
 })
