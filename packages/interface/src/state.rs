@@ -13,8 +13,10 @@ use application::{
             suspend::SuspendUserUseCase, update::UpdateUserUseCase,
         },
         AcceptInviteUseCase, CreateInviteUseCase, ExportPermissionsMatrixUseCase,
-        ForgotPasswordUseCase, ForgotUsernameUseCase, GetAuthMeUseCase, ListAuditLogUseCase,
-        ListInvitesUseCase, LoginUseCase, PreviewInviteUseCase, RefreshTokenUseCase,
+        ChangePasswordUseCase, ForgotPasswordUseCase, ForgotUsernameUseCase, GetAuthMeUseCase,
+        GetProfileExtraUseCase, ListAuditLogUseCase,
+        ListInvitesUseCase, LoginUseCase, OAuthUpsertUseCase, PreviewInviteUseCase,
+        PutProfileExtraUseCase, RefreshTokenUseCase,
         RegisterUseCase, ResendVerificationUseCase, ResetPasswordUseCase, VerifyEmailUseCase,
         ApproveGovernanceProposalUseCase, CreateGovernanceProposalUseCase,
         GetGovernanceProposalUseCase, ListGovernanceProposalsUseCase,
@@ -61,6 +63,9 @@ pub struct AuthLifecycleUseCases {
     pub resend_verification: Arc<ResendVerificationUseCase>,
     pub forgot_password: Arc<ForgotPasswordUseCase>,
     pub forgot_username: Arc<ForgotUsernameUseCase>,
+    pub get_profile_extra: Arc<GetProfileExtraUseCase>,
+    pub put_profile_extra: Arc<PutProfileExtraUseCase>,
+    pub change_password: Arc<ChangePasswordUseCase>,
 }
 
 #[derive(Clone)]
@@ -99,6 +104,7 @@ pub struct TemporaryGrantUseCases {
 pub struct AppState {
     pub login: Arc<LoginUseCase>,
     pub register: Arc<RegisterUseCase>,
+    pub oauth_upsert: Arc<application::usecases::OAuthUpsertUseCase>,
     pub get_me: Arc<GetAuthMeUseCase>,
     pub refresh: Arc<RefreshTokenUseCase>,
     pub auth_lifecycle: AuthLifecycleUseCases,

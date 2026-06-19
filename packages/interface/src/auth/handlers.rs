@@ -4,7 +4,7 @@ use application::{
     dto::auth::{LoginCommand, RegisterCommand},
     error::AppError,
     ports::{MembershipReadRepository, PlatformConfigRepository, PolicyReloadService, SubjectContextResolver, TokenVault},
-    usecases::{GetAuthMeUseCase, LoginUseCase, RefreshTokenUseCase, RegisterUseCase},
+    usecases::{GetAuthMeUseCase, LoginUseCase, OAuthUpsertUseCase, RefreshTokenUseCase, RegisterUseCase},
 };
 use axum::{extract::State, Json};
 use domain::Email;
@@ -202,6 +202,7 @@ pub async fn auth_events() -> Json<serde_json::Value> {
 pub fn app_state(
     login: Arc<LoginUseCase>,
     register: Arc<RegisterUseCase>,
+    oauth_upsert: Arc<OAuthUpsertUseCase>,
     get_me: Arc<GetAuthMeUseCase>,
     refresh: Arc<RefreshTokenUseCase>,
     auth_lifecycle: crate::state::AuthLifecycleUseCases,
@@ -221,6 +222,7 @@ pub fn app_state(
     AppState {
         login,
         register,
+        oauth_upsert,
         get_me,
         refresh,
         auth_lifecycle,

@@ -55,6 +55,17 @@ impl ApiClient {
         decode(status_code(&resp), response_text(resp).await?)
     }
 
+    pub async fn put_json<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        body: &Value,
+        token: Option<&str>,
+    ) -> Result<T, ApiError> {
+        let url = self.url(path);
+        let resp = request("PUT", &url, token, Some(body)).await?;
+        decode(status_code(&resp), response_text(resp).await?)
+    }
+
     pub async fn delete_json<T: DeserializeOwned>(
         &self,
         path: &str,
@@ -138,6 +149,7 @@ mod native {
         let mut req = match method {
             "GET" => client().get(url),
             "POST" => client().post(url),
+            "PUT" => client().put(url),
             "PATCH" => client().patch(url),
             "DELETE" => client().delete(url),
             other => {
@@ -186,6 +198,7 @@ mod wasm {
         let mut req = match method {
             "GET" => Request::get(url),
             "POST" => Request::post(url),
+            "PUT" => Request::put(url),
             "PATCH" => Request::patch(url),
             "DELETE" => Request::delete(url),
             other => {

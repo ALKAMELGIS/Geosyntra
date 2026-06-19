@@ -22,9 +22,10 @@ use application::{
         },
         AcceptInviteUseCase, CreateInviteUseCase, ExportPermissionsMatrixUseCase,
         GetAuthMeUseCase, GetBillingMeUseCase, ListAuditLogUseCase, ListBillingPlansUseCase,
-        ListInvitesUseCase, LoginUseCase, PreviewInviteUseCase, RefreshTokenUseCase,
+        ListInvitesUseCase, LoginUseCase, OAuthUpsertUseCase, PreviewInviteUseCase, RefreshTokenUseCase,
         RegisterUseCase, ResendVerificationUseCase, ResetPasswordUseCase, StartBillingTrialUseCase,
         ActivateBillingPlanUseCase, VerifyEmailUseCase, ForgotPasswordUseCase, ForgotUsernameUseCase,
+        ChangePasswordUseCase, GetProfileExtraUseCase, PutProfileExtraUseCase,
         ApproveGovernanceProposalUseCase, CreateGovernanceProposalUseCase,
         GetGovernanceProposalUseCase, ListGovernanceProposalsUseCase,
         PendingGovernanceCountUseCase, RejectGovernanceProposalUseCase,
@@ -101,6 +102,13 @@ pub async fn build_app_state(pool: Arc<PgPool>) -> interface::AppState {
         )),
         forgot_password: Arc::new(ForgotPasswordUseCase::new(auth_lifecycle_repo.clone())),
         forgot_username: Arc::new(ForgotUsernameUseCase::new(auth_lifecycle_repo.clone())),
+        get_profile_extra: Arc::new(GetProfileExtraUseCase::new(auth_lifecycle_repo.clone())),
+        put_profile_extra: Arc::new(PutProfileExtraUseCase::new(auth_lifecycle_repo.clone())),
+        change_password: Arc::new(ChangePasswordUseCase::new(
+            auth_dir.clone(),
+            auth_lifecycle_repo.clone(),
+            hasher.clone(),
+        )),
     };
 
     let user_repo = Arc::new(PostgresUserRepository::new(pool.clone()));
@@ -125,6 +133,7 @@ pub async fn build_app_state(pool: Arc<PgPool>) -> interface::AppState {
         refresh.clone(),
     ));
     let register = Arc::new(RegisterUseCase::new(auth_dir.clone()));
+    let oauth_upsert = Arc::new(OAuthUpsertUseCase::new(auth_dir.clone(), login.clone()));
     let get_me = Arc::new(GetAuthMeUseCase::new(auth_dir.clone(), auth_service.clone()));
     let refresh_uc = Arc::new(RefreshTokenUseCase::new(
         refresh,
@@ -315,6 +324,7 @@ pub async fn build_app_state(pool: Arc<PgPool>) -> interface::AppState {
     app_state(
         login,
         register,
+        oauth_upsert,
         get_me,
         refresh_uc,
         auth_lifecycle,

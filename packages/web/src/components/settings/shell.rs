@@ -2,6 +2,7 @@ use dioxus::prelude::*;
 
 use crate::{
     auth_session::AuthContext,
+    i18n::LanguageToggle,
     routes::Route,
 };
 
@@ -32,6 +33,7 @@ pub fn SettingsShell(children: Element) -> Element {
                 aside { class: "gs-sidebar gs-sidebar--settings",
                     div { class: "gs-sidebar__brand", "Settings" }
                     p { class: "gs-hint gs-sidebar__meta", "Tenant: {session.active_tenant()}" }
+                    div { class: "gs-sidebar__tools", LanguageToggle {} }
                     nav { class: "gs-nav",
                         Link {
                             to: Route::SettingsOverview {},
@@ -48,6 +50,11 @@ pub fn SettingsShell(children: Element) -> Element {
                             class: "gs-nav-link",
                             style: if session.can_manage_api_integrations() { "" } else { "opacity:0.45; pointer-events:none" },
                             "API integrations"
+                        }
+                        Link {
+                            to: Route::SettingsGisContent {},
+                            class: "gs-nav-link",
+                            "GIS content"
                         }
                         Link {
                             to: Route::Dashboard {},

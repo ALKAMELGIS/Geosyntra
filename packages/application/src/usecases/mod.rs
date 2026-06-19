@@ -14,9 +14,9 @@ pub mod usecase_descriptor;
 pub mod user;
 
 pub use audit::ListAuditLogUseCase;
-pub use auth::{GetAuthMeUseCase, LoginUseCase, RefreshTokenUseCase, RegisterUseCase,
-    ForgotPasswordUseCase, ForgotUsernameUseCase, ResendVerificationUseCase, ResetPasswordUseCase,
-    VerifyEmailUseCase,
+pub use auth::{GetAuthMeUseCase, LoginUseCase, OAuthUpsertUseCase, RefreshTokenUseCase, RegisterUseCase,
+    ChangePasswordUseCase, ForgotPasswordUseCase, ForgotUsernameUseCase, GetProfileExtraUseCase,
+    PutProfileExtraUseCase, ResendVerificationUseCase, ResetPasswordUseCase, VerifyEmailUseCase,
 };
 pub use billing::{
     ActivateBillingPlanUseCase, GetBillingMeUseCase, ListBillingPlansUseCase,

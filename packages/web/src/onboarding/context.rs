@@ -171,6 +171,16 @@ impl OnboardingContext {
 
     /// Returns workspace route after auth when onboarding should close.
     pub fn handle_post_auth(mut self, session: &AuthSession) -> Option<Route> {
+        if session.is_signed_in() && !session.is_email_verified() {
+            self.auth_mode.set(AuthMode::Signin);
+            self.step.set(WizardStep::Welcome);
+            self.open.set(true);
+            self.info.set(Some(
+                "Confirm your email before accessing GeoSyntra. Check your inbox or resend the verification link."
+                    .into(),
+            ));
+            return None;
+        }
         self.refresh_workspace();
         match resolve_auth_plan_route(session) {
             AuthPlanRoute::EnterWorkspace => {

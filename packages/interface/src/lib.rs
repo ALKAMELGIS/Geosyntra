@@ -1,5 +1,6 @@
 //! Interface layer — Axum routes, middleware, and HTTP mappers (Task 12–13).
 
+pub mod account;
 pub mod ai;
 pub mod aoi;
 pub mod auth;

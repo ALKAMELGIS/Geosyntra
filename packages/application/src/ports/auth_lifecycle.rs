@@ -1,4 +1,5 @@
 use domain::Email;
+use serde_json::Value;
 
 use crate::{dto::auth::PublicUserView, error::AppResult};
 
@@ -38,4 +39,10 @@ pub trait AuthLifecycleRepository: Send + Sync {
     async fn lookup_username_hint(&self, email: &Email) -> AppResult<UsernameHint>;
 
     async fn user_has_password(&self, email: &Email) -> AppResult<Option<bool>>;
+
+    async fn get_profile_extra(&self, email: &Email) -> AppResult<Value>;
+
+    async fn put_profile_extra(&self, email: &Email, patch: Value) -> AppResult<Value>;
+
+    async fn update_password_hash(&self, email: &Email, password_hash: &str) -> AppResult<bool>;
 }

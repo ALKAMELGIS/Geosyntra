@@ -10,6 +10,7 @@ export RBAC_JWT_SECRET="${RBAC_JWT_SECRET:-$JWT_SECRET}"
 export GEOSYNTRA_API_PORT="${GEOSYNTRA_API_PORT:-3003}"
 export APP_ORIGIN="${APP_ORIGIN:-http://127.0.0.1:8080}"
 export CORS_ORIGINS="${CORS_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080,http://localhost:5173,http://127.0.0.1:5173}"
+export GEOSYNTRA_REACT_GIS_URL="${GEOSYNTRA_REACT_GIS_URL:-http://127.0.0.1:5173/Geosyntra/#/satellite/indices?embed=1}"
 export VITE_DEV_API_PROXY="${VITE_DEV_API_PROXY:-http://127.0.0.1:${GEOSYNTRA_API_PORT}}"
 export VITE_API_BASE_URL="${VITE_API_BASE_URL:-http://127.0.0.1:${GEOSYNTRA_API_PORT}}"
 
@@ -57,6 +58,10 @@ echo "    After sign-in, click Start → /satellite (map iframe loads from :5173
 if command -v dx >/dev/null 2>&1; then
   cd packages/web
   rsync -a --delete "${ROOT}/packages/web/assets/" "${ROOT}/packages/web/public/assets/"
+  # Inject React GIS iframe URL for Dioxus shell (Vite base path /Geosyntra/).
+  if [[ -f public/index.html ]]; then
+    sed -i "s|window.GEOSYNTRA_REACT_GIS_URL = window.GEOSYNTRA_REACT_GIS_URL.*|window.GEOSYNTRA_REACT_GIS_URL = window.GEOSYNTRA_REACT_GIS_URL || '${GEOSYNTRA_REACT_GIS_URL}';|" public/index.html 2>/dev/null || true
+  fi
   exec dx serve --platform web --open false --port 8080
 else
   echo "Install dx: cargo install dioxus-cli --version 0.7.9" >&2

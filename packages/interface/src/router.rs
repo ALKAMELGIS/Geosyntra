@@ -5,7 +5,7 @@ use axum::{
 };
 
 use crate::{
-    ai, aoi, auth, billing, config, gateway, geo, github, governance, log, membership,
+    ai, account, aoi, auth, billing, config, gateway, geo, github, governance, log, membership,
     middleware::AuthRateLimiter, middleware::cors_layer,
     platform, rbac, state::AppState, system, temporary_grant, tenant, user_tokens, weather,
 };
@@ -53,6 +53,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/auth/reset-password", post(auth::reset_password))
         .route("/api/auth/resend-verification", post(auth::resend_verification))
         .route("/api/auth/forgot-username", post(auth::forgot_username))
+        .route("/api/auth/change-password", post(account::change_password))
         .route("/api/auth/verify-email", get(auth::verify_email))
         .route("/api/auth/apple", get(auth::apple_oauth))
         .route("/api/auth/apple/callback", get(auth::apple_oauth_callback))
@@ -64,6 +65,11 @@ pub fn router(state: AppState) -> Router {
         .route("/api/auth/github/exchange", post(auth::github_exchange))
         .route("/api/auth/linkedin/exchange", post(auth::linkedin_exchange))
         .route("/api/auth/apple/exchange", post(auth::apple_exchange))
+        .route("/api/auth/oauth-upsert", post(auth::oauth_upsert))
+        .route(
+            "/api/v1/account/profile-extra",
+            get(account::get_profile_extra).put(account::put_profile_extra),
+        )
         .route("/api/config/mapbox", get(config::mapbox_config))
         .route("/api/config/mapbox/public-token", get(config::mapbox_config))
         .route("/api/config/status", get(config::config_status))

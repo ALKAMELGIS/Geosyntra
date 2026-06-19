@@ -6,6 +6,7 @@ pub fn is_public_path(path: &str) -> bool {
     matches!(
         path,
         "" | "/"
+            | "/learn-more"
             | "/login"
             | "/join-team"
             | "/app/auth/login"

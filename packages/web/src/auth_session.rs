@@ -56,6 +56,26 @@ impl AuthSession {
         self.bearer().is_some()
     }
 
+    /// Email/password accounts must confirm inbox before workspace access (React parity).
+    pub fn is_email_verified(&self) -> bool {
+        if self.is_owner() {
+            return true;
+        }
+        if self.status.as_deref().is_some_and(|s| {
+            s.eq_ignore_ascii_case("Pending Verification")
+                || s.eq_ignore_ascii_case("Pending Approval")
+        }) {
+            return false;
+        }
+        true
+    }
+
+    pub fn can_access_app(&self) -> bool {
+        self.is_signed_in()
+            && self.is_email_verified()
+            && (self.has_permission("app.access") || self.can_access_admin())
+    }
+
     pub fn active_tenant(&self) -> &str {
         self.tenant_id
             .as_deref()
@@ -236,5 +256,17 @@ mod tests {
         };
         assert!(!session.can_access_admin());
         assert!(!session.can_manage_api_integrations());
+    }
+
+    #[test]
+    fn pending_verification_blocks_app_access() {
+        let session = AuthSession {
+            access_token: Some("jwt".into()),
+            status: Some("Pending Verification".into()),
+            permissions: vec!["app.access".into()],
+            ..Default::default()
+        };
+        assert!(!session.is_email_verified());
+        assert!(!session.can_access_app());
     }
 }

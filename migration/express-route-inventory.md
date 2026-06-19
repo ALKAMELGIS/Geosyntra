@@ -77,7 +77,7 @@ Axum implemented count: 91
 | `get` | `/api/system/user-api-tokens/overview` | pending |
 | `get` | `/api/user/api-tokens` | ✅ implemented |
 | `get` | `/api/user/api-tokens/session` | ✅ implemented |
-| `get` | `/api/v1/account/profile-extra` | pending |
+| `get` | `/api/v1/account/profile-extra` | ✅ implemented |
 | `get` | `/api/v1/admin/directory/login-history` | pending |
 | `get` | `/api/v1/admin/directory` | pending |
 | `get` | `/api/v1/admin/directory/stats` | pending |
@@ -146,7 +146,7 @@ Axum implemented count: 91
 | `put` | `/api/system/api-vault` | pending |
 | `put` | `/api/system/tokens/:name` | pending |
 | `put` | `/api/user/api-tokens/:provider` | pending |
-| `put` | `/api/v1/account/profile-extra` | pending |
+| `put` | `/api/v1/account/profile-extra` | ✅ implemented |
 | `put` | `/api/v1/admin/directory` | pending |
 | `use` | `/api/analysis-engine` | pending |
 | `use` | `/api/auth` | pending |

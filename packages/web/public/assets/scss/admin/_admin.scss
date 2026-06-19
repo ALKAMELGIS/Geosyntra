@@ -14,6 +14,36 @@
   gap: 0.85rem;
 }
 
+.gs-admin-grid--split {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.gs-admin-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0 1.25rem;
+}
+
+.gs-stat-card {
+  padding: 0.85rem 1rem;
+  border-radius: var(--gs-radius);
+  border: 1px solid var(--gs-border);
+  background: var(--gs-glass-panel);
+}
+
+.gs-stat-label {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--gs-muted);
+}
+
+.gs-stat-value {
+  display: block;
+  font-size: 1.35rem;
+  margin-top: 0.2rem;
+}
+
 .gs-admin-tile {
   display: block;
   padding: 1rem 1.05rem;

@@ -33,6 +33,8 @@ impl PostgresAuthDirectoryRepository {
     }
 }
 
+const OAUTH_PROVIDERS: &[&str] = &["google", "github", "linkedin", "apple"];
+
 #[async_trait::async_trait]
 impl AuthDirectoryRepository for PostgresAuthDirectoryRepository {
     async fn authenticate(&self, email: &Email, password: &str) -> AppResult<PublicUserView> {
@@ -174,6 +176,128 @@ impl AuthDirectoryRepository for PostgresAuthDirectoryRepository {
         .await
         .map_err(map_sqlx)?;
         Ok(row.map(|r| r.into_public_view()))
+    }
+
+    async fn upsert_oauth_user(
+        &self,
+        email: &Email,
+        name: &str,
+        provider: &str,
+        sub: &str,
+    ) -> AppResult<PublicUserView> {
+        let provider = provider.trim().to_ascii_lowercase();
+        if !OAUTH_PROVIDERS.contains(&provider.as_str()) {
+            return Err(AppError::ValidationError("invalid_provider".into()));
+        }
+        let sub = sub.trim();
+        if sub.is_empty() {
+            return Err(AppError::ValidationError("oauth_sub_required".into()));
+        }
+        let display_name = if name.trim().is_empty() {
+            email.email().to_string()
+        } else {
+            name.trim().to_string()
+        };
+
+        if let Some(row) = sqlx::query_as::<_, AuthUserRow>(
+            r#"
+            SELECT id, email, name, role, status, password_hash, email_verified
+            FROM admin_users WHERE LOWER(email) = LOWER($1) LIMIT 1
+            "#,
+        )
+        .bind(email.email())
+        .fetch_optional(self.pool.as_ref())
+        .await
+        .map_err(map_sqlx)?
+        {
+            sqlx::query(
+                r#"
+                UPDATE admin_users
+                SET
+                    name = COALESCE(NULLIF($2, ''), name),
+                    email_verified = TRUE,
+                    status = CASE
+                        WHEN status = 'Pending Verification' THEN 'Active'
+                        ELSE status
+                    END,
+                    last_login = NOW(),
+                    updated_at = NOW()
+                WHERE id = $1
+                "#,
+            )
+            .bind(row.id)
+            .bind(&display_name)
+            .execute(self.pool.as_ref())
+            .await
+            .map_err(map_sqlx)?;
+
+            let updated = sqlx::query_as::<_, AuthUserRow>(
+                r#"
+                SELECT id, email, name, role, status, password_hash, email_verified
+                FROM admin_users WHERE id = $1 LIMIT 1
+                "#,
+            )
+            .bind(row.id)
+            .fetch_one(self.pool.as_ref())
+            .await
+            .map_err(map_sqlx)?;
+            updated.check_can_login()?;
+            return Ok(updated.into_public_view());
+        }
+
+        let id = next_user_id(self.pool.as_ref()).await?;
+        let role_display = rbac_role_to_display("trial_user");
+        let normalized_slug = display_role_to_slug(role_display);
+        let username = email.email().to_string();
+        let tenant_id = crate::authz::DEFAULT_TENANT_ID;
+
+        let mut tx = self.pool.begin().await.map_err(map_sqlx)?;
+
+        sqlx::query(
+            r#"
+            INSERT INTO admin_users (
+                id, email, name, username, role, status, password_hash,
+                email_verified, verification_token, verification_token_expires,
+                created_at, updated_at, last_login
+            )
+            VALUES ($1, $2, $3, $4, $5, 'Active', NULL, TRUE, NULL, NULL, NOW(), NOW(), NOW())
+            "#,
+        )
+        .bind(id.as_str().parse::<i64>().ok())
+        .bind(email.email())
+        .bind(&display_name)
+        .bind(&username)
+        .bind(role_display)
+        .execute(&mut *tx)
+        .await
+        .map_err(map_sqlx)?;
+
+        let roles_json = serde_json::json!([format!("{tenant_id}:{normalized_slug}")]);
+        sqlx::query(
+            r#"
+            INSERT INTO memberships (user_id, tenant_id, roles, created_at, version)
+            VALUES ($1, $2, $3, NOW(), 1)
+            ON CONFLICT (user_id, tenant_id) DO UPDATE SET roles = EXCLUDED.roles, version = memberships.version + 1
+            "#,
+        )
+        .bind(id.as_str())
+        .bind(tenant_id)
+        .bind(roles_json)
+        .execute(&mut *tx)
+        .await
+        .map_err(map_sqlx)?;
+
+        tx.commit().await.map_err(map_sqlx)?;
+
+        Ok(PublicUserView {
+            id: Some(id),
+            email: Some(email.clone()),
+            name: Some(display_name),
+            role: Some(role_display.to_string()),
+            role_slug: Some(normalized_slug.to_string()),
+            status: Some("Active".into()),
+            ..Default::default()
+        })
     }
 }
 

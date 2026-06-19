@@ -1,4 +1,6 @@
 pub mod audit;
+pub mod billing;
+pub mod github;
 pub mod governance;
 pub mod grants;
 pub mod memberships;
@@ -13,6 +15,8 @@ pub mod tokens;
 pub mod users;
 
 pub use audit::AdminAudit;
+pub use billing::AdminBilling;
+pub use github::AdminGitHub;
 pub use governance::AdminGovernance;
 pub use grants::AdminGrants;
 pub use memberships::AdminMemberships;

@@ -27,6 +27,10 @@ pub fn resolve_auth_plan_route(session: &AuthSession) -> AuthPlanRoute {
         return AuthPlanRoute::OpenPricing { upgrade: false };
     }
 
+    if !session.is_email_verified() {
+        return AuthPlanRoute::OpenPricing { upgrade: false };
+    }
+
     if is_platform_owner(session) {
         return AuthPlanRoute::EnterWorkspace;
     }

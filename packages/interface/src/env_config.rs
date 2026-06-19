@@ -72,7 +72,7 @@ fn oauth_client_id(provider: &str) -> String {
     }
 }
 
-fn oauth_client_secret(provider: &str) -> String {
+pub(crate) fn oauth_client_secret(provider: &str) -> String {
     match provider {
         "google" => first_non_empty(&[
             trim_env("GOOGLE_CLIENT_SECRET"),

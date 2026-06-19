@@ -158,10 +158,23 @@ pub fn WeatherPanel(summary: Signal<String>, enabled: Signal<bool>, on_toggle: E
 }
 
 #[component]
-pub fn PrintPanel(on_export: EventHandler<()>, export_status: Signal<Option<String>>) -> Element {
+pub fn PrintPanel(
+    title: Signal<String>,
+    on_export: EventHandler<()>,
+    export_status: Signal<Option<String>>,
+) -> Element {
     rsx! {
         p { class: "gs-native-tool-panel__hint",
             "Export the current map view as PNG for reports or print."
+        }
+        div { class: "gs-field",
+            label { "Report title" }
+            input {
+                class: "gs-native-tool-panel__input",
+                value: "{title()}",
+                oninput: move |e| title.set(e.value()),
+                placeholder: "GeoSyntra map export",
+            }
         }
         button {
             class: "gs-native-tool-panel__btn",

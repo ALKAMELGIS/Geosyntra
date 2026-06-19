@@ -3,6 +3,7 @@ use dioxus::prelude::*;
 use crate::{
     auth_api,
     auth_session::AuthContext,
+    onboarding::steps::oauth_panel::OAuthGlassPanel,
     post_login,
     routes::Route,
 };
@@ -11,14 +12,38 @@ use crate::{
 fn post_login_path(route: &Route) -> Option<String> {
     Some(match route {
         Route::Landing {} => "/".into(),
+        Route::LearnMore {} => "/learn-more".into(),
         Route::Dashboard {} => "/dashboard".into(),
-        Route::Login {} => "/login".into(),
+        Route::Login {} | Route::AppAuthLogin {} => "/login".into(),
+        Route::LegacyAuthRegister {} => "/app/auth/register".into(),
+        Route::VerifyEmail { .. } => "/app/auth/verify-email".into(),
+        Route::ResetPassword { .. } => "/app/auth/reset-password".into(),
+        Route::LegacyBillingPricing {} => "/app/billing/pricing".into(),
+        Route::LegacyTrialStart {} => "/app/onboarding/trial-start".into(),
         Route::JoinTeam { token } => format!("/join-team?token={token}"),
         Route::Satellite {} => "/satellite".into(),
         Route::SatelliteIndices {} => "/satellite/indices".into(),
+        Route::Multidimensional {} => "/satellite/multidimensional".into(),
+        Route::FertigationRecords {} | Route::LegacyDataFertigation {} => {
+            "/data/fertigation-records".into()
+        }
+        Route::Recipes { form_slug } => format!("/data/recipes/{form_slug}"),
+        Route::DynamicBindPage { bind_target, .. } => format!("/pages/{bind_target}"),
         Route::SettingsOverview {} => "/settings".into(),
-        Route::SettingsProfile {} => "/settings/profile".into(),
+        Route::SettingsProfile {} | Route::LegacyAccountProfile {} => "/settings/profile".into(),
         Route::SettingsApiIntegrations {} => "/settings/api-integrations".into(),
+        Route::SettingsGisContent {} | Route::LegacyMasterGisContent {} => {
+            "/settings/gis-content".into()
+        }
+        Route::SettingsGisContentItem { item_id } => {
+            format!("/settings/gis-content/item/{item_id}")
+        }
+        Route::LegacySettingsAdmin {} => "/admin".into(),
+        Route::LegacySettingsAdminUsers {} => "/admin/users".into(),
+        Route::LegacySettingsAdminTeam {} => "/admin/team".into(),
+        Route::LegacySettingsAdminRoles {} => "/admin/roles".into(),
+        Route::LegacySettingsAdminAudit {} => "/admin/audit".into(),
+        Route::LegacySettingsAdminTokens {} => "/admin/tokens".into(),
         Route::AdminOverview {} => "/admin".into(),
         Route::PolicyList {} => "/admin/policies".into(),
         Route::PolicyDetail { id } => format!("/admin/policies/{id}"),
@@ -32,6 +57,8 @@ fn post_login_path(route: &Route) -> Option<String> {
         Route::AdminGrants {} => "/admin/grants".into(),
         Route::AdminPlatform {} => "/admin/platform".into(),
         Route::AdminTokens {} => "/admin/tokens".into(),
+        Route::AdminBilling {} => "/admin/billing".into(),
+        Route::AdminGitHub {} => "/admin/github".into(),
     })
 }
 
@@ -62,6 +89,7 @@ pub fn Login() -> Element {
     let nav = use_navigator();
     let mut email = use_signal(String::new);
     let mut password = use_signal(String::new);
+    let mut remember = use_signal(|| false);
 
     use_effect(move || {
         if auth.session.read().is_signed_in() {
@@ -126,11 +154,39 @@ pub fn Login() -> Element {
                         autocomplete: "current-password",
                     }
                 }
+                label { class: "gs-auth-remember",
+                    input {
+                        r#type: "checkbox",
+                        checked: remember(),
+                        onchange: move |e| remember.set(e.checked()),
+                    }
+                    span { "Keep me signed in" }
+                }
                 button {
                     class: "gs-btn gs-btn--primary",
                     disabled: *auth.busy.read(),
                     onclick: on_submit,
                     if *auth.busy.read() { "Signing in…" } else { "Sign in" }
+                }
+                div { class: "gs-auth-oauth",
+                    div { class: "gs-auth-oauth__divider",
+                        span { "or continue with" }
+                    }
+                    OAuthGlassPanel {
+                        remember: remember(),
+                        on_error: move |err| {
+                            auth.error.set(Some(err));
+                        },
+                        on_success: move |_| {
+                            let session = auth.session.read().clone();
+                            if session.is_signed_in() {
+                                spawn(async move {
+                                    let route = post_login::resolve_post_login_route(&session).await;
+                                    navigate_after_login!(nav, route);
+                                });
+                            }
+                        },
+                    }
                 }
                 p { class: "gs-hint",
                     "Dev default: admin@geosyntra.com / GeoSyntra-Admin-2026!"

@@ -10,6 +10,7 @@ import { homeWizardSearch, stashHomeWizardIntent } from './lib/homeWizardEntry'
 import { isBenignMapboxSerializeError, isRecoverableMapboxMapError } from './lib/mapboxWorkerErrorGuard'
 import { isRecoverableChunkError, tryReloadForStaleChunk } from './routes/chunkReloadRecovery'
 import { isSaasAuthPath, isSaasPublicPath, SAAS_ROUTES } from './lib/saasRoutes'
+import { isDioxusGisEmbed } from './lib/geosyntraDioxusEmbedBridge'
 import { AuthProvider, useAuth } from './state/auth'
 import { LanguageProvider } from './lib/i18n'
 import { SystemSettingsProvider } from './store/SystemSettingsContext'
@@ -201,22 +202,32 @@ function AppShell() {
   }
 
   const isOnAuth = isSaasAuthPath(location.pathname)
+  const gisEmbed = isDioxusGisEmbed()
+  const isSatelliteRoute = location.pathname.startsWith('/satellite')
   /** Home + SaaS public surfaces render without app chrome (full-bleed entry). */
   const isOnHome = location.pathname === '/' || location.pathname === ''
   const isPublicSurface = isSaasPublicPath(location.pathname)
-  const showChrome = !!user && !isOnAuth && !isPublicSurface
+  const showChrome =
+    !!user && !isOnAuth && !isPublicSurface && !(gisEmbed && isSatelliteRoute)
   /** Fertigation records is the only remaining `/data/*` route — keep its tight layout class. */
   const isOperationsDataPage = location.pathname.startsWith('/data/')
   const mainContentClass = [
     'content',
     isOperationsDataPage && 'content--operations-fit',
     isOnHome && 'content--landing-fullbleed',
+    gisEmbed && isSatelliteRoute && 'content--gis-embed',
   ]
     .filter(Boolean)
     .join(' ')
 
   const layoutChromeClass = ['layout', 'layout-sidebar', 'app-layout'].join(' ')
-  const layoutShellClass = isOnHome ? 'layout layout--landing-fullbleed' : showChrome ? layoutChromeClass : 'layout'
+  const layoutShellClass = isOnHome
+    ? 'layout layout--landing-fullbleed'
+    : gisEmbed && isSatelliteRoute
+      ? 'layout layout--gis-embed'
+      : showChrome
+        ? layoutChromeClass
+        : 'layout'
 
   if (user && isOnAuth) {
     stashHomeStartScroll()
@@ -224,6 +235,13 @@ function AppShell() {
   }
 
   if (!user && !isPublicSurface) {
+    if (gisEmbed && isSatelliteRoute) {
+      return (
+        <div className="content content--gis-embed content--gis-embed-loading">
+          <p>Connecting to GeoAI workspace…</p>
+        </div>
+      )
+    }
     stashHomeWizardIntent({ wizard: 'auth', authMode: 'signin' })
     return (
       <Navigate

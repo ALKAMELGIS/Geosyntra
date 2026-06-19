@@ -15,3 +15,12 @@ pub struct RegisterCommand {
     pub requested_role: Option<String>,
     pub requested_plan: Option<String>,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UpsertOAuthCommand {
+    pub email: Email,
+    pub name: String,
+    pub provider: String,
+    pub sub: String,
+    pub remember: bool,
+}

@@ -66,9 +66,13 @@ pub fn JoinTeam(token: String) -> Element {
             };
             match invite::accept_invite(&token_val, &display_name, &password_val).await {
                 Ok(session) => {
-                    auth.set_session(session);
+                    auth.set_session(session.clone());
                     submitting.set(false);
-                    nav.replace(Route::Dashboard {});
+                    if session.can_access_admin() {
+                        nav.replace(Route::AdminOverview {});
+                    } else {
+                        nav.replace(Route::SatelliteIndices {});
+                    }
                 }
                 Err(err) => {
                     submitting.set(false);

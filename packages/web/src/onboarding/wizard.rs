@@ -13,6 +13,11 @@ pub fn OnboardingWizard() -> Element {
     }
 
     let step = *onboarding.step.read();
+    let panel_class = if step == WizardStep::Welcome {
+        "gs-wizard-overlay__panel gs-wizard-overlay__panel--welcome"
+    } else {
+        "gs-wizard-overlay__panel"
+    };
     let body = match step {
         WizardStep::Welcome => rsx! { WizardWelcomeStep {} },
         WizardStep::Pricing => rsx! { WizardPricingStep {} },
@@ -36,7 +41,7 @@ pub fn OnboardingWizard() -> Element {
                 class: "gs-wizard-overlay__backdrop",
                 onclick: move |_| onboarding.close_wizard(),
             }
-            div { class: "gs-wizard-overlay__panel",
+            div { class: "{panel_class}",
                 if let Some(info) = onboarding.info.read().clone() {
                     p { class: "gs-wizard-overlay__info", "{info}" }
                 }

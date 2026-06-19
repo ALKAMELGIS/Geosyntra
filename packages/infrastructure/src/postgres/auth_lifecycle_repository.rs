@@ -286,6 +286,60 @@ impl AuthLifecycleRepository for PostgresAuthLifecycleRepository {
         .map_err(map_sqlx)?;
         Ok(row.map(|(hash,)| hash.as_deref().map(|h| !h.trim().is_empty()).unwrap_or(false)))
     }
+
+    async fn get_profile_extra(&self, email: &Email) -> AppResult<Value> {
+        let current: Option<String> = sqlx::query_scalar(
+            "SELECT profile_extra FROM admin_users WHERE LOWER(email) = LOWER($1) LIMIT 1",
+        )
+        .bind(email.email())
+        .fetch_optional(self.pool.as_ref())
+        .await
+        .map_err(map_sqlx)?;
+        Ok(parse_profile_extra(current))
+    }
+
+    async fn put_profile_extra(&self, email: &Email, patch: Value) -> AppResult<Value> {
+        let current: Option<String> = sqlx::query_scalar(
+            "SELECT profile_extra FROM admin_users WHERE LOWER(email) = LOWER($1) LIMIT 1",
+        )
+        .bind(email.email())
+        .fetch_optional(self.pool.as_ref())
+        .await
+        .map_err(map_sqlx)?;
+        let merged = merge_profile_extra(current, patch);
+        let result = sqlx::query(
+            r#"
+            UPDATE admin_users
+            SET profile_extra = $1, updated_at = NOW()
+            WHERE LOWER(email) = LOWER($2)
+            "#,
+        )
+        .bind(&merged)
+        .bind(email.email())
+        .execute(self.pool.as_ref())
+        .await
+        .map_err(map_sqlx)?;
+        if result.rows_affected() == 0 {
+            return Err(AppError::ValidationError("not_found".into()));
+        }
+        Ok(parse_profile_extra(Some(merged)))
+    }
+
+    async fn update_password_hash(&self, email: &Email, password_hash: &str) -> AppResult<bool> {
+        let result = sqlx::query(
+            r#"
+            UPDATE admin_users
+            SET password_hash = $1, updated_at = NOW()
+            WHERE LOWER(email) = LOWER($2)
+            "#,
+        )
+        .bind(password_hash)
+        .bind(email.email())
+        .execute(self.pool.as_ref())
+        .await
+        .map_err(map_sqlx)?;
+        Ok(result.rows_affected() > 0)
+    }
 }
 
 #[derive(sqlx::FromRow)]

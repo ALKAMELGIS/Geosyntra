@@ -2502,7 +2502,9 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
+ "urlencoding",
  "wasm-bindgen",
+ "wasm-bindgen-futures",
  "web-sys",
 ]
 
@@ -3317,6 +3319,7 @@ version = "0.1.0"
 dependencies = [
  "application",
  "axum",
+ "base64",
  "chrono",
  "domain",
  "geosyntra-web",

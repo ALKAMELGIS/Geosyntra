@@ -110,6 +110,16 @@ pub fn AdminShell(children: Element) -> Element {
                             "Audit log"
                         }
                         Link {
+                            to: Route::AdminBilling {},
+                            class: "gs-nav-link",
+                            "Billing"
+                        }
+                        Link {
+                            to: Route::AdminGitHub {},
+                            class: "gs-nav-link",
+                            "GitHub"
+                        }
+                        Link {
                             to: Route::AdminTenants {},
                             class: "gs-nav-link",
                             "Tenants"

@@ -1,17 +1,23 @@
+pub mod change_password;
 pub mod forgot_password;
 pub mod forgot_username;
 pub mod get_me;
 pub mod login;
+pub mod oauth_upsert;
+pub mod profile_extra;
 pub mod refresh_token;
 pub mod register;
 pub mod resend_verification;
 pub mod reset_password;
 pub mod verify_email;
 
+pub use change_password::ChangePasswordUseCase;
 pub use forgot_password::ForgotPasswordUseCase;
 pub use forgot_username::ForgotUsernameUseCase;
 pub use get_me::GetAuthMeUseCase;
 pub use login::LoginUseCase;
+pub use oauth_upsert::OAuthUpsertUseCase;
+pub use profile_extra::{GetProfileExtraUseCase, PutProfileExtraUseCase};
 pub use refresh_token::RefreshTokenUseCase;
 pub use register::RegisterUseCase;
 pub use resend_verification::ResendVerificationUseCase;

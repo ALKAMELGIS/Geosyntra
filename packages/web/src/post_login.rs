@@ -10,6 +10,9 @@ use crate::{
 
 /// Post-login destination parity with React `resolveAuthPlanRoute` (Task 24.3).
 pub async fn resolve_post_login_route(session: &AuthSession) -> Route {
+    if session.is_signed_in() && !session.is_email_verified() {
+        return Route::Landing {};
+    }
     match resolve_auth_plan_route(session) {
         AuthPlanRoute::EnterWorkspace => {
             ensure_platform_owner_workspace(session);
@@ -17,7 +20,7 @@ pub async fn resolve_post_login_route(session: &AuthSession) -> Route {
         }
         AuthPlanRoute::ActivateProvisioned | AuthPlanRoute::ActivateTrial => {
             if let Some(token) = session.bearer() {
-                let _ = billing::start_trial(token, 14).await;
+                let _ = billing::start_trial(token, 21).await;
             }
             activate_trial_workspace(session);
             default_workspace_route()

@@ -6,7 +6,7 @@ test.describe('auth + workspace', () => {
   test('login persists after reload', async ({ page }) => {
     await loginViaUi(page)
     await expect(page).toHaveURL(/\/satellite/)
-    await page.reload({ waitUntil: 'networkidle' })
+    await page.reload({ waitUntil: 'domcontentloaded' })
     await expect(page.getByText('Satellite intelligence')).toBeVisible()
   })
 })

@@ -18,6 +18,7 @@ dioxus = { version = "0.7.9", features = ["router", "fullstack"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
+urlencoding = "2"
 gloo-net = { version = "0.6", features = ["http", "json"], optional = true }
 web-sys = { version = "0.3", features = [
   "Window",
@@ -34,9 +35,11 @@ web-sys = { version = "0.3", features = [
   "AddEventListenerOptions",
   "HtmlInputElement",
   "HtmlAnchorElement",
+  "MessageEvent",
 ], optional = true }
 wasm-bindgen = { version = "0.2", optional = true, features = ["serde-serialize"] }
 js-sys = { version = "0.3", optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true }
 
 [build-dependencies]
 grass = "0.13"
@@ -50,7 +53,7 @@ tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 
 [features]
 default = []
-web = ["dioxus/web", "dep:gloo-net", "dep:wasm-bindgen", "dep:js-sys", "dep:web-sys"]
+web = ["dioxus/web", "dep:gloo-net", "dep:wasm-bindgen", "dep:js-sys", "dep:web-sys", "dep:wasm-bindgen-futures"]
 desktop = ["dioxus/desktop"]
 mobile = ["dioxus/mobile"]
 server = ["dioxus/server", "dep:dioxus-server"]

@@ -151,6 +151,10 @@ impl MapboxBridge {
     pub fn export_map_png(handle: &MapHandle) -> Option<String> {
         js_call_return_string(&handle.id, "exportMapPng")
     }
+
+    pub fn set_layer_swipe(handle: &MapHandle, active: bool, position_pct: f64) {
+        js_call_swipe(&handle.id, active, position_pct);
+    }
 }
 
 #[cfg(all(feature = "web", target_arch = "wasm32"))]
@@ -418,6 +422,21 @@ fn js_call_marker(map_id: &str, lng: f64, lat: f64, label: &str) {
 fn js_call_return_string(_map_id: &str, _method: &str) -> Option<String> {
     None
 }
+
+#[cfg(all(feature = "web", target_arch = "wasm32"))]
+fn js_call_swipe(map_id: &str, active: bool, position_pct: f64) {
+    let Some(f) = method("setLayerSwipe") else {
+        return;
+    };
+    let args = js_sys::Array::new();
+    args.push(&wasm_bindgen::JsValue::from_str(map_id));
+    args.push(&wasm_bindgen::JsValue::from_bool(active));
+    args.push(&wasm_bindgen::JsValue::from_f64(position_pct));
+    let _ = js_sys::Reflect::apply(&f, &bridge(), &args);
+}
+
+#[cfg(not(all(feature = "web", target_arch = "wasm32")))]
+fn js_call_swipe(_map_id: &str, _active: bool, _position_pct: f64) {}
 
 #[cfg(not(all(feature = "web", target_arch = "wasm32")))]
 fn js_call_marker(_map_id: &str, _lng: f64, _lat: f64, _label: &str) {}

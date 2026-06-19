@@ -10,10 +10,12 @@ use super::{
     map_shell::MapShell,
     map_status_bar::MapPointer,
     tool_panel::{
-        demo_field_geojson, load_layers, paint_for_color, persist_layers, wms_tile_url, ToolPanel,
-        DEMO_LAYER_ID, WMS_LAYER_ID,
+        demo_field_geojson, load_layer_settings, load_layers, paint_for_color, persist_layer_settings,
+        persist_layers, ToolPanel, DEMO_LAYER_ID, WMS_LAYER_ID,
     },
+    layer_swipe_panel::{sync_swipe, SwipeState},
 };
+use crate::gis::RemoteSensingStore;
 use crate::{
     api::{
         ai::chat::send_chat,
@@ -23,8 +25,9 @@ use crate::{
     auth_session::AuthContext,
     components::{AppNavBar, AppNavSection},
     gis::{
-        aoi_bounds, list_aois, load_fields, upsert_aoi_from_geojson, AddedLayer,
-        AoiRecord, FieldRecord, LayerKind,
+        aoi_bounds, list_aois, load_fields, set_layer_preset, upsert_aoi_from_geojson, AddedLayer,
+        AoiRecord, FieldRecord, LayerKind, LayerSettings, RemoteSensingSettings, SymbologyPreset,
+        wms_tile_url,
         native::{
             resolve_gl_access_token, MapboxBridge, MapCreateOptions, MapHandle, PROJECTION_GLOBE,
             PROJECTION_MERCATOR, DEFAULT_BASEMAP_ID, MAP_CONTAINER_ID, style_for_basemap,
@@ -47,6 +50,7 @@ fn sync_map_layers(
     aois: &[AoiRecord],
     fields: &[FieldRecord],
     sym_color: &str,
+    active_index_id: &str,
 ) {
     let paint = paint_for_color(sym_color);
 
@@ -57,9 +61,8 @@ fn sync_map_layers(
 
     if let Some(wms) = layers.iter().find(|l| l.id == WMS_LAYER_ID) {
         if wms.visible {
-            if let Some(url) = wms_tile_url() {
-                MapboxBridge::add_raster_layer(handle, WMS_LAYER_ID, &[url], 0.85);
-            }
+            let url = wms_tile_url(active_index_id);
+            MapboxBridge::add_raster_layer(handle, WMS_LAYER_ID, &[url], 0.85);
         } else {
             MapboxBridge::set_layer_visibility(handle, WMS_LAYER_ID, false);
         }
@@ -121,7 +124,9 @@ pub fn NativeSatelliteWorkspace() -> Element {
 
     let mut basemap_id = use_signal(|| DEFAULT_BASEMAP_ID.to_string());
     let mut basemap_open = use_signal(|| false);
-    let mut active_tool = use_signal(|| "remote-sensing".to_string());
+    let mut active_tool = use_signal(String::new);
+    let mut toolbox_open = use_signal(|| false);
+    let mut toolbox_pinned = use_signal(|| false);
     let mut globe_mode = use_signal(|| true);
     let mut map_handle = use_signal(|| None::<MapHandle>);
     let mut map_ready = use_signal(|| false);
@@ -131,6 +136,15 @@ pub fn NativeSatelliteWorkspace() -> Element {
     let mut gl_access_token = use_signal(|| resolve_gl_access_token(None));
 
     let mut layers = use_signal(|| load_layers(&tenant_id));
+    let mut layer_settings = use_signal(|| load_layer_settings(&tenant_id));
+    let mut rs_settings = use_signal(|| RemoteSensingStore::load(&tenant_id));
+    let mut draw_tool = use_signal(|| "view".to_string());
+    let mut timeline_active = use_signal(|| false);
+    let mut rs_status = use_signal(String::new);
+    let mut swipe_active = use_signal(|| false);
+    let mut swipe_state = use_signal(SwipeState::default);
+    let mut weather_intel_active = use_signal(|| false);
+    let mut float_rail_visible = use_signal(|| true);
     let mut aois = use_signal(|| list_aois(&tenant_id, &email));
     let mut selected_aoi_id = use_signal(|| None::<String>);
     let mut identify_hits = use_signal(Vec::<String>::new);
@@ -218,12 +232,20 @@ pub fn NativeSatelliteWorkspace() -> Element {
         let aoi_list = aois();
         let field_list = fields();
         let color = symbology_color();
+        let index_id = layer_settings().active_index_id.clone();
         move || {
             if !*map_ready.read() {
                 return;
             }
             if let Some(handle) = map_handle.read().clone() {
-                sync_map_layers(&handle, &layer_list, &aoi_list, &field_list, &color);
+                sync_map_layers(
+                    &handle,
+                    &layer_list,
+                    &aoi_list,
+                    &field_list,
+                    &color,
+                    &index_id,
+                );
             }
         }
     });
@@ -416,9 +438,107 @@ pub fn NativeSatelliteWorkspace() -> Element {
     let on_layers_changed = move |_| {
         persist_layers(&tenant_for_layers, &layers());
         if let Some(handle) = map_handle.read().clone() {
-            sync_map_layers(&handle, &layers(), &aois(), &fields(), &symbology_color());
+            sync_map_layers(
+                &handle,
+                &layers(),
+                &aois(),
+                &fields(),
+                &symbology_color(),
+                &layer_settings().active_index_id,
+            );
         }
     };
+
+    let tenant_for_settings = tenant_id.clone();
+    let on_settings_changed = move |_| {
+        persist_layer_settings(&tenant_for_settings, &layer_settings());
+    };
+
+    let tenant_rs = tenant_id.clone();
+    let on_rs_settings_changed = move |_| {
+        RemoteSensingStore::save(&tenant_rs, &rs_settings());
+    };
+
+    let on_open_add_data = move |_| active_tool.set("add-data".into());
+
+    let on_set_draw_tool = move |tool: String| {
+        draw_tool.set(tool.clone());
+        if let Some(handle) = map_handle.read().clone() {
+            match tool.as_str() {
+                "polygon" => MapboxBridge::set_draw_mode(&handle, "polygon"),
+                "line" => MapboxBridge::set_draw_mode(&handle, "line"),
+                _ => MapboxBridge::set_draw_mode(&handle, "none"),
+            }
+        }
+    };
+
+    let on_generate_timeline = move |_| {
+        if timeline_active() {
+            timeline_active.set(false);
+            rs_status.set("Timeline stopped. Adjust the date range and tap Generate timeline to start again.".into());
+            return;
+        }
+        if aois().is_empty() {
+            rs_status.set("Draw or upload an AOI first, then generate timeline.".into());
+            return;
+        }
+        timeline_active.set(true);
+        let start = rs_settings().time_series_start.clone();
+        let end = rs_settings().time_series_end.clone();
+        rs_status.set(format!(
+            "Timeline ready · {start} → {end} (demo — open Charts for AOI stats)."
+        ));
+    };
+
+    let on_open_charts = move |_| active_tool.set("charts".into());
+
+    let on_toggle_swipe = move |_| {
+        let next = !swipe_active();
+        swipe_active.set(next);
+        swipe_state.with_mut(|st| st.active = next);
+        if let Some(handle) = map_handle.read().clone() {
+            sync_swipe(Some(&handle.id), &swipe_state());
+        }
+    };
+
+    let on_swipe_close = move |_| {
+        swipe_active.set(false);
+        swipe_state.with_mut(|st| st.active = false);
+        if let Some(handle) = map_handle.read().clone() {
+            sync_swipe(Some(&handle.id), &swipe_state());
+        }
+    };
+
+    let on_toolbox_toggle = move |_| toolbox_open.set(!toolbox_open());
+    let on_toolbox_pin = move |pinned: bool| toolbox_pinned.set(pinned);
+
+    let tenant_index = tenant_id.clone();
+    let on_toggle_index = move |_| {
+        let mut list = layers();
+        if let Some(row) = list.iter_mut().find(|l| l.id == WMS_LAYER_ID) {
+            row.visible = !row.visible;
+            let visible = row.visible;
+            layers.set(list.clone());
+            persist_layers(&tenant_index, &list);
+            if let Some(handle) = map_handle.read().clone() {
+                if visible {
+                    let url = wms_tile_url(&layer_settings().active_index_id);
+                    MapboxBridge::add_raster_layer(&handle, WMS_LAYER_ID, &[url], 0.85);
+                } else {
+                    MapboxBridge::set_layer_visibility(&handle, WMS_LAYER_ID, false);
+                }
+            }
+        }
+    };
+
+    let on_toggle_weather_intel = move |_| weather_intel_active.set(!weather_intel_active());
+    let on_open_remote_sensing_float = move |_| {
+        toolbox_open.set(true);
+        active_tool.set("remote-sensing".into());
+    };
+    let on_tool_panel_close = move |_| active_tool.set(String::new());
+    let on_float_rail_close = move |_| float_rail_visible.set(false);
+    let on_float_rail_open = move |_| float_rail_visible.set(true);
 
     let tenant_demo = tenant_id.clone();
     let on_add_demo_layer = move |_| {
@@ -432,6 +552,7 @@ pub fn NativeSatelliteWorkspace() -> Element {
                 kind: LayerKind::Custom,
                 visible: true,
                 tile_url: None,
+                group_name: None,
             });
         }
         layers.set(list.clone());
@@ -449,16 +570,47 @@ pub fn NativeSatelliteWorkspace() -> Element {
     let on_sync_wms = move |visible: bool| {
         if let Some(handle) = map_handle.read().clone() {
             if visible {
-                if let Some(url) = wms_tile_url() {
-                    MapboxBridge::add_raster_layer(&handle, WMS_LAYER_ID, &[url], 0.85);
-                }
+                let url = wms_tile_url(&layer_settings().active_index_id);
+                MapboxBridge::add_raster_layer(&handle, WMS_LAYER_ID, &[url], 0.85);
             } else {
                 MapboxBridge::set_layer_visibility(&handle, WMS_LAYER_ID, false);
             }
         }
     };
 
+    let on_open_tool = move |tool_id: String| active_tool.set(tool_id);
+
+    let on_basemap_change = move |id: String| {
+        basemap_id.set(normalize_basemap_id(&id));
+    };
+
+    let tenant_index = tenant_id.clone();
+    let on_index_change = move |index_id: String| {
+        let resolved = crate::gis::resolve_index_id(&index_id).to_string();
+        let label = crate::gis::index_label_for(&resolved);
+        layer_settings.with_mut(|s| s.active_index_id = resolved.clone());
+        layers.with_mut(|list| {
+            if let Some(row) = list.iter_mut().find(|l| l.id == WMS_LAYER_ID) {
+                row.name = label;
+            }
+        });
+        persist_layer_settings(&tenant_index, &layer_settings());
+        persist_layers(&tenant_index, &layers());
+        if let Some(handle) = map_handle.read().clone() {
+            if layers()
+                .iter()
+                .find(|l| l.id == WMS_LAYER_ID)
+                .map(|l| l.visible)
+                .unwrap_or(false)
+            {
+                let url = wms_tile_url(&resolved);
+                MapboxBridge::add_raster_layer(&handle, WMS_LAYER_ID, &[url], 0.85);
+            }
+        }
+    };
+
     let on_start_draw = move |_| {
+        draw_tool.set("polygon".into());
         if let Some(handle) = map_handle.read().clone() {
             MapboxBridge::set_draw_mode(&handle, "polygon");
             draw_points.set(0);
@@ -484,17 +636,28 @@ pub fn NativeSatelliteWorkspace() -> Element {
             aois.set(updated);
             selected_aoi_id.set(Some(rec.id.clone()));
             draw_points.set(0);
-            sync_map_layers(&handle, &layers(), &aois(), &fields(), &symbology_color());
+            sync_map_layers(
+                &handle,
+                &layers(),
+                &aois(),
+                &fields(),
+                &symbology_color(),
+                &layer_settings().active_index_id,
+            );
             if let Some([w, s, e, n]) = aoi_bounds(&feature) {
                 MapboxBridge::fit_bounds(&handle, w, s, e, n);
             }
         }
     };
 
-    let on_apply_symbology = move |color: String| {
-        symbology_color.set(color.clone());
-        if let Some(handle) = map_handle.read().clone() {
-            MapboxBridge::set_layer_paint(&handle, DEMO_LAYER_ID, &paint_for_color(&color));
+    let on_apply_symbology = {
+        let tenant_sym = tenant_id.clone();
+        move |color: String| {
+            symbology_color.set(color.clone());
+            set_layer_preset(&tenant_sym, DEMO_LAYER_ID, SymbologyPreset::parse(&color));
+            if let Some(handle) = map_handle.read().clone() {
+                MapboxBridge::set_layer_paint(&handle, DEMO_LAYER_ID, &paint_for_color(&color));
+            }
         }
     };
 
@@ -515,6 +678,7 @@ pub fn NativeSatelliteWorkspace() -> Element {
             kind: LayerKind::Custom,
             visible: true,
             tile_url: None,
+            group_name: None,
         });
         layers.set(list.clone());
         persist_layers(&tenant_upload, &list);
@@ -558,6 +722,7 @@ pub fn NativeSatelliteWorkspace() -> Element {
     };
 
     let on_toggle_weather = move |on: bool| weather_enabled.set(on);
+    let on_toggle_weather_map = move |_| weather_enabled.set(!weather_enabled());
 
     let on_export_print = move |_| {
         if let Some(handle) = map_handle.read().clone() {
@@ -678,12 +843,26 @@ pub fn NativeSatelliteWorkspace() -> Element {
                 pointer: pointer.read().clone(),
                 projection_label: projection_label(),
                 on_tool_select: move |id: String| {
+                    toolbox_open.set(true);
                     if active_tool() == id {
                         active_tool.set(String::new());
                     } else {
                         active_tool.set(id);
                     }
                 },
+                toolbox_open: toolbox_open(),
+                toolbox_pinned: toolbox_pinned(),
+                on_toolbox_toggle: on_toolbox_toggle,
+                on_toolbox_pin: on_toolbox_pin,
+                swipe_active: swipe_active(),
+                swipe_state: swipe_state,
+                map_handle_id: map_handle.read().as_ref().map(|h| h.id.clone()),
+                on_toggle_swipe: on_toggle_swipe,
+                on_swipe_close: on_swipe_close,
+                on_tool_panel_close: on_tool_panel_close,
+                float_rail_visible: float_rail_visible(),
+                on_float_rail_close: on_float_rail_close,
+                on_float_rail_open: on_float_rail_open,
                 on_zoom_in: zoom_in,
                 on_zoom_out: zoom_out,
                 on_go_home: go_home,
@@ -692,6 +871,14 @@ pub fn NativeSatelliteWorkspace() -> Element {
                         basemap_id: basemap_id(),
                         basemap_open: *basemap_open.read(),
                         globe_mode: *globe_mode.read(),
+                        index_visible: layers()
+                            .iter()
+                            .find(|l| l.id == WMS_LAYER_ID)
+                            .map(|l| l.visible)
+                            .unwrap_or(false),
+                        weather_open: weather_enabled(),
+                        weather_intel_active: weather_intel_active(),
+                        swipe_active: swipe_active(),
                         search_open: *search_open.read(),
                         search_query: search_query,
                         search_hits: search_hits,
@@ -702,16 +889,30 @@ pub fn NativeSatelliteWorkspace() -> Element {
                             basemap_open.set(false);
                         },
                         on_toggle_projection: toggle_projection,
+                        on_toggle_index: on_toggle_index,
+                        on_toggle_weather: on_toggle_weather_map,
+                        on_toggle_weather_intel: on_toggle_weather_intel,
+                        on_toggle_swipe: on_toggle_swipe,
+                        on_open_remote_sensing: on_open_remote_sensing_float,
                         on_search_toggle: move |_| search_open.set(!search_open()),
                         on_search_query: move |q: String| search_query.set(q),
                         on_search: on_search,
                         on_search_pick: on_search_pick,
+                        visible: float_rail_visible(),
+                        on_close: on_float_rail_close,
                     }
                 },
                 tool_panel: rsx! {
                     ToolPanel {
                         active_tool: active_tool(),
                         layers: layers,
+                        layer_settings: layer_settings,
+                        rs_settings: rs_settings,
+                        draw_tool: draw_tool,
+                        timeline_active: timeline_active,
+                        rs_status: rs_status,
+                        basemap_id: basemap_id(),
+                        aoi_count: aois().len(),
                         aois: aois,
                         selected_aoi_id: selected_aoi_id,
                         identify_hits: identify_hits,
@@ -719,6 +920,15 @@ pub fn NativeSatelliteWorkspace() -> Element {
                         upload_json: upload_json,
                         draw_points: draw_points,
                         on_layers_changed: on_layers_changed,
+                        on_settings_changed: on_settings_changed,
+                        on_open_tool: on_open_tool,
+                        on_basemap_change: on_basemap_change,
+                        on_index_change: on_index_change,
+                        on_rs_settings_changed: on_rs_settings_changed,
+                        on_open_add_data: on_open_add_data,
+                        on_set_draw_tool: on_set_draw_tool,
+                        on_generate_timeline: on_generate_timeline,
+                        on_open_charts: on_open_charts,
                         on_aois_changed: on_aois_changed,
                         on_add_demo_layer: on_add_demo_layer,
                         on_sync_wms: on_sync_wms,

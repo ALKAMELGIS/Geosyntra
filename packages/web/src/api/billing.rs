@@ -61,6 +61,62 @@ pub async fn create_checkout_session(token: &str, plan: BillingPlanId) -> Result
     })
 }
 
+#[derive(Debug, Clone, Deserialize, PartialEq, Default)]
+pub struct BillingSubscription {
+    pub plan: Option<String>,
+    pub status: Option<String>,
+    #[serde(default, alias = "trialEndsAt")]
+    pub trial_ends_at: Option<String>,
+    #[serde(default, alias = "currentPeriodEnd")]
+    pub current_period_end: Option<String>,
+    #[serde(default)]
+    pub usage: Option<BillingUsage>,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Default)]
+pub struct BillingUsage {
+    #[serde(default, alias = "aiQueries")]
+    pub ai_queries: Option<u64>,
+    #[serde(default, alias = "groundingCalls")]
+    pub grounding_calls: Option<u64>,
+    pub exports: Option<u64>,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Default)]
+pub struct BillingMe {
+    pub subscription: BillingSubscription,
+}
+
+#[derive(Debug, Deserialize)]
+struct BillingMeResponse {
+    ok: Option<bool>,
+    subscription: Option<BillingSubscription>,
+}
+
+pub async fn fetch_billing_me(token: &str) -> Result<BillingMe, ApiError> {
+    let client = ApiClient::from_env();
+    let data: BillingMeResponse = client.get_json("/api/billing/me", Some(token)).await?;
+    Ok(BillingMe {
+        subscription: data.subscription.unwrap_or_default(),
+    })
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+pub struct BillingPlan {
+    pub id: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct BillingPlansResponse {
+    plans: Option<Vec<BillingPlan>>,
+}
+
+pub async fn fetch_billing_plans() -> Result<Vec<BillingPlan>, ApiError> {
+    let client = ApiClient::from_env();
+    let data: BillingPlansResponse = client.get_json("/api/billing/plans", None).await?;
+    Ok(data.plans.unwrap_or_default())
+}
+
 #[cfg(test)]
 mod tests {
     use super::BillingPlanId;

@@ -70,6 +70,7 @@ GET	/api/system/tokens
 GET	/api/system/tokens/status
 GET	/api/user/api-tokens
 GET	/api/user/api-tokens/session
+GET	/api/v1/account/profile-extra
 GET	/api/weather/latest
 GET	/health
 PATCH	/api/platform/memberships/{user_id}/{tenant_id}
@@ -80,6 +81,7 @@ POST	/api/ai/analyze
 POST	/api/ai/chat
 POST	/api/aoi
 POST	/api/auth/apple/exchange
+POST	/api/auth/change-password
 POST	/api/auth/forgot-password
 POST	/api/auth/forgot-username
 POST	/api/auth/github/exchange
@@ -88,6 +90,7 @@ POST	/api/auth/linkedin/exchange
 POST	/api/auth/login
 POST	/api/auth/logout
 POST	/api/auth/logout-all
+POST	/api/auth/oauth-upsert
 POST	/api/auth/refresh
 POST	/api/auth/register
 POST	/api/auth/resend-verification
@@ -130,3 +133,4 @@ POST	/api/system/tokens/migrate-from-vault
 POST	/api/system/tokens/{name}/test
 PUT	/api/system/tokens/{name}
 PUT	/api/user/api-tokens/{provider}
+PUT	/api/v1/account/profile-extra

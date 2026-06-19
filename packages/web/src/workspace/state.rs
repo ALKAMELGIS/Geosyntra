@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::auth_session::{AuthSession, DEFAULT_TENANT_ID};
 
 pub const WORKSPACE_STATE_KEY: &str = "geosyntra_workspace_v1";
-pub const TRIAL_DAYS: i64 = 14;
+pub const TRIAL_DAYS: i64 = 21;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

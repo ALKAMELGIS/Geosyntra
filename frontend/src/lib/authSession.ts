@@ -3,6 +3,7 @@ import { isWorkspaceApiConfigured, workspaceFetch } from './apiClient'
 import type { PublicAuthUser } from './onboarding/authApi'
 import { clearBuiltinTokenBrowserOverrides } from './clearBuiltinTokenOverrides'
 import { resetUserTokenSessionSync } from './userTokenSessionSync'
+import { isDioxusGisEmbed } from './geosyntraDioxusEmbedBridge'
 
 type JwtPayload = { exp?: number; sub?: string }
 
@@ -43,6 +44,11 @@ function publicUserToCurrent(user: PublicAuthUser): CurrentUser {
 export async function validateServerSession(): Promise<CurrentUser | null> {
   const local = readCurrentUser()
   const token = readAccessToken()
+
+  // Dioxus iframe host pushes JWT via postMessage — do not clear while waiting.
+  if (isDioxusGisEmbed() && !local && !token) {
+    return null
+  }
 
   if (!isWorkspaceApiConfigured()) {
     return local

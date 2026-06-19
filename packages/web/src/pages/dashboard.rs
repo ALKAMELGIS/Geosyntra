@@ -17,12 +17,12 @@ pub fn Dashboard() -> Element {
     use_effect(move || {
         if !session_gate.is_signed_in() {
             let _ = nav.replace(Route::Login {});
-        } else if !session_gate.has_permission("app.access") {
+        } else if !session_gate.can_access_app() {
             let _ = nav.replace(Route::Landing {});
         }
     });
 
-    if !session.is_signed_in() || !session.has_permission("app.access") {
+    if !session.can_access_app() {
         return rsx! {
             div { class: "gs-app gs-main",
                 p { class: "gs-hint", "Sign in to open your dashboard." }

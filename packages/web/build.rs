@@ -25,6 +25,9 @@ fn main() {
     if Path::new("public/index.html").exists() {
         println!("cargo:rerun-if-changed=public/index.html");
     }
+    if Path::new("public/oauth-return.html").exists() {
+        println!("cargo:rerun-if-changed=public/oauth-return.html");
+    }
 }
 
 fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {

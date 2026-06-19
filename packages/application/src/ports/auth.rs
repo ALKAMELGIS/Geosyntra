@@ -21,6 +21,15 @@ pub trait AuthDirectoryRepository: Send + Sync {
     async fn find_public_by_email(&self, email: &Email) -> AppResult<Option<PublicUserView>>;
 
     async fn find_public_by_id(&self, user_id: &UserId) -> AppResult<Option<PublicUserView>>;
+
+    /// Find or create an OAuth-linked account (Google, GitHub, LinkedIn).
+    async fn upsert_oauth_user(
+        &self,
+        email: &Email,
+        name: &str,
+        provider: &str,
+        sub: &str,
+    ) -> AppResult<PublicUserView>;
 }
 
 #[async_trait::async_trait]

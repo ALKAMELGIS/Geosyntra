@@ -48,7 +48,6 @@ export async function persistSession(page: Page, body: LoginResponse) {
     ['geosyntra_auth_v1', JSON.stringify(session)] as const,
   )
   await page.reload({ waitUntil: 'domcontentloaded' })
-  // Allow wasm to hydrate auth from localStorage (rbac/me may fail for some dev users).
   await page.waitForFunction(
     () => {
       const raw = localStorage.getItem('geosyntra_auth_v1')
@@ -63,8 +62,15 @@ export async function persistSession(page: Page, body: LoginResponse) {
     { timeout: 20_000 },
   )
   await page.goto('/dashboard', { waitUntil: 'domcontentloaded' })
+  await page.waitForFunction(
+    () => {
+      const heading = document.querySelector('.gs-page-title, h1')
+      return heading != null && /dashboard/i.test(heading.textContent ?? '')
+    },
+    { timeout: 20_000 },
+  )
   await expect(page.getByRole('heading', { name: /dashboard/i })).toBeVisible({
-    timeout: 20_000,
+    timeout: 5_000,
   })
 }
 

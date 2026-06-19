@@ -25,9 +25,11 @@ import { applyThemeToDocument } from './store/SystemSettingsContext'
 import { applyMapPopupThemeToDocument, readMapPopupTheme } from './lib/mapPopupTheme'
 import { redirectLegacySaasRoutes } from './lib/legacyRouteRedirect'
 import { ensureStaticPlatformOwnerSync } from './lib/onboarding/staticOwnerBootstrap'
+import { installGeosyntraDioxusEmbedBridge } from './lib/geosyntraDioxusEmbedBridge'
 
 if (typeof window !== 'undefined') {
   installMapboxWorkerErrorGuard()
+  installGeosyntraDioxusEmbedBridge()
   redirectLegacySaasRoutes()
 }
 

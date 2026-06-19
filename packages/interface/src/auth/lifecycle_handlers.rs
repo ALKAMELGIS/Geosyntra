@@ -30,7 +30,7 @@ pub struct VerifyEmailQuery {
     pub token: Option<String>,
 }
 
-fn normalize_email(raw: &str) -> Option<Email> {
+pub(crate) fn normalize_email(raw: &str) -> Option<Email> {
     let email = raw.trim();
     if email.is_empty() || !email.contains('@') {
         None
@@ -47,7 +47,7 @@ fn password_reset_link(token: &str) -> String {
     format!("/app/auth/reset-password?token={token}")
 }
 
-fn map_lifecycle_error(err: application::error::AppError) -> AppErrorResponse {
+pub(crate) fn map_lifecycle_error(err: application::error::AppError) -> AppErrorResponse {
     match err {
         application::error::AppError::ValidationError(code) => {
             let status = match code.as_str() {

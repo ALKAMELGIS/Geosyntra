@@ -2,6 +2,7 @@ use dioxus::prelude::*;
 
 use crate::{
     auth_session::AuthContext,
+    i18n::LanguageToggle,
     landing::{LandingStatusBar, BRAND, NAV_ITEMS},
     onboarding::scroll_to_hash,
     routes::Route,
@@ -85,6 +86,7 @@ pub fn AppNavBar(
                         }
                     }
                 }
+                LanguageToggle {}
                 LandingStatusBar {}
             }
         }

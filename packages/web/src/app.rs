@@ -2,22 +2,25 @@ use dioxus::prelude::*;
 
 use crate::{
     auth_session::{AuthContext, AuthSession, restore_session_from_api},
+    i18n::I18nContext,
     onboarding::OnboardingContext,
     routes::Route,
 };
 
 #[component]
 pub fn App() -> Element {
-    let auth = AuthContext::provide(AuthSession::default());
+    // Hydrate from localStorage on first paint so seeded sessions work before use_effect.
+    let auth = AuthContext::provide(AuthSession::read_local());
     let _onboarding = OnboardingContext::provide();
+    let i18n = I18nContext::provide();
+    let dir = if i18n.language.read().is_rtl() { "rtl" } else { "ltr" };
 
-    // Client mount: hydrate auth from localStorage, then refresh from /api/rbac/me.
+    // Refresh from /api/rbac/me when a persisted session exists.
     use_effect(move || {
-        let local = AuthSession::read_local();
+        let local = auth.session.read().clone();
         if !local.is_signed_in() {
             return;
         }
-        auth.set_session(local.clone());
         let seed = local;
         let mut session_sig = auth.session;
         spawn(async move {
@@ -29,6 +32,8 @@ pub fn App() -> Element {
     });
 
     rsx! {
-        Router::<Route> {}
+        div { dir: "{dir}",
+            Router::<Route> {}
+        }
     }
 }

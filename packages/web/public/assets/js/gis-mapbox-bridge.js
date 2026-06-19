@@ -623,5 +623,105 @@
         return null;
       }
     },
+
+    setLayerSwipe: function (mapId, active, positionPct) {
+      var entry = getEntry(mapId);
+      if (!entry) return;
+      ensureSwipeOverlay(entry);
+      entry.swipeActive = !!active;
+      entry.swipePosition =
+        positionPct != null ? Math.min(95, Math.max(5, Number(positionPct))) : 50;
+      if (entry.swipeRoot) {
+        entry.swipeRoot.style.display = entry.swipeActive ? 'block' : 'none';
+      }
+      positionSwipeLine(entry);
+      updateSwipeShades(entry, entry.map.getContainer().clientWidth);
+    },
   };
+
+  function positionSwipeLine(entry) {
+    if (!entry.swipeLine || !entry.map) return;
+    var mapEl = entry.map.getContainer();
+    var pct = entry.swipePosition != null ? entry.swipePosition : 50;
+    var x = (mapEl.clientWidth * pct) / 100;
+    entry.swipeLine.style.left = x + 'px';
+    updateSwipeShades(entry, mapEl.clientWidth);
+  }
+
+  function ensureSwipeOverlay(entry) {
+    if (entry.swipeRoot) return entry.swipeRoot;
+    var mapEl = entry.map.getContainer();
+    var root = document.createElement('div');
+    root.className = 'gs-map-swipe-root';
+    root.style.cssText =
+      'position:absolute;inset:0;pointer-events:none;z-index:4;display:none;';
+    var shadeL = document.createElement('div');
+    shadeL.className = 'gs-map-swipe-shade gs-map-swipe-shade--left';
+    var shadeR = document.createElement('div');
+    shadeR.className = 'gs-map-swipe-shade gs-map-swipe-shade--right';
+    var line = document.createElement('div');
+    line.className = 'gs-map-swipe-line';
+    line.style.cssText =
+      'position:absolute;top:0;bottom:0;width:4px;margin-left:-2px;background:#38bdf8;pointer-events:auto;cursor:ew-resize;box-shadow:0 0 14px rgba(56,189,248,.85);';
+    var knob = document.createElement('div');
+    knob.className = 'gs-map-swipe-knob';
+    knob.style.cssText =
+      'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:28px;height:28px;border-radius:999px;background:rgba(8,12,22,.92);border:2px solid #38bdf8;display:grid;place-items:center;color:#7dd3fc;font-size:11px;';
+    knob.innerHTML = '<i class="fa-solid fa-arrows-left-right"></i>';
+    line.appendChild(knob);
+    root.appendChild(shadeL);
+    root.appendChild(shadeR);
+    root.appendChild(line);
+    mapEl.appendChild(root);
+    entry.swipeRoot = root;
+    entry.swipeLine = line;
+    entry.swipeShadeL = shadeL;
+    entry.swipeShadeR = shadeR;
+    entry.swipePosition = 50;
+
+    line.addEventListener('pointerdown', function (e) {
+      entry.swipeDragging = true;
+      try {
+        line.setPointerCapture(e.pointerId);
+      } catch (_) {
+        //
+      }
+      e.preventDefault();
+    });
+    line.addEventListener('pointermove', function (e) {
+      if (!entry.swipeDragging) return;
+      var box = mapEl.getBoundingClientRect();
+      var pct = ((e.clientX - box.left) / box.width) * 100;
+      entry.swipePosition = Math.min(95, Math.max(5, pct));
+      positionSwipeLine(entry);
+      updateSwipeShades(entry, box.width);
+    });
+    line.addEventListener('pointerup', function (e) {
+      entry.swipeDragging = false;
+      try {
+        line.releasePointerCapture(e.pointerId);
+      } catch (_) {
+        //
+      }
+    });
+    entry.map.on('resize', function () {
+      positionSwipeLine(entry);
+      updateSwipeShades(entry, mapEl.clientWidth);
+    });
+    return root;
+  }
+
+  function updateSwipeShades(entry, width) {
+    if (!entry.swipeShadeL || !entry.swipeShadeR) return;
+    var pct = entry.swipePosition != null ? entry.swipePosition : 50;
+    var x = (width * pct) / 100;
+    entry.swipeShadeL.style.cssText =
+      'position:absolute;top:0;left:0;bottom:0;width:' +
+      x +
+      'px;background:rgba(8,12,22,.18);pointer-events:none;';
+    entry.swipeShadeR.style.cssText =
+      'position:absolute;top:0;right:0;bottom:0;left:' +
+      x +
+      'px;background:rgba(8,12,22,.08);pointer-events:none;';
+  }
 })();
