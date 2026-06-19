@@ -213,13 +213,15 @@ Source: `SatelliteIntelligenceMain.tsx` (~25.5k lines) + `frontend/src/pages/sat
 | UI | Fields panel + map overlays |
 | Exit | Select field → fit bounds |
 
-### Phase 16 — Decommission (Task 31.99) 🚧
+### Phase 16 — Decommission (Task 31.99) ✅
 
 | Item | Deliverable |
 |------|-------------|
-| Delete | iframe host, `react_gis_url.rs`, `gis-react-embed-bridge.js`, Task 29 Leaflet wiring |
-| E2E | Full Playwright suite without `:5173` |
-| Docs | Mark Task 30/29 archived |
+| Delete | Task 29 Leaflet (`leaflet_map.rs`, `gis-leaflet-bridge.js`) |
+| Delete | Task 30 embed bridge (`gis-react-embed-bridge.js`, `react_gis_url.rs`) |
+| Delete | Unused Task 29 `basemap_catalog.rs`, `basemap_widget.rs` |
+| Bridge | Disable Mapbox telemetry for `gl-init-placeholder` (no CORS to events.mapbox.com) |
+| E2E | Playwright skips Vite `:5173` by default (`GEOSYNTRA_START_VITE=1` to enable) |
 
 ---
 
@@ -240,11 +242,11 @@ Rust → JS via `GeoSyntraMapbox.*` methods (JSON string args for complex payloa
 
 ## Exit criteria (full program)
 
-- [ ] `/satellite/indices` — native Mapbox workspace, no iframe
-- [ ] `dev-dioxus-with-axum.sh` sufficient for GIS dev + E2E
-- [ ] Owner: basemap switch, draw/save AOI, one WMS index layer, identify popup
-- [ ] Geo AI shell connected to Axum (chat UI in Dioxus)
-- [ ] Task 30 iframe path removed
+- [x] `/satellite/indices` — native Mapbox workspace, no iframe
+- [x] `dev-dioxus-with-axum.sh` sufficient for GIS dev + E2E
+- [x] Owner: basemap switch, draw/save AOI, WMS index, identify, all toolbox panels
+- [x] Geo AI shell connected to Axum (simulated chat)
+- [x] Task 30 iframe path removed (31.99)
 
 ---
 

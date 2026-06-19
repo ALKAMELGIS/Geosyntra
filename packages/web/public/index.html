@@ -22,6 +22,15 @@
 <body>
   <div id="main"></div>
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.18.1/mapbox-gl.js"></script>
+  <script>
+    (function () {
+      if (typeof mapboxgl === 'undefined') return;
+      try {
+        if (mapboxgl.config) mapboxgl.config.EVENTS_URL = null;
+        if (typeof mapboxgl.setTelemetryEnabled === 'function') mapboxgl.setTelemetryEnabled(false);
+      } catch (e) {}
+    })();
+  </script>
   <script src="/assets/js/gis-mapbox-bridge.js"></script>
   <!-- Required for fullstack hydration — loads the wasm client built by dx -->
   <script type="module" async src="/wasm/geosyntra-web.js"></script>

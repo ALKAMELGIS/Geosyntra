@@ -45,7 +45,8 @@ curl -sf http://127.0.0.1:3003/health | grep -qx ok || {
   exit 1
 }
 
-echo "==> React GIS (Vite) on :5173"
+echo "==> React GIS (Vite) on :5173 — skipped (native Dioxus GIS; set GEOSYNTRA_START_VITE=1 to enable)"
+if [[ "${GEOSYNTRA_START_VITE:-0}" == "1" ]]; then
 VITE_LOG="${GEOSYNTRA_VITE_LOG:-/tmp/geosyntra-vite.log}"
 : > "${VITE_LOG}"
 (
@@ -65,6 +66,7 @@ curl -sf http://127.0.0.1:5173/ >/dev/null || {
   tail -30 "${VITE_LOG}" >&2
   exit 1
 }
+fi
 
 echo "==> Start Dioxus on :8080 (log: ${DX_LOG})"
 : > "${DX_LOG}"

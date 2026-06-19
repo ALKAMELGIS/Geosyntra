@@ -24,6 +24,36 @@
     if (typeof mapboxgl === 'undefined') throw new Error('mapbox-gl not loaded');
   }
 
+  /** Placeholder pk.* — Esri/OSM tiles only; no Mapbox billing/events API. */
+  function isPlaceholderToken(token) {
+    return !token || String(token).indexOf('gl-init-placeholder') >= 0;
+  }
+
+  /** Disable events.mapbox.com + map-sessions when using GL init placeholder (fixes CORS noise). */
+  function configureMapboxGl(accessToken) {
+    ensureMapbox();
+    var placeholder = isPlaceholderToken(accessToken);
+    try {
+      if (mapboxgl.config && placeholder) {
+        mapboxgl.config.EVENTS_URL = null;
+      }
+      if (typeof mapboxgl.setTelemetryEnabled === 'function') {
+        mapboxgl.setTelemetryEnabled(!placeholder);
+      }
+    } catch (_) {
+      //
+    }
+    if (accessToken) mapboxgl.accessToken = accessToken;
+    return placeholder;
+  }
+
+  function transformRequestForPlaceholder(url) {
+    if (/events\.mapbox\.com/i.test(url) || /\/map-sessions\//i.test(url)) {
+      return { url: 'data:application/octet-stream,' };
+    }
+    return { url: url };
+  }
+
   function parseJson(raw, fallback) {
     if (!raw) return fallback || {};
     if (typeof raw === 'object') return raw;
@@ -339,9 +369,9 @@
       if (!container) throw new Error('map container not found: ' + containerId);
 
       var token = String(opts.accessToken || opts.token || '').trim();
-      if (token) mapboxgl.accessToken = token;
+      var placeholder = configureMapboxGl(token);
 
-      var map = new mapboxgl.Map({
+      var mapOpts = {
         container: containerId,
         style: opts.style || { version: 8, sources: {}, layers: [] },
         center: opts.center || [GLOBE_HOME.lng, GLOBE_HOME.lat],
@@ -352,7 +382,12 @@
         antialias: true,
         attributionControl: false,
         logoPosition: 'bottom-left',
-      });
+        performanceMetricsCollection: false,
+      };
+      if (placeholder) {
+        mapOpts.transformRequest = transformRequestForPlaceholder;
+      }
+      var map = new mapboxgl.Map(mapOpts);
 
       map.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-left');
 
