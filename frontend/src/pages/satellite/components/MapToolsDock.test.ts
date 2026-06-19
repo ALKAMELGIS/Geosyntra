@@ -108,6 +108,22 @@ describe('resolveAppChromeBottomPx', () => {
 
   });
 
+
+
+  it('returns 0 on map canvas when embed mode has no in-frame chrome', () => {
+
+    document.body.innerHTML = `
+
+      <main class="content"><div class="si-page si-page--map-canvas"></div></main>
+
+    `;
+
+
+
+    expect(resolveAppChromeBottomPx()).toBe(0);
+
+  });
+
 });
 
 

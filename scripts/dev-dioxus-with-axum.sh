@@ -47,6 +47,7 @@ if ! curl -sf "http://127.0.0.1:${GEOSYNTRA_API_PORT}/health" >/dev/null 2>&1; t
 fi
 
 echo "==> Dioxus fullstack on http://127.0.0.1:8080 — /api proxied to Axum"
+echo "    GIS /satellite requires React iframe — use: bash scripts/dev-full-platform.sh"
 echo "    Login: admin@geosyntra.com / GeoSyntra-Admin-2026!"
 
 if command -v dx >/dev/null 2>&1; then

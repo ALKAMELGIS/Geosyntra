@@ -1,5 +1,12 @@
-//! GeoAI satellite workspace — Task 28 native Dioxus map (no React iframe).
+//! GeoAI satellite workspace — native Mapbox GIS (Task 31).
 
+mod basemap_picker;
+mod map_floating_controls;
+mod map_shell;
+mod map_status_bar;
 mod map_workspace;
+mod native_workspace;
+mod tool_panel;
+mod toolbox_rail;
 
 pub use map_workspace::{Satellite, SatelliteIndices};

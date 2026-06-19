@@ -1,28 +1,63 @@
-# Full interactive GIS map in Dioxus (Task 28)
+# GIS workspace in Dioxus (Task 28 → Task 30 React embed → **Task 31 native**)
 
-**Goal:** Replace the Task 23 **React iframe bridge** at `/satellite` with a **native Dioxus GeoAI workspace** — full Mapbox map, AOI tools, layers, indices, and analysis chrome — matching React `/satellite/indices` behavior on a single origin (`:8080` dev, Axum static prod).
+**Goal:** Native Dioxus Mapbox workspace at `/satellite/indices` — see **[dioxus-gis-native-plan.md](./dioxus-gis-native-plan.md)** (Task 31, current).
 
-**Status:** ✅ **MVP complete** (28.1–28.15 foundation). GeoSyntra (GOS) continues hardening (Axum AOI API, full React parity) before cutover.
+**Status:** 🚧 **Task 31 Phase 0** — fresh Mapbox bridge + native shell (iframe superseded).
 
-**Prerequisite:** Task 24 post-login workspace entry (Start → `/satellite`) ✅ · Task 23.5 permission gates (`app.access`, `aoi.read`) recommended before full QA.
+**Superseded approaches:**
+- Task 30 React iframe — `react_gis_url.rs`, `gis-react-embed-bridge.js`
+- Task 29 Leaflet port — `leaflet_map.rs`, `gis-leaflet-bridge.js`
 
-**React source of truth:** `frontend/src/pages/satellite/` (especially `SatelliteIntelligenceMain.tsx`, `siMap*.ts`, AOI/fields components, workers)  
-**Dioxus target:** `packages/web/src/pages/satellite/` (expand from bridge stub) · optional `packages/web/src/gis/` shared module crate later
+**Prerequisite:** Task 24 post-login workspace entry (Start → `/satellite`) ✅ · Task 23.5 permission gates (`app.access`, `aoi.read`).
 
-**Interim dev (historical):** `bash scripts/dev-full-platform.sh` — only needed before Task 28.13 bridge removal. **Daily driver:** `bash scripts/dev-dioxus-with-axum.sh`.
+**Dev driver:** `bash scripts/dev-dioxus-with-axum.sh` (Axum `:3003` + Dioxus `:8080`).
 
-**Index:** [dioxus-axum-plan.md](./dioxus-axum-plan.md) · [dioxus-saas-platform-plan.md](./dioxus-saas-platform-plan.md) · [axum-migration-plan.md](./axum-migration-plan.md)
+**Index:** [dioxus-gis-native-plan.md](./dioxus-gis-native-plan.md) · [dioxus-axum-plan.md](./dioxus-axum-plan.md)
 
 ---
 
-## Why Task 28 was the cutover gate (resolved ✅)
+## Task 30 — React GIS iframe (current)
 
-| Before (Task 23.2 bridge) | After Task 28 MVP |
-|---------------------------|-------------------|
-| `/satellite` showed status card + iframe to React `:5173` | `/satellite/indices` is a Dioxus route with live Mapbox map |
-| Cross-origin auth in dev (8080 vs 5173) | Single origin; session + Mapbox token from Axum |
-| React Vite required for GIS | `dev-dioxus-with-axum.sh` alone — no `:5173` |
-| “Start” opened bridge, not real workspace | “Start” opens full interactive map in Dioxus |
+| Item | Path |
+|------|------|
+| Iframe host (Dioxus) | `packages/web/src/pages/satellite/map_workspace.rs` |
+| Embed URL + auth push | `packages/web/src/pages/satellite/react_gis_url.rs` |
+| Parent JS bridge | `packages/web/public/assets/js/gis-react-embed-bridge.js` |
+| Child auth listener | `frontend/src/lib/geosyntraDioxusEmbedBridge.ts` |
+| Embed chrome (hide React nav) | `frontend/src/App.tsx` (`?embed=1` / iframe detection) |
+
+| Rule | Detail |
+|------|--------|
+| **Renderer** | Full React `SatelliteIntelligenceMain` — Mapbox GL, Esri basemaps, all SI tools |
+| **Iframe URL (dev)** | `http://127.0.0.1:5173/Geosyntra/#/satellite/indices?embed=1` |
+| **Override** | `window.GEOSYNTRA_REACT_GIS_URL` in `index.html` or env at build |
+| **Auth** | Dioxus `geosyntra_auth_v1` → `postMessage` → React `startSession` |
+| **Dioxus chrome** | `AppNavBar` only; map toolbox/panels live inside iframe |
+
+### Task 30 exit criteria
+
+- [x] `/satellite/indices` shows full-viewport React iframe
+- [x] Auth session pushed on iframe load (postMessage bridge)
+- [x] React hides duplicate app chrome in embed mode
+- [x] Playwright map-workspace green with Vite on `/Geosyntra/`
+- [ ] Production same-origin path (serve `frontend/dist` behind Axum — follow-up)
+
+---
+
+## Task 29 — Native Esri/Leaflet (superseded by Task 30)
+
+Native Dioxus Leaflet port (`basemap_catalog.rs`, `leaflet_map.rs`, `basemap_widget.rs`) retained in repo for reference but **not wired** after Task 30. Re-enable only if iframe is removed again.
+
+---
+
+## Why Task 28 was the cutover gate (updated)
+
+| Before (Task 23.2) | After Task 30 |
+|--------------------|---------------|
+| Status card + broken same-origin iframe | Full-viewport iframe → React `:5173` |
+| Partial / placeholder map | **100% React SI parity** from `main` |
+| Auth split across origins | `postMessage` auth bridge from Dioxus parent |
+| `dev-dioxus-with-axum.sh` only | **`dev-full-platform.sh`** for GIS dev + E2E |
 
 ---
 
@@ -43,8 +78,8 @@ packages/web/src/
 
 | Layer | Rule |
 |-------|------|
-| **Map rendering** | Mapbox GL JS allowed as the only heavy JS dependency (same as React). Wrap in Rust-owned lifecycle (mount, token, resize, destroy). |
-| **API** | Existing Axum routes: `/api/config/mapbox`, `/api/gateway/mapbox/*`, AOI CRUD when wired — no new Express. |
+| **Map rendering** | Leaflet + Esri rasters (Task 29). Mapbox GL removed from Dioxus; React may still use Mapbox shell until cutover. |
+| **API** | AOI CRUD via Axum; basemap tiles direct to Esri (no proxy). Mapbox routes remain for React/settings only. |
 | **Permissions** | Route gate: `app.access` + `aoi.read`; write tools need `aoi.write` / plan gates per MATRIX. |
 | **Tenant** | AOI and layer state scoped to `session.tenant_id` (Task 23.5). |
 | **Styling** | Port satellite SCSS from `frontend/src/pages/satellite/**/*.css` into `packages/web/assets/scss/gis/`. |
@@ -98,9 +133,9 @@ packages/web/src/
 
 ## Exit criteria
 
-- [x] Signed-in user with `app.access` + `aoi.read` reaches **`/satellite/indices`** with **interactive Mapbox map** (pan/zoom, basemap) — no React iframe
+- [x] Signed-in user with `app.access` + `aoi.read` reaches **`/satellite/indices`** with **interactive Esri/Leaflet map** (pan/zoom, basemap gallery) — no React iframe
 - [x] Owner can draw/save/load AOIs on the map (localStorage; server API follow-up)
-- [x] Mapbox configured via Axum; clear error when token missing (link to settings)
+- [x] Map loads without Mapbox token (Esri tiles direct)
 - [x] `bash scripts/dev-dioxus-with-axum.sh` alone — **no** Vite `:5173` required for GIS smoke
 - [x] Task 25 Playwright: **map workspace spec** added (`map-workspace.spec.ts`)
 - [x] React iframe bridge **removed** from `/satellite`
@@ -125,7 +160,7 @@ packages/web/src/
 
 - React map entry: `frontend/src/pages/satellite/SatelliteIntelligenceMain.tsx`
 - Routes: `frontend/src/routes/AppRoutes.tsx` (`/satellite/indices`)
-- Bridge (removed): `packages/web/src/pages/satellite/map_workspace.rs`
-- JS bridge (Mapbox only): `packages/web/public/assets/js/gis-mapbox-bridge.js`
+- Bridge (removed): React iframe path
+- JS bridge (Leaflet + Esri): `packages/web/public/assets/js/gis-leaflet-bridge.js`
 - Dev scripts: `scripts/dev-full-platform.sh` (interim), `scripts/dev-dioxus-with-axum.sh` (target)
 - Map API: `/api/config/mapbox`, `/api/gateway/mapbox/*` in [axum-route-inventory.golden](./axum-route-inventory.golden)

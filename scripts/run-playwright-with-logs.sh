@@ -15,6 +15,8 @@ export DATABASE_URL="${DATABASE_URL:-postgres://geosyntra:geosyntra@127.0.0.1:54
 export JWT_SECRET="${JWT_SECRET:-geosyntra-dev-jwt-secret-change-me}"
 export RBAC_JWT_SECRET="${RBAC_JWT_SECRET:-$JWT_SECRET}"
 export MAPBOX_DEV_REFERER="${MAPBOX_DEV_REFERER:-https://www.geosyntra.org}"
+export CORS_ORIGINS="${CORS_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080,http://localhost:5173,http://127.0.0.1:5173}"
+export GEOSYNTRA_REACT_GIS_URL="${GEOSYNTRA_REACT_GIS_URL:-http://127.0.0.1:5173/Geosyntra/#/satellite/indices?embed=1}"
 API_LOG="${GEOSYNTRA_API_LOG:-/tmp/geosyntra-api.log}"
 DX_LOG="${GEOSYNTRA_DX_LOG:-/tmp/dx-serve.log}"
 
@@ -40,6 +42,27 @@ done
 curl -sf http://127.0.0.1:3003/health | grep -qx ok || {
   echo "Axum failed — last lines of ${API_LOG}:" >&2
   tail -30 "${API_LOG}" >&2
+  exit 1
+}
+
+echo "==> React GIS (Vite) on :5173"
+VITE_LOG="${GEOSYNTRA_VITE_LOG:-/tmp/geosyntra-vite.log}"
+: > "${VITE_LOG}"
+(
+  cd frontend
+  if [[ ! -d node_modules ]]; then npm install; fi
+  nohup npm run dev:client:clean >> "${VITE_LOG}" 2>&1 &
+)
+for _ in $(seq 1 60); do
+  if curl -sf http://127.0.0.1:5173/ >/dev/null 2>&1; then
+    echo "Vite ready"
+    break
+  fi
+  sleep 1
+done
+curl -sf http://127.0.0.1:5173/ >/dev/null || {
+  echo "Vite failed — last lines of ${VITE_LOG}:" >&2
+  tail -30 "${VITE_LOG}" >&2
   exit 1
 }
 

@@ -128,7 +128,11 @@ export function resolveAppChromeBottomPx(): number | null {
 
   if (!header || header.classList.contains('geosyntra-header--bottom-cloud')) {
 
-    return bottom > 0 ? bottom : null;
+    if (bottom > 0) return bottom;
+
+    // Dioxus iframe embed: parent owns app chrome; toolbox anchors from iframe top.
+
+    return isMapCanvasPage() ? 0 : null;
 
   }
 
@@ -138,7 +142,9 @@ export function resolveAppChromeBottomPx(): number | null {
 
   if (!Number.isFinite(headerBottom) || headerBottom <= 0) {
 
-    return bottom > 0 ? bottom : null;
+    if (bottom > 0) return bottom;
+
+    return isMapCanvasPage() ? 0 : null;
 
   }
 

@@ -1,276 +1,517 @@
 /**
- * Thin Mapbox GL bridge — no app logic. Called from Rust/wasm only.
+ * Mapbox GL bridge — Dioxus native GIS (Task 31.0–31.9).
+ * Engine: Mapbox GL · default tiles: Esri raster styles.
  */
 (function () {
   'use strict';
 
-  const maps = new Map();
-  const PROXY_INIT_TOKEN = 'pk.geosyntra.gl-init-placeholder';
+  var MAPS = new Map();
+  var OVERLAYS = new Map();
+  var EVENT_PREFIX = 'geosyntra-map-';
 
-  function messageOf(err) {
-    if (err instanceof Error) return err.message;
-    if (typeof err === 'string') return err;
-    var maybe = err && err.message;
-    return typeof maybe === 'string' ? maybe : '';
-  }
-
-  /** Recoverable Mapbox worker/style errors — Express parity (mapboxWorkerErrorGuard.ts). */
-  function isRecoverableMapboxError(err) {
-    var msg = messageOf(err);
-    if (!msg) return false;
-    return (
-      msg.indexOf("Can't serialize object of unregistered class") !== -1 ||
-      msg.indexOf('unregistered class "DOMException"') !== -1 ||
-      msg.indexOf('errorCb is not a function') !== -1 ||
-      msg.indexOf('Unimplemented type:') !== -1 ||
-      msg.indexOf('unknown command 0') !== -1 ||
-      msg.toLowerCase().indexOf('style is not done loading') !== -1 ||
-      msg.toLowerCase().indexOf('style is not loaded') !== -1
-    );
-  }
-
-  if (typeof window !== 'undefined') {
-    window.addEventListener(
-      'error',
-      function (event) {
-        var candidate = event.error || event.message;
-        if (!isRecoverableMapboxError(candidate)) return;
-        event.preventDefault();
-        event.stopImmediatePropagation();
-      },
-      true,
-    );
-    window.addEventListener(
-      'unhandledrejection',
-      function (event) {
-        if (!isRecoverableMapboxError(event.reason)) return;
-        event.preventDefault();
-        event.stopImmediatePropagation();
-      },
-      true,
-    );
-  }
+  var GLOBE_HOME = { lng: 20, lat: 0, zoom: 1.52, bearing: 0, pitch: 0 };
+  var OVERLAY_PREFIX = 'gs-ol-';
 
   function dispatch(name, detail) {
-    window.dispatchEvent(new CustomEvent(name, { detail: detail || {} }));
+    try {
+      window.dispatchEvent(new CustomEvent(EVENT_PREFIX + name, { detail: detail || {} }));
+    } catch (_) {
+      //
+    }
   }
 
   function ensureMapbox() {
-    if (typeof mapboxgl === 'undefined') {
-      throw new Error('mapbox-gl not loaded');
-    }
+    if (typeof mapboxgl === 'undefined') throw new Error('mapbox-gl not loaded');
   }
 
-  function ensureDraw() {
-    if (typeof MapboxDraw === 'undefined') {
-      throw new Error('mapbox-gl-draw not loaded');
-    }
-  }
-
-  function isMapboxVendorUrl(url) {
+  function parseJson(raw, fallback) {
+    if (!raw) return fallback || {};
+    if (typeof raw === 'object') return raw;
     try {
-      var host = new URL(url).hostname.toLowerCase();
-      return host === 'mapbox.com' || host.endsWith('.mapbox.com');
+      return JSON.parse(raw);
     } catch (_) {
-      return false;
+      return fallback || {};
     }
   }
 
-  function resolveMapboxProxyUrl(upstreamUrl) {
-    var origin =
-      (typeof window !== 'undefined' && window.location && window.location.origin) ||
-      'http://127.0.0.1:8080';
-    return origin + '/api/mapbox-proxy?url=' + encodeURIComponent(upstreamUrl);
+  function newMapId() {
+    return 'mbx-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+  }
+
+  function viewPayload(mapId, map) {
+    var c = map.getCenter();
+    var projection = 'mercator';
+    try {
+      var p = map.getProjection && map.getProjection();
+      if (p && p.name) projection = String(p.name);
+    } catch (_) {
+      //
+    }
+    return {
+      mapId: mapId,
+      lng: c.lng,
+      lat: c.lat,
+      zoom: map.getZoom(),
+      bearing: map.getBearing(),
+      pitch: map.getPitch(),
+      projection: projection,
+    };
+  }
+
+  function applyGlobeAtmosphere(map) {
+    try {
+      if (typeof map.setFog === 'function') {
+        map.setFog({
+          color: 'rgb(2, 4, 8)',
+          'high-color': 'rgb(12, 18, 36)',
+          'horizon-blend': 0.08,
+          'space-color': 'rgb(2, 4, 8)',
+          'star-intensity': 0.35,
+        });
+      }
+    } catch (_) {
+      //
+    }
+  }
+
+  function getEntry(mapId) {
+    return MAPS.get(mapId) || null;
+  }
+
+  function overlayList(mapId) {
+    if (!OVERLAYS.has(mapId)) OVERLAYS.set(mapId, []);
+    return OVERLAYS.get(mapId);
+  }
+
+  function sourceId(layerId) {
+    return OVERLAY_PREFIX + 'src-' + layerId;
+  }
+
+  function fillId(layerId) {
+    return OVERLAY_PREFIX + 'fill-' + layerId;
+  }
+
+  function lineId(layerId) {
+    return OVERLAY_PREFIX + 'line-' + layerId;
+  }
+
+  function circleId(layerId) {
+    return OVERLAY_PREFIX + 'circle-' + layerId;
+  }
+
+  function removeOverlayFromMap(map, layerId) {
+    [fillId(layerId), lineId(layerId), circleId(layerId)].forEach(function (lid) {
+      if (map.getLayer(lid)) map.removeLayer(lid);
+    });
+    var sid = sourceId(layerId);
+    if (map.getSource(sid)) map.removeSource(sid);
+  }
+
+  function defaultPaint(kind) {
+    if (kind === 'line') {
+      return { 'line-color': '#38bdf8', 'line-width': 2, 'line-opacity': 0.9 };
+    }
+    if (kind === 'circle') {
+      return { 'circle-color': '#fbbf24', 'circle-radius': 5, 'circle-opacity': 0.9 };
+    }
+    return {
+      'fill-color': '#38bdf8',
+      'fill-opacity': 0.25,
+      'fill-outline-color': '#7dd3fc',
+    };
+  }
+
+  function applyGeoJsonOverlay(map, spec) {
+    var sid = sourceId(spec.id);
+    removeOverlayFromMap(map, spec.id);
+    map.addSource(sid, { type: 'geojson', data: spec.geojson });
+    var paint = spec.paint || {};
+    var fillPaint = Object.assign(defaultPaint('fill'), paint.fill || paint);
+    var linePaint = Object.assign(defaultPaint('line'), paint.line || {});
+    map.addLayer({
+      id: fillId(spec.id),
+      type: 'fill',
+      source: sid,
+      paint: fillPaint,
+      layout: { visibility: spec.visible === false ? 'none' : 'visible' },
+      filter: ['==', '$type', 'Polygon'],
+    });
+    map.addLayer({
+      id: lineId(spec.id),
+      type: 'line',
+      source: sid,
+      paint: linePaint,
+      layout: { visibility: spec.visible === false ? 'none' : 'visible' },
+      filter: ['any', ['==', '$type', 'LineString'], ['==', '$type', 'Polygon']],
+    });
+    map.addLayer({
+      id: circleId(spec.id),
+      type: 'circle',
+      source: sid,
+      paint: Object.assign(defaultPaint('circle'), paint.circle || {}),
+      layout: { visibility: spec.visible === false ? 'none' : 'visible' },
+      filter: ['==', '$type', 'Point'],
+    });
+  }
+
+  function applyRasterOverlay(map, spec) {
+    var sid = sourceId(spec.id);
+    removeOverlayFromMap(map, spec.id);
+    map.addSource(sid, {
+      type: 'raster',
+      tiles: spec.tiles,
+      tileSize: 256,
+    });
+    map.addLayer({
+      id: fillId(spec.id),
+      type: 'raster',
+      source: sid,
+      paint: { 'raster-opacity': spec.opacity != null ? spec.opacity : 0.85 },
+      layout: { visibility: spec.visible === false ? 'none' : 'visible' },
+    });
+  }
+
+  function applyOverlaySpec(mapId, spec) {
+    var entry = getEntry(mapId);
+    if (!entry) return;
+    var map = entry.map;
+    var run = function () {
+      if (spec.kind === 'raster') applyRasterOverlay(map, spec);
+      else applyGeoJsonOverlay(map, spec);
+    };
+    if (map.isStyleLoaded && map.isStyleLoaded()) run();
+    else map.once('load', run);
+  }
+
+  function reapplyOverlays(mapId) {
+    overlayList(mapId).forEach(function (spec) {
+      applyOverlaySpec(mapId, spec);
+    });
+    var entry = getEntry(mapId);
+    if (entry && entry.draw && entry.drawGeojson) {
+      applyOverlaySpec(mapId, entry.drawGeojson);
+    }
+  }
+
+  function upsertOverlay(mapId, spec) {
+    var list = overlayList(mapId);
+    var idx = list.findIndex(function (s) {
+      return s.id === spec.id;
+    });
+    if (idx >= 0) list[idx] = spec;
+    else list.push(spec);
+    applyOverlaySpec(mapId, spec);
+  }
+
+  function attachDrawHandlers(mapId, entry) {
+    var map = entry.map;
+    entry.drawMode = 'none';
+    entry.drawPoints = [];
+
+    map.on('click', function (e) {
+      if (entry.drawMode !== 'polygon') return;
+      entry.drawPoints.push([e.lngLat.lng, e.lngLat.lat]);
+      var coords = entry.drawPoints.slice();
+      if (coords.length >= 3) coords.push(coords[0]);
+      var geo = {
+        type: 'Feature',
+        geometry: {
+          type: coords.length >= 4 ? 'Polygon' : 'LineString',
+          coordinates: coords.length >= 4 ? [coords] : coords,
+        },
+        properties: {},
+      };
+      entry.drawGeojson = {
+        id: '__draw__',
+        kind: 'geojson',
+        geojson: geo,
+        visible: true,
+        paint: { 'fill-color': '#4ade80', 'fill-opacity': 0.3, 'line-color': '#4ade80' },
+      };
+      applyOverlaySpec(mapId, entry.drawGeojson);
+      dispatch('draw-change', { mapId: mapId, geojson: geo, pointCount: entry.drawPoints.length });
+    });
+  }
+
+  function attachMapEvents(mapId, map) {
+    map.on('load', function () {
+      applyGlobeAtmosphere(map);
+      reapplyOverlays(mapId);
+      dispatch('load', viewPayload(mapId, map));
+    });
+    map.on('error', function (e) {
+      var msg = (e && e.error && e.error.message) || 'Map error';
+      dispatch('error', { mapId: mapId, message: String(msg) });
+    });
+    map.on('moveend', function () {
+      dispatch('moveend', viewPayload(mapId, map));
+    });
+    map.on('mousemove', function (e) {
+      dispatch('pointer', { mapId: mapId, lng: e.lngLat.lng, lat: e.lngLat.lat });
+    });
+    map.on('click', function (e) {
+      var entry = getEntry(mapId);
+      if (entry && entry.drawMode === 'polygon') return;
+      var features = [];
+      try {
+        features = map.queryRenderedFeatures(e.point, {
+          layers: overlayList(mapId)
+            .map(function (s) {
+              return fillId(s.id);
+            })
+            .filter(function (id) {
+              return map.getLayer(id);
+            }),
+        });
+      } catch (_) {
+        //
+      }
+      dispatch('click', {
+        mapId: mapId,
+        lng: e.lngLat.lng,
+        lat: e.lngLat.lat,
+        features: features.slice(0, 5).map(function (f) {
+          return { layer: f.layer && f.layer.id, properties: f.properties || {} };
+        }),
+      });
+    });
   }
 
   window.GeoSyntraMapbox = {
-    create(containerId, accessToken, optionsJson) {
+    isAvailable: function () {
+      return typeof mapboxgl !== 'undefined';
+    },
+
+    create: function (containerId, optionsJson) {
       ensureMapbox();
-      var opts = optionsJson ? JSON.parse(optionsJson) : {};
-      var useProxy = opts.proxyMode === true;
-      var glToken = useProxy ? PROXY_INIT_TOKEN : accessToken;
-      mapboxgl.accessToken = glToken || accessToken || PROXY_INIT_TOKEN;
+      var opts = parseJson(optionsJson, {});
       var container = document.getElementById(containerId);
       if (!container) throw new Error('map container not found: ' + containerId);
 
-      var mapOptions = {
-        container: containerId,
-        style: opts.style || 'mapbox://styles/mapbox/satellite-streets-v12',
-        center: opts.center || [0, 20],
-        zoom: opts.zoom != null ? opts.zoom : 1.5,
-        attributionControl: true,
-        preserveDrawingBuffer: true,
-      };
+      var token = String(opts.accessToken || opts.token || '').trim();
+      if (token) mapboxgl.accessToken = token;
 
-      if (useProxy) {
-        mapOptions.transformRequest = function (url, _resourceType) {
-          if (url.indexOf('events.mapbox.com') !== -1) {
-            return { url: '' };
-          }
-          if (isMapboxVendorUrl(url)) {
-            return { url: resolveMapboxProxyUrl(url) };
-          }
-          return { url: url };
-        };
+      var map = new mapboxgl.Map({
+        container: containerId,
+        style: opts.style || { version: 8, sources: {}, layers: [] },
+        center: opts.center || [GLOBE_HOME.lng, GLOBE_HOME.lat],
+        zoom: opts.zoom != null ? opts.zoom : GLOBE_HOME.zoom,
+        bearing: opts.bearing != null ? opts.bearing : GLOBE_HOME.bearing,
+        pitch: opts.pitch != null ? opts.pitch : GLOBE_HOME.pitch,
+        projection: opts.projection || 'globe',
+        antialias: true,
+        attributionControl: false,
+        logoPosition: 'bottom-left',
+      });
+
+      map.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-left');
+
+      var mapId = newMapId();
+      var entry = { map: map, containerId: containerId, projection: opts.projection || 'globe' };
+      MAPS.set(mapId, entry);
+      OVERLAYS.set(mapId, []);
+
+      attachMapEvents(mapId, map);
+      attachDrawHandlers(mapId, entry);
+
+      if (map.isStyleLoaded && map.isStyleLoaded()) {
+        applyGlobeAtmosphere(map);
+        dispatch('load', viewPayload(mapId, map));
       }
 
-      var map = new mapboxgl.Map(mapOptions);
-
-      map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
-      map.addControl(new mapboxgl.ScaleControl({ maxWidth: 120 }), 'bottom-left');
-
-      var mapId = 'map-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
-      var draw = null;
-
-      map.on('load', function () {
-        dispatch('geosyntra-map-load', { mapId: mapId });
-      });
-
-      map.on('click', function (e) {
-        dispatch('geosyntra-map-click', {
-          mapId: mapId,
-          lng: e.lngLat.lng,
-          lat: e.lngLat.lat,
-        });
-      });
-
-      maps.set(mapId, { map: map, draw: draw, containerId: containerId });
       return mapId;
     },
 
-    destroy(mapId) {
-      var entry = maps.get(mapId);
+    destroy: function (mapId) {
+      var entry = getEntry(mapId);
       if (!entry) return;
-      if (entry.draw) {
-        try { entry.map.removeControl(entry.draw); } catch (_) {}
+      try {
+        entry.map.remove();
+      } catch (_) {
+        //
       }
-      entry.map.remove();
-      maps.delete(mapId);
+      MAPS.delete(mapId);
+      OVERLAYS.delete(mapId);
     },
 
-    resize(mapId) {
-      var entry = maps.get(mapId);
-      if (entry) entry.map.resize();
+    resize: function (mapId) {
+      var entry = getEntry(mapId);
+      if (!entry) return;
+      try {
+        entry.map.resize();
+      } catch (_) {
+        //
+      }
     },
 
-    fitBounds(mapId, west, south, east, north, padding) {
-      var entry = maps.get(mapId);
+    setStyle: function (mapId, styleJson) {
+      var entry = getEntry(mapId);
+      if (!entry) return;
+      var style = parseJson(styleJson, null);
+      if (!style) return;
+      entry.map.setStyle(style);
+      entry.map.once('style.load', function () {
+        applyGlobeAtmosphere(entry.map);
+        reapplyOverlays(mapId);
+      });
+    },
+
+    setProjection: function (mapId, projection) {
+      var entry = getEntry(mapId);
+      if (!entry || !entry.map.setProjection) return;
+      var name = projection === 'mercator' ? 'mercator' : 'globe';
+      try {
+        entry.map.setProjection(name);
+        entry.projection = name;
+        if (name === 'globe') applyGlobeAtmosphere(entry.map);
+        dispatch('moveend', viewPayload(mapId, entry.map));
+      } catch (_) {
+        //
+      }
+    },
+
+    goHome: function (mapId) {
+      var entry = getEntry(mapId);
+      if (!entry) return;
+      entry.map.flyTo({
+        center: [GLOBE_HOME.lng, GLOBE_HOME.lat],
+        zoom: GLOBE_HOME.zoom,
+        bearing: GLOBE_HOME.bearing,
+        pitch: GLOBE_HOME.pitch,
+        essential: true,
+      });
+    },
+
+    zoomBy: function (mapId, delta) {
+      var entry = getEntry(mapId);
+      if (!entry) return;
+      entry.map.easeTo({ zoom: entry.map.getZoom() + delta, essential: true });
+    },
+
+    flyTo: function (mapId, lng, lat, zoom) {
+      var entry = getEntry(mapId);
+      if (!entry) return;
+      entry.map.flyTo({
+        center: [lng, lat],
+        zoom: zoom != null ? zoom : entry.map.getZoom(),
+        essential: true,
+      });
+    },
+
+    fitBounds: function (mapId, west, south, east, north, padding) {
+      var entry = getEntry(mapId);
       if (!entry) return;
       entry.map.fitBounds(
-        [[west, south], [east, north]],
-        { padding: padding || 48, duration: 800, maxZoom: 15 }
+        [
+          [west, south],
+          [east, north],
+        ],
+        { padding: padding != null ? padding : 48, essential: true },
       );
     },
 
-    flyTo(mapId, lng, lat, zoom) {
-      var entry = maps.get(mapId);
-      if (!entry) return;
-      entry.map.flyTo({ center: [lng, lat], zoom: zoom != null ? zoom : 12, duration: 900 });
+    getView: function (mapId) {
+      var entry = getEntry(mapId);
+      if (!entry) return null;
+      return viewPayload(mapId, entry.map);
     },
 
-    initDraw(mapId) {
-      ensureDraw();
-      var entry = maps.get(mapId);
-      if (!entry) throw new Error('unknown mapId');
-      if (entry.draw) return;
-      var draw = new MapboxDraw({
-        displayControlsDefault: false,
-        controls: {},
-        defaultMode: 'simple_select',
-      });
-      entry.map.addControl(draw);
-      entry.draw = draw;
-      entry.map.on('draw.create', function () {
-        dispatch('geosyntra-draw-change', { mapId: mapId, geojson: draw.getAll() });
-      });
-      entry.map.on('draw.update', function () {
-        dispatch('geosyntra-draw-change', { mapId: mapId, geojson: draw.getAll() });
-      });
-      entry.map.on('draw.delete', function () {
-        dispatch('geosyntra-draw-change', { mapId: mapId, geojson: draw.getAll() });
+    addGeoJsonLayer: function (mapId, layerId, geojsonJson, paintJson) {
+      var geojson = parseJson(geojsonJson, null);
+      if (!geojson) return;
+      var paint = parseJson(paintJson, {});
+      upsertOverlay(mapId, {
+        id: layerId,
+        kind: 'geojson',
+        geojson: geojson,
+        paint: paint,
+        visible: true,
       });
     },
 
-    setDrawMode(mapId, mode) {
-      var entry = maps.get(mapId);
-      if (!entry || !entry.draw) return;
-      entry.draw.changeMode(mode);
+    setLayerPaint: function (mapId, layerId, paintJson) {
+      var list = overlayList(mapId);
+      var spec = list.find(function (s) {
+        return s.id === layerId;
+      });
+      if (!spec) return;
+      spec.paint = parseJson(paintJson, spec.paint || {});
+      applyOverlaySpec(mapId, spec);
     },
 
-    getDrawGeoJson(mapId) {
-      var entry = maps.get(mapId);
-      if (!entry || !entry.draw) return JSON.stringify({ type: 'FeatureCollection', features: [] });
-      return JSON.stringify(entry.draw.getAll());
-    },
-
-    setDrawGeoJson(mapId, geojsonStr) {
-      var entry = maps.get(mapId);
-      if (!entry || !entry.draw) return;
-      entry.draw.set(JSON.parse(geojsonStr));
-    },
-
-    addGeoJsonSource(mapId, sourceId, geojsonStr, layerPaintJson) {
-      var entry = maps.get(mapId);
+    setLayerVisibility: function (mapId, layerId, visible) {
+      var entry = getEntry(mapId);
       if (!entry) return;
       var map = entry.map;
-      var paint = layerPaintJson ? JSON.parse(layerPaintJson) : {};
-      if (map.getSource(sourceId)) {
-        map.getSource(sourceId).setData(JSON.parse(geojsonStr));
-        return;
-      }
-      map.addSource(sourceId, { type: 'geojson', data: JSON.parse(geojsonStr) });
-      map.addLayer({
-        id: sourceId + '-fill',
-        type: 'fill',
-        source: sourceId,
-        paint: {
-          'fill-color': paint.fillColor || '#22c55e',
-          'fill-opacity': paint.fillOpacity != null ? paint.fillOpacity : 0.25,
-        },
-        filter: ['==', '$type', 'Polygon'],
+      var vis = visible ? 'visible' : 'none';
+      [fillId(layerId), lineId(layerId), circleId(layerId)].forEach(function (lid) {
+        if (map.getLayer(lid)) map.setLayoutProperty(lid, 'visibility', vis);
       });
-      map.addLayer({
-        id: sourceId + '-line',
-        type: 'line',
-        source: sourceId,
-        paint: {
-          'line-color': paint.lineColor || '#4ade80',
-          'line-width': paint.lineWidth != null ? paint.lineWidth : 2,
-        },
+      var spec = overlayList(mapId).find(function (s) {
+        return s.id === layerId;
+      });
+      if (spec) spec.visible = visible;
+    },
+
+    removeLayer: function (mapId, layerId) {
+      var entry = getEntry(mapId);
+      if (!entry) return;
+      removeOverlayFromMap(entry.map, layerId);
+      var list = overlayList(mapId).filter(function (s) {
+        return s.id !== layerId;
+      });
+      OVERLAYS.set(mapId, list);
+    },
+
+    addRasterLayer: function (mapId, layerId, tilesJson, opacity) {
+      var tiles = parseJson(tilesJson, []);
+      if (!Array.isArray(tiles) || !tiles.length) return;
+      upsertOverlay(mapId, {
+        id: layerId,
+        kind: 'raster',
+        tiles: tiles,
+        opacity: opacity != null ? opacity : 0.85,
+        visible: true,
       });
     },
 
-    removeSource(mapId, sourceId) {
-      var entry = maps.get(mapId);
+    setDrawMode: function (mapId, mode) {
+      var entry = getEntry(mapId);
       if (!entry) return;
-      var map = entry.map;
-      [sourceId + '-fill', sourceId + '-line'].forEach(function (lid) {
-        if (map.getLayer(lid)) map.removeLayer(lid);
-      });
-      if (map.getSource(sourceId)) map.removeSource(sourceId);
+      entry.drawMode = mode === 'polygon' ? 'polygon' : 'none';
+      if (mode !== 'polygon') entry.drawPoints = [];
+      dispatch('draw-mode', { mapId: mapId, mode: entry.drawMode });
     },
 
-    addWmsLayer(mapId, layerId, tileUrl) {
-      var entry = maps.get(mapId);
+    clearDraw: function (mapId) {
+      var entry = getEntry(mapId);
       if (!entry) return;
-      var map = entry.map;
-      if (map.getSource(layerId)) return;
-      map.addSource(layerId, {
-        type: 'raster',
-        tiles: [tileUrl],
-        tileSize: 256,
-      });
-      map.addLayer({ id: layerId + '-raster', type: 'raster', source: layerId, paint: { 'raster-opacity': 0.85 } });
+      entry.drawPoints = [];
+      entry.drawGeojson = null;
+      removeOverlayFromMap(entry.map, '__draw__');
+      dispatch('draw-change', { mapId: mapId, geojson: null, pointCount: 0 });
     },
 
-    setLayerVisibility(mapId, layerId, visible) {
-      var entry = maps.get(mapId);
-      if (!entry) return;
-      var map = entry.map;
-      var lid = layerId + '-raster';
-      if (map.getLayer(lid)) {
-        map.setLayoutProperty(lid, 'visibility', visible ? 'visible' : 'none');
-      }
+    getDrawGeoJson: function (mapId) {
+      var entry = getEntry(mapId);
+      if (!entry || !entry.drawGeojson) return null;
+      return entry.drawGeojson.geojson;
+    },
+
+    finishDrawPolygon: function (mapId) {
+      var entry = getEntry(mapId);
+      if (!entry || entry.drawPoints.length < 3) return null;
+      var ring = entry.drawPoints.slice();
+      ring.push(ring[0]);
+      var feature = {
+        type: 'Feature',
+        geometry: { type: 'Polygon', coordinates: [ring] },
+        properties: { name: 'AOI' },
+      };
+      entry.drawMode = 'none';
+      entry.drawPoints = [];
+      dispatch('draw-change', { mapId: mapId, geojson: feature, pointCount: 0 });
+      return feature;
     },
   };
 })();

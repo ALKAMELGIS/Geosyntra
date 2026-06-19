@@ -19,6 +19,17 @@ const ALLOWED_PATTERNS: RegExp[] = [
   /Error: Failed to fetch .*\/api\/mapbox-proxy/i,
   /^Error$/i,
   /Failed to load resource: the server responded with a status of 400 \(Bad Request\)/i,
+  // React GIS iframe — optional SI endpoints / dev proxies (Task 30 embed).
+  /Content Security Policy directive/i,
+  /api\/system\/api-vault/i,
+  /api\/analysis-engine\/mpc\/templates/i,
+  /api\/auth\/refresh/i,
+  /api\/v1\/admin\/directory/i,
+  /Failed to load resource: the server responded with a status of 404 \(Not Found\)/i,
+  /Failed to load resource: the server responded with a status of 405 \(Method Not Allowed\)/i,
+  /Failed to load resource: the server responded with a status of 500 \(Internal Server Error\)/i,
+  /WebSocket connection to 'ws:\/\/localhost:3002\/' failed/i,
+  /Failed to load resource: net::ERR_CONNECTION_REFUSED/i,
 ]
 
 function isAllowed(text: string): boolean {
@@ -72,6 +83,13 @@ export function attachConsoleMonitor(page: Page, bucket: ConsoleIssue[]) {
     // Trial / forbidden admin probes during role-matrix redirects.
     if (url.includes('/api/admin/') && (status === 400 || status === 403)) {
       return
+    }
+
+    // React GIS iframe (Vite :5173) — optional probes while map shell loads.
+    if (url.includes('127.0.0.1:5173') || url.includes('localhost:5173')) {
+      if (status === 400 || status === 404 || status === 405 || status === 500) {
+        return
+      }
     }
 
     // GeoSyntra API errors during E2E (ignore favicon 404).

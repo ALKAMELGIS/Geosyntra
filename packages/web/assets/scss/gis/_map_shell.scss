@@ -178,3 +178,474 @@
   background: rgba(15, 23, 42, 0.98);
   border: 1px solid rgba(148, 163, 184, 0.25);
 }
+
+/* Task 30 — React GIS iframe host (full workspace from main / frontend) */
+.gs-gis-page--react-embed {
+  .gs-gis-body,
+  .gs-gis-rail {
+    display: none;
+  }
+}
+
+.gs-gis-react-bridge {
+  position: relative;
+  min-height: 0;
+  height: 100%;
+  width: 100%;
+}
+
+.gs-gis-react-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: calc(100dvh - 3.5rem);
+  border: none;
+  background: #020408;
+}
+
+/* Task 31 — native Mapbox GIS (3D globe + Esri basemaps) */
+.gs-gis-page--native {
+  .gs-native-shell,
+  .gs-native-main {
+    min-height: 0;
+    height: 100%;
+  }
+
+  .gs-gis-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.gs-native-map-wrap {
+  background: #020408;
+  overflow: hidden;
+}
+
+.gs-native-space-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 120% 80% at 50% 120%, rgba(20, 40, 80, 0.35), transparent 55%),
+    radial-gradient(circle at 20% 15%, rgba(255, 255, 255, 0.04), transparent 40%),
+    radial-gradient(circle at 80% 25%, rgba(255, 255, 255, 0.03), transparent 35%),
+    #020408;
+}
+
+.gs-gis-map-canvas {
+  position: relative;
+  z-index: 1;
+}
+
+/* Left floating controls */
+.gs-native-float-left {
+  position: absolute;
+  top: 0.85rem;
+  left: 0.85rem;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.gs-native-float-btn {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(8, 12, 22, 0.78);
+  backdrop-filter: blur(16px);
+  color: #e2e8f0;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  font-size: 0.95rem;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  &--active {
+    border-color: rgba(74, 222, 128, 0.65);
+    box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.25), 0 8px 28px rgba(0, 0, 0, 0.35);
+    color: #86efac;
+  }
+}
+
+.gs-native-float-basemap-wrap {
+  position: relative;
+}
+
+.gs-native-float-basemap-panel {
+  position: absolute;
+  top: 0;
+  left: calc(100% + 0.5rem);
+  z-index: 25;
+  min-width: 14rem;
+}
+
+/* Right toolbox rail */
+.gs-native-toolbox-rail {
+  position: absolute;
+  top: 0.65rem;
+  right: 0.65rem;
+  bottom: 3.25rem;
+  z-index: 20;
+  width: 2.75rem;
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(8, 12, 22, 0.72);
+  backdrop-filter: blur(24px) saturate(132%);
+  box-shadow:
+    inset -1px 0 0 rgba(255, 255, 255, 0.06),
+    0 12px 40px rgba(0, 0, 0, 0.45);
+  pointer-events: auto;
+}
+
+.gs-native-toolbox-rail__brand {
+  display: grid;
+  place-items: center;
+  height: 2.5rem;
+  color: #7dd3fc;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+  flex-shrink: 0;
+}
+
+.gs-native-toolbox-rail__scroll {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.35rem 0.3rem;
+  scrollbar-width: thin;
+}
+
+.gs-native-toolbox-rail__btn {
+  width: 2.15rem;
+  height: 2.15rem;
+  margin: 0 auto;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: #cbd5e1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  font-size: 0.9rem;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(148, 163, 184, 0.2);
+  }
+
+  &--active {
+    background: rgba(56, 189, 248, 0.18);
+    border-color: rgba(56, 189, 248, 0.45);
+    color: #7dd3fc;
+  }
+}
+
+/* Bottom status bar */
+.gs-native-status-bar {
+  position: absolute;
+  left: 0.65rem;
+  bottom: 0.55rem;
+  z-index: 20;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.65rem;
+  pointer-events: none;
+
+  > * {
+    pointer-events: auto;
+  }
+}
+
+.gs-native-status-bar__zoom {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.25rem;
+  border-radius: 10px;
+  background: rgba(8, 12, 22, 0.78);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  backdrop-filter: blur(12px);
+}
+
+.gs-native-status-bar__zoom-btn {
+  width: 1.85rem;
+  height: 1.85rem;
+  border: none;
+  border-radius: 6px;
+  background: rgba(30, 41, 59, 0.85);
+  color: #e2e8f0;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  font-size: 0.75rem;
+
+  &:hover {
+    background: rgba(51, 65, 85, 0.95);
+  }
+}
+
+.gs-native-status-bar__readout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.55rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: 8px;
+  background: rgba(8, 12, 22, 0.78);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  backdrop-filter: blur(12px);
+  font-size: 0.68rem;
+  color: #94a3b8;
+  max-width: min(52vw, 28rem);
+}
+
+.gs-native-status-bar__crs {
+  font-weight: 600;
+  color: #cbd5e1;
+}
+
+.gs-native-status-bar__mode {
+  color: #7dd3fc;
+}
+
+.gs-native-status-bar__coords {
+  font-variant-numeric: tabular-nums;
+  color: #e2e8f0;
+}
+
+/* Basemap gallery dropdown */
+.gs-native-basemap-gallery {
+  padding: 0.55rem;
+  border-radius: 12px;
+  background: rgba(8, 12, 22, 0.94);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+.gs-native-basemap-gallery__header {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #94a3b8;
+  margin-bottom: 0.45rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.gs-native-basemap-gallery__quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-bottom: 0.45rem;
+}
+
+.gs-native-basemap-gallery__quick-btn,
+.gs-native-basemap-gallery__item {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(30, 41, 59, 0.85);
+  color: #e2e8f0;
+  border-radius: 6px;
+  padding: 0.3rem 0.45rem;
+  cursor: pointer;
+  font-size: 0.72rem;
+}
+
+.gs-native-basemap-gallery__quick-btn--active,
+.gs-native-basemap-gallery__item--active {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.35);
+}
+
+.gs-native-basemap-gallery__list {
+  display: grid;
+  gap: 0.2rem;
+  max-height: 10rem;
+  overflow-y: auto;
+}
+
+.gs-native-basemap-gallery__item {
+  width: 100%;
+  text-align: left;
+}
+
+/* Mapbox attribution tuck */
+.gs-native-map-wrap .mapboxgl-ctrl-bottom-left {
+  bottom: 0.35rem;
+  left: 4.5rem;
+  z-index: 5;
+}
+
+/* Task 31.3–31.9 — toolbox dock panels */
+.gs-native-tool-panel {
+  position: absolute;
+  top: 0.65rem;
+  right: calc(0.65rem + 2.75rem + 0.55rem);
+  bottom: 3.25rem;
+  z-index: 20;
+  width: min(18rem, 38vw);
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(8, 12, 22, 0.88);
+  backdrop-filter: blur(24px) saturate(132%);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  pointer-events: auto;
+}
+
+.gs-native-tool-panel__header {
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+  flex-shrink: 0;
+}
+
+.gs-native-tool-panel__title {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.gs-native-tool-panel__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.65rem 0.75rem;
+  font-size: 0.75rem;
+  color: #cbd5e1;
+}
+
+.gs-native-tool-panel__hint,
+.gs-native-tool-panel__empty {
+  margin: 0 0 0.55rem;
+  color: #94a3b8;
+  line-height: 1.45;
+}
+
+.gs-native-tool-panel__label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #94a3b8;
+}
+
+.gs-native-tool-panel__btn {
+  width: 100%;
+  margin-bottom: 0.45rem;
+  padding: 0.4rem 0.55rem;
+  border-radius: 8px;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  background: rgba(56, 189, 248, 0.12);
+  color: #7dd3fc;
+  cursor: pointer;
+  font-size: 0.72rem;
+
+  &--ghost {
+    border-color: rgba(148, 163, 184, 0.25);
+    background: transparent;
+    color: #94a3b8;
+  }
+}
+
+.gs-native-tool-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.55rem;
+
+  .gs-native-tool-panel__btn {
+    width: auto;
+    flex: 1 1 auto;
+    margin-bottom: 0;
+  }
+}
+
+.gs-native-tool-panel__select,
+.gs-native-tool-panel__textarea {
+  width: 100%;
+  margin-bottom: 0.55rem;
+  padding: 0.35rem 0.45rem;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(15, 23, 42, 0.85);
+  color: #e2e8f0;
+  font-size: 0.72rem;
+}
+
+.gs-native-tool-panel__section {
+  margin: 0.55rem 0;
+}
+
+.gs-native-layers-list,
+.gs-native-aoi-list,
+.gs-native-identify-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gs-native-layers-list__row {
+  padding: 0.25rem 0;
+}
+
+.gs-native-aoi-list__btn {
+  width: 100%;
+  text-align: left;
+  padding: 0.35rem 0.45rem;
+  margin-bottom: 0.25rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: rgba(30, 41, 59, 0.6);
+  color: #e2e8f0;
+  cursor: pointer;
+  font-size: 0.72rem;
+
+  &--active {
+    border-color: rgba(74, 222, 128, 0.45);
+    background: rgba(74, 222, 128, 0.12);
+  }
+}
+
+.gs-native-tool-panel__toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  cursor: pointer;
+}
+
+.gs-native-chart-bar {
+  position: relative;
+  height: 1.25rem;
+  margin-top: 0.55rem;
+  border-radius: 6px;
+  background: rgba(30, 41, 59, 0.85);
+  overflow: hidden;
+}
+
+.gs-native-chart-bar__fill {
+  height: 100%;
+  background: linear-gradient(90deg, #166534, #4ade80);
+  border-radius: 6px;
+}
+
+.gs-native-chart-bar__label {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 0.65rem;
+  color: #ecfdf5;
+}
