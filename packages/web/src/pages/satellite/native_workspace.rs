@@ -32,8 +32,9 @@ use crate::{
         ReportIndexId, SymbologyPreset, TimelineWeekInput,
         wms_tile_url_for_index,
         native::{
-            resolve_gl_access_token, MapboxBridge, MapCreateOptions, MapHandle, PROJECTION_GLOBE,
-            PROJECTION_MERCATOR, DEFAULT_BASEMAP_ID, MAP_CONTAINER_ID, style_for_basemap,
+            resolve_gl_access_token, mapbox_light_for_minutes, merge_terrain_underlay, MapboxBridge,
+            MapCreateOptions, MapHandle, DaylightSettings, PROJECTION_GLOBE, PROJECTION_MERCATOR,
+            DEFAULT_BASEMAP_ID, MAP_CONTAINER_ID, style_for_basemap,
         },
     },
     routes::Route,
@@ -180,6 +181,9 @@ pub fn NativeSatelliteWorkspace() -> Element {
     let mut report_open = use_signal(|| false);
     let mut aoi_report = use_signal(|| None::<AoiVegetationReport>);
 
+    let mut daylight_settings = use_signal(DaylightSettings::default);
+    let mut terrain_enabled = use_signal(|| false);
+
     let mut fields = use_signal(|| load_fields(&tenant_id));
     let mut selected_field_id = use_signal(|| None::<String>);
 
@@ -238,9 +242,29 @@ pub fn NativeSatelliteWorkspace() -> Element {
 
     use_effect({
         let basemap = basemap_id();
+        let terrain = terrain_enabled();
         move || {
             if let Some(handle) = map_handle.read().clone() {
-                MapboxBridge::set_style(&handle, &style_for_basemap(&basemap));
+                let style = style_for_basemap(&basemap);
+                let style = if terrain {
+                    merge_terrain_underlay(&style)
+                } else {
+                    style
+                };
+                MapboxBridge::set_style(&handle, &style);
+            }
+        }
+    });
+
+    use_effect({
+        let dl = daylight_settings();
+        move || {
+            if !dl.sun_by_datetime {
+                return;
+            }
+            if let Some(handle) = map_handle.read().clone() {
+                let light = mapbox_light_for_minutes(dl.minutes);
+                MapboxBridge::set_light(&handle, &light);
             }
         }
     });
@@ -556,6 +580,14 @@ pub fn NativeSatelliteWorkspace() -> Element {
     };
 
     let on_close_report = move |_| report_open.set(false);
+
+    let on_daylight_change = move |settings: DaylightSettings| {
+        daylight_settings.set(settings);
+    };
+
+    let on_toggle_terrain = move |enabled: bool| {
+        terrain_enabled.set(enabled);
+    };
 
     let on_toggle_swipe = move |_| {
         let next = !swipe_active();
@@ -1012,6 +1044,10 @@ pub fn NativeSatelliteWorkspace() -> Element {
                         on_generate_timeline: on_generate_timeline,
                         on_open_charts: on_open_charts,
                         on_open_report: on_open_report,
+                        daylight_settings: daylight_settings,
+                        terrain_enabled: terrain_enabled,
+                        on_daylight_change: on_daylight_change,
+                        on_toggle_terrain: on_toggle_terrain,
                         on_aois_changed: on_aois_changed,
                         on_add_demo_layer: on_add_demo_layer,
                         on_sync_wms: on_sync_wms,

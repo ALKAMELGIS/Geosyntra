@@ -2,6 +2,7 @@
 
 mod aoi_report_modal;
 mod basemap_picker;
+mod daylight_panel;
 mod extended_panels;
 mod map_floating_controls;
 mod map_search;

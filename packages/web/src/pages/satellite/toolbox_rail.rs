@@ -51,6 +51,12 @@ const ANALYSIS_TOOLS: &[RailTool] = &[
         title: "Elevation profile — draw a line on the map",
     },
     RailTool {
+        id: "daylight",
+        icon: "fa-solid fa-sun",
+        label: "Daylight",
+        title: "Daylight — sun position and globe lighting",
+    },
+    RailTool {
         id: "weather",
         icon: "fa-solid fa-temperature-half",
         label: "Weather",

@@ -3,6 +3,7 @@
 use dioxus::prelude::*;
 use serde_json::{json, Value};
 
+use super::daylight_panel::DaylightPanel;
 use super::extended_panels::{
     ChatLine, FieldsPanel, GeoAiPanel, MeasurePanel, PrintPanel, RoutePanel, WeatherPanel,
 };
@@ -11,7 +12,7 @@ use crate::gis::{
     index_catalog, index_label_for, resolve_index_id, AddedLayer, AoiRecord, FieldRecord, LayerKind,
     LayerSettings, LayerStore, RemoteSensingSettings, INDEX_RASTER_LAYER_ID,
 };
-use crate::gis::native::{catalog_entries, polygon_area_km2};
+use crate::gis::native::{catalog_entries, polygon_area_km2, DaylightSettings};
 
 pub const DEMO_LAYER_ID: &str = "demo-field";
 pub use crate::gis::INDEX_RASTER_LAYER_ID as WMS_LAYER_ID;
@@ -57,6 +58,10 @@ pub fn ToolPanel(
     on_generate_timeline: EventHandler<()>,
     on_open_charts: EventHandler<()>,
     on_open_report: EventHandler<()>,
+    daylight_settings: Signal<DaylightSettings>,
+    terrain_enabled: Signal<bool>,
+    on_daylight_change: EventHandler<DaylightSettings>,
+    on_toggle_terrain: EventHandler<bool>,
     on_aois_changed: EventHandler<()>,
     on_add_demo_layer: EventHandler<()>,
     on_sync_wms: EventHandler<bool>,
@@ -248,6 +253,20 @@ pub fn ToolPanel(
                             on_toggle: on_toggle_weather,
                         }
                     },
+                    "daylight" => rsx! {
+                        DaylightPanel {
+                            settings: daylight_settings,
+                            on_change: on_daylight_change,
+                        }
+                        label { class: "gs-native-daylight-toggle",
+                            input {
+                                r#type: "checkbox",
+                                checked: terrain_enabled(),
+                                onchange: move |e| on_toggle_terrain.call(e.checked()),
+                            }
+                            " Esri elevation terrain underlay (3D)"
+                        }
+                    },
                     "print" => rsx! {
                         PrintPanel {
                             title: print_title,
@@ -290,6 +309,7 @@ pub fn tool_panel_title(tool: &str) -> &'static str {
         "explore-indexes" => "Explore Indexes",
         "quick-dashboard" => "Quick Dashboard",
         "weather" => "Weather",
+        "daylight" => "Daylight",
         "route" => "Routing",
         "measure" => "Measure",
         "print" => "Print",

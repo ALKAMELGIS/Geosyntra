@@ -14,7 +14,7 @@ pub const PARITY_AREAS: &[ParityArea] = &[
     ParityArea {
         id: "map_shell",
         label: "Map shell / basemap / globe",
-        percent: 40,
+        percent: 55,
         task: "32.1",
     },
     ParityArea {
@@ -128,6 +128,11 @@ mod tests {
     #[test]
     fn aoi_report_after_task_32_6d() {
         assert!(area_percent("aoi").unwrap_or(0) >= 40);
+    }
+
+    #[test]
+    fn map_shell_daylight_terrain_after_task_32_1a() {
+        assert!(area_percent("map_shell").unwrap_or(0) >= 50);
     }
 
     #[test]

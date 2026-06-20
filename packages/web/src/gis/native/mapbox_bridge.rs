@@ -155,6 +155,12 @@ impl MapboxBridge {
     pub fn set_layer_swipe(handle: &MapHandle, active: bool, position_pct: f64) {
         js_call_swipe(&handle.id, active, position_pct);
     }
+
+    pub fn set_light(handle: &MapHandle, light: &Value) {
+        if let Ok(json) = serde_json::to_string(light) {
+            js_call_void("setLight", &handle.id, Some(&json));
+        }
+    }
 }
 
 #[cfg(all(feature = "web", target_arch = "wasm32"))]

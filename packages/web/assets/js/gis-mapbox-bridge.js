@@ -637,6 +637,20 @@
       positionSwipeLine(entry);
       updateSwipeShades(entry, entry.map.getContainer().clientWidth);
     },
+
+    setLight: function (mapId, lightJson) {
+      var entry = getEntry(mapId);
+      if (!entry || !entry.map) return;
+      var light = parseJson(lightJson, null);
+      if (!light) return;
+      try {
+        if (typeof entry.map.setLight === 'function') {
+          entry.map.setLight(light);
+        }
+      } catch (_) {
+        //
+      }
+    },
   };
 
   function positionSwipeLine(entry) {
