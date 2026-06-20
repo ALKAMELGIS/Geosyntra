@@ -8,7 +8,7 @@
 |-------|-------|
 | Deploy hardening | **27.2–27.4** (deploy scripts, rollback docs; 27.0/27.0-dev ✅) |
 | Tenant cache (optional) | 23.6 |
-| GIS parity follow-ups | 28.8+ |
+| GIS parity follow-ups | **32.0–32.12** ([dioxus-gis-parity-100-plan.md](./dioxus-gis-parity-100-plan.md)) |
 | Desktop | 29–30 |
 | Mobile / PWA | 31–32 |
 
@@ -20,7 +20,7 @@
 |-----|------|
 | **Task 27.0** — Mapbox proxy + release wasm bundle | **27.1–27.4** — deploy scripts, rollback docs |
 | | **23.6** Redis cache (optional, parallel) |
-| | **28.8+** GIS layer/index parity (optional, parallel) |
+| | **32.0–32.12** GIS 100% React SI parity ([dioxus-gis-parity-100-plan.md](./dioxus-gis-parity-100-plan.md)) |
 
 **Detail:** [axum-migration-plan.md](./axum-migration-plan.md) · [dioxus-gis-map-plan.md](./dioxus-gis-map-plan.md)
 

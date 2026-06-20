@@ -11,6 +11,7 @@ pub mod error;
 pub mod extract;
 pub mod gateway;
 pub mod geo;
+pub mod gis;
 pub mod github;
 pub mod governance;
 pub mod log;

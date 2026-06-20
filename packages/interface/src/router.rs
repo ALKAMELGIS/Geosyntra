@@ -5,7 +5,7 @@ use axum::{
 };
 
 use crate::{
-    ai, account, aoi, auth, billing, config, gateway, geo, github, governance, log, membership,
+    ai, account, aoi, auth, billing, config, gateway, geo, gis, github, governance, log, membership,
     middleware::AuthRateLimiter, middleware::cors_layer,
     platform, rbac, state::AppState, system, temporary_grant, tenant, user_tokens, weather,
 };
@@ -44,6 +44,26 @@ pub fn router(state: AppState) -> Router {
         .route("/api/geo/locations", get(geo::list_locations).post(geo::create_location))
         .route("/api/aoi", get(aoi::list_aoi).post(aoi::create_aoi))
         .route("/api/aoi/{id}", delete(aoi::delete_aoi))
+        .route("/api/gis/external-tables", get(gis::list_external_tables))
+        .route(
+            "/api/gis/external-tables/{table}/schema",
+            get(gis::get_table_schema),
+        )
+        .route(
+            "/api/gis/external-tables/{table}/rows",
+            get(gis::list_table_rows).post(gis::create_table_row),
+        )
+        .route(
+            "/api/gis/external-tables/{table}/rows/{rowId}",
+            put(gis::update_table_row).delete(gis::delete_table_row),
+        )
+        .route("/api/gis/relationships", get(gis::list_relationships).post(gis::create_relationship))
+        .route(
+            "/api/gis/relationships/{id}",
+            put(gis::update_relationship).delete(gis::delete_relationship),
+        )
+        .route("/api/gis/resolve", post(gis::resolve_relationships))
+        .route("/api/gis/db/test", post(gis::test_db_connection))
         .route("/api/weather/latest", get(weather::weather_latest))
         .route("/api/ai/analyze", post(ai::analyze))
         .route("/api/ai/chat", post(ai::chat))

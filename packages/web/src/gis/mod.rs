@@ -7,6 +7,7 @@ mod index_catalog;
 mod layers;
 mod remote_sensing;
 mod symbology;
+pub mod parity;
 pub mod native;
 
 pub use aoi::{
@@ -26,7 +27,8 @@ pub use index_catalog::{
 pub use layers::{AddedLayer, LayerKind, LayerSettings, LayerStore, INDEX_RASTER_LAYER_ID};
 pub use symbology::{
     load_symbology, paint_for_color_name, paint_for_preset, preset_for_layer, set_layer_preset,
-    LayerSymbology, SymbologyPreset,
+    CategoryClass, LayerSymbology, SymbologyConfig, SymbologyPreset, SymbologyStyle,
+    mapbox_paint_for_config,
 };
 pub use native::{
     MapboxBridge as NativeMapboxBridge, MapCreateOptions, DEFAULT_BASEMAP_ID as NATIVE_DEFAULT_BASEMAP_ID,

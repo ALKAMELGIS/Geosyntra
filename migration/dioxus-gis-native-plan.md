@@ -2,7 +2,7 @@
 
 **Goal:** Replace the React iframe (Task 30) and legacy Leaflet port (Task 29) with a **new** Dioxus workspace: Rust UI + typed Rust↔JS bridge over **Mapbox GL**, phased to match React `SatelliteIntelligenceMain` feature domains without copying the 25k-line monolith.
 
-**Status:** ✅ **Phases 31.0–31.15 complete** — full native toolbox (Geo AI, routing, measure, weather, print, search, fields).
+**Status:** ✅ Task 31 shell complete · 🚧 **Task 32** — 100% React SI parity ([dioxus-gis-parity-100-plan.md](./dioxus-gis-parity-100-plan.md))
 
 **Prerequisite:** Task 24 Start → `/satellite` ✅ · Task 23.5 gates (`app.access`, `aoi.read`) ✅
 

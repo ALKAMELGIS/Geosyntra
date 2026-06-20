@@ -3,13 +3,13 @@
 Generated for Axum migration parity tests. Re-run:
 `scripts/generate-route-inventory.sh`
 
-Axum implemented count: 91
+Axum implemented count: 148
 
 | Method | Path | Axum status |
 |--------|------|-------------|
 | `delete` | `/api/aoi/:id` | ✅ implemented |
-| `delete` | `/api/gis/external-tables/:table/rows/:rowId` | pending |
-| `delete` | `/api/gis/relationships/:id` | pending |
+| `delete` | `/api/gis/external-tables/:table/rows/:rowId` | ✅ implemented |
+| `delete` | `/api/gis/relationships/:id` | ✅ implemented |
 | `delete` | `/api/rbac/users/:id` | ✅ implemented |
 | `delete` | `/api/user/api-tokens/:provider` | pending |
 | `get` | `/api/aoi` | ✅ implemented |
@@ -46,10 +46,10 @@ Axum implemented count: 91
 | `get` | `/api/geo/:geoId/forms` | pending |
 | `get` | `/api/geo/grounding/status` | ✅ implemented |
 | `get` | `/api/geo/locations` | ✅ implemented |
-| `get` | `/api/gis/external-tables` | pending |
-| `get` | `/api/gis/external-tables/:table/rows` | pending |
-| `get` | `/api/gis/external-tables/:table/schema` | pending |
-| `get` | `/api/gis/relationships` | pending |
+| `get` | `/api/gis/external-tables` | ✅ implemented |
+| `get` | `/api/gis/external-tables/:table/rows` | ✅ implemented |
+| `get` | `/api/gis/external-tables/:table/schema` | ✅ implemented |
+| `get` | `/api/gis/relationships` | ✅ implemented |
 | `get` | `/api/github/events` | ✅ implemented |
 | `get` | `/api/github/oauth/callback` | ✅ implemented |
 | `get` | `/api/github/oauth/start` | ✅ implemented |
@@ -72,8 +72,8 @@ Axum implemented count: 91
 | `get` | `/api/system/api-secrets` | pending |
 | `get` | `/api/system/api-vault/backup` | pending |
 | `get` | `/api/system/api-vault` | pending |
-| `get` | `/api/system/tokens` | pending |
-| `get` | `/api/system/tokens/status` | pending |
+| `get` | `/api/system/tokens` | ✅ implemented |
+| `get` | `/api/system/tokens/status` | ✅ implemented |
 | `get` | `/api/system/user-api-tokens/overview` | pending |
 | `get` | `/api/user/api-tokens` | ✅ implemented |
 | `get` | `/api/user/api-tokens/session` | ✅ implemented |
@@ -84,7 +84,7 @@ Axum implemented count: 91
 | `get` | `/api/weather/latest` | ✅ implemented |
 | `get` | `*` | ✅ implemented |
 | `patch` | `/api/rbac/users/:id` | ✅ implemented |
-| `patch` | `/api/system/tokens/:name` | pending |
+| `patch` | `/api/system/tokens/:name` | ✅ implemented |
 | `post` | `/api/ai/analyze` | ✅ implemented |
 | `post` | `/api/ai/chat` | ✅ implemented |
 | `post` | `/api/aoi` | ✅ implemented |
@@ -98,15 +98,15 @@ Axum implemented count: 91
 | `post` | `/api/auth/login` | ✅ implemented |
 | `post` | `/api/auth/logout-all` | ✅ implemented |
 | `post` | `/api/auth/logout` | ✅ implemented |
-| `post` | `/api/auth/oauth-upsert` | pending |
+| `post` | `/api/auth/oauth-upsert` | ✅ implemented |
 | `post` | `/api/auth/refresh` | ✅ implemented |
 | `post` | `/api/auth/register` | ✅ implemented |
 | `post` | `/api/auth/resend-verification` | ✅ implemented |
 | `post` | `/api/auth/reset-password` | ✅ implemented |
 | `post` | `/api/auth/send-verification-email` | ✅ implemented |
 | `post` | `/api/billing/activate` | ✅ implemented |
-| `post` | `/api/billing/bank-transfer` | pending |
-| `post` | `/api/billing/confirm-payment` | pending |
+| `post` | `/api/billing/bank-transfer` | ✅ implemented |
+| `post` | `/api/billing/confirm-payment` | ✅ implemented |
 | `post` | `/api/billing/create-checkout-session` | ✅ implemented |
 | `post` | `/api/billing/payment-intent` | ✅ implemented |
 | `post` | `/api/billing/start-trial` | ✅ implemented |
@@ -121,30 +121,30 @@ Axum implemented count: 91
 | `post` | `/api/geo/:geoId/forms` | pending |
 | `post` | `/api/geo/grounding/invoke` | ✅ implemented |
 | `post` | `/api/geo/locations` | ✅ implemented |
-| `post` | `/api/gis/db/test` | pending |
-| `post` | `/api/gis/external-tables/:table/rows` | pending |
-| `post` | `/api/gis/relationships` | pending |
-| `post` | `/api/gis/resolve` | pending |
+| `post` | `/api/gis/db/test` | ✅ implemented |
+| `post` | `/api/gis/external-tables/:table/rows` | ✅ implemented |
+| `post` | `/api/gis/relationships` | ✅ implemented |
+| `post` | `/api/gis/resolve` | ✅ implemented |
 | `post` | `/api/github/disconnect` | ✅ implemented |
 | `post` | `/api/github/repos/:owner/:repo/issues` | ✅ implemented |
 | `post` | `/api/github/webhook` | pending |
-| `post` | `/api/log/client` | pending |
+| `post` | `/api/log/client` | ✅ implemented |
 | `post` | `/api/rbac/invites/accept` | ✅ implemented |
 | `post` | `/api/rbac/invites` | ✅ implemented |
 | `post` | `/api/rbac/users/:id/approve` | ✅ implemented |
 | `post` | `/api/rbac/users/:id/reactivate` | ✅ implemented |
 | `post` | `/api/rbac/users/:id/suspend` | ✅ implemented |
-| `post` | `/api/system/tokens/migrate-from-vault` | pending |
-| `post` | `/api/system/tokens/:name/test` | pending |
+| `post` | `/api/system/tokens/migrate-from-vault` | ✅ implemented |
+| `post` | `/api/system/tokens/:name/test` | ✅ implemented |
 | `post` | `/api/tree-detection` | pending |
 | `post` | `/api/v1/admin/directory/backup` | pending |
 | `post` | `/api/v1/admin/directory/login-event` | pending |
 | `post` | `/api/v1/admin/directory/restore` | pending |
-| `put` | `/api/gis/external-tables/:table/rows/:rowId` | pending |
-| `put` | `/api/gis/relationships/:id` | pending |
+| `put` | `/api/gis/external-tables/:table/rows/:rowId` | ✅ implemented |
+| `put` | `/api/gis/relationships/:id` | ✅ implemented |
 | `put` | `/api/system/api-secrets` | pending |
 | `put` | `/api/system/api-vault` | pending |
-| `put` | `/api/system/tokens/:name` | pending |
+| `put` | `/api/system/tokens/:name` | ✅ implemented |
 | `put` | `/api/user/api-tokens/:provider` | pending |
 | `put` | `/api/v1/account/profile-extra` | ✅ implemented |
 | `put` | `/api/v1/admin/directory` | pending |

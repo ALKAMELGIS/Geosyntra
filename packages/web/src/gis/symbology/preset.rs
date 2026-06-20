@@ -1,4 +1,4 @@
-//! Per-layer symbology presets — Phase 5 MVP (React `siLayerSymbologyEngine` subset).
+//! Color presets persisted per layer (Phase 5 MVP).
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
