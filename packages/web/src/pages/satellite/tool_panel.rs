@@ -3,14 +3,22 @@
 use dioxus::prelude::*;
 use serde_json::{json, Value};
 
+use super::contextual_dock::ContextualDockHint;
 use super::daylight_panel::DaylightPanel;
 use super::extended_panels::{
     ChatLine, FieldsPanel, GeoAiPanel, MeasurePanel, PrintPanel, RoutePanel, WeatherPanel,
 };
+use super::layer_control_mount::LayerControlMount;
+use super::processing_workflow_panel::{ProcessingStep, ProcessingWorkflowPanel};
+use super::quick_dashboard_panel::QuickDashboardPanel;
 use super::remote_sensing_panel::RemoteSensingPanel;
+use super::stac_explore_panel::{run_stac_search, StacExplorePanel};
+use super::symbology_panel::SymbologyPanel;
+use super::upload_panel::{stage_demo_files, UploadStagingPanel};
 use crate::gis::{
-    index_catalog, index_label_for, resolve_index_id, AddedLayer, AoiRecord, FieldRecord, LayerKind,
-    LayerSettings, LayerStore, RemoteSensingSettings, INDEX_RASTER_LAYER_ID,
+    index_catalog, index_label_for, legend_config_for_index, resolve_index_id, AddedLayer,
+    AoiRecord, FieldRecord, LayerKind, LayerSettings, LayerStore, RemoteSensingSettings,
+    SymbologyConfig, WeeklyCompositeStat, INDEX_RASTER_LAYER_ID,
 };
 use crate::gis::native::{catalog_entries, polygon_area_km2, DaylightSettings};
 
@@ -43,7 +51,7 @@ pub fn ToolPanel(
     aoi_count: usize,
     aois: Signal<Vec<AoiRecord>>,
     selected_aoi_id: Signal<Option<String>>,
-    identify_hits: Signal<Vec<String>>,
+    identify_hits: Signal<Vec<crate::gis::IdentifyHit>>,
     symbology_color: Signal<String>,
     upload_json: Signal<String>,
     draw_points: Signal<usize>,
@@ -96,6 +104,13 @@ pub fn ToolPanel(
 
     let title = tool_panel_title(&active_tool);
     let mut print_title = use_signal(|| "GeoSyntra map export".to_string());
+    let mut sym_config = use_signal(SymbologyConfig::default);
+    let mut stac_collection = use_signal(|| "sentinel-2-l2a".to_string());
+    let mut stac_items = use_signal(Vec::<crate::gis::StacItem>::new);
+    let mut upload_datasets = use_signal(stage_demo_files);
+    let mut workflow_step = use_signal(|| ProcessingStep::SelectAoi);
+    let mut dash_stats = use_signal(Vec::<WeeklyCompositeStat>::new);
+    let index_for_legend = layer_settings().active_index_id.clone();
 
     rsx! {
         div {
@@ -106,11 +121,12 @@ pub fn ToolPanel(
 
             div { class: "gs-native-tool-panel__header",
                 h2 { class: "gs-native-tool-panel__title", "{title}" }
+                ContextualDockHint { active_tool: active_tool.clone() }
             }
 
             div { class: "gs-native-tool-panel__body",
                 match active_tool.as_str() {
-                    "layers" | "add-data" => rsx! {
+                    "layers" => rsx! {
                         LayersPanel {
                             layers: layers,
                             layer_settings: layer_settings,
@@ -126,7 +142,45 @@ pub fn ToolPanel(
                             on_open_tool: on_open_tool,
                             on_basemap_change: on_basemap_change,
                             on_index_change: on_index_change,
-                            show_upload: active_tool == "add-data",
+                            show_upload: false,
+                        }
+                        LayerControlMount {
+                            layers: layers,
+                            on_toggle: move |id: String| {
+                                layers.with_mut(|list| {
+                                    if let Some(row) = list.iter_mut().find(|l| l.id == id) {
+                                        row.visible = !row.visible;
+                                    }
+                                });
+                                on_layers_changed.call(());
+                            },
+                        }
+                    },
+                    "add-data" => rsx! {
+                        UploadStagingPanel { datasets: upload_datasets }
+                        LayersPanel {
+                            layers: layers,
+                            layer_settings: layer_settings,
+                            basemap_id: basemap_id.clone(),
+                            aoi_count: aoi_count,
+                            symbology_color: symbology_color,
+                            upload_json: upload_json,
+                            on_layers_changed: on_layers_changed,
+                            on_settings_changed: on_settings_changed,
+                            on_add_demo_layer: on_add_demo_layer,
+                            on_apply_symbology: on_apply_symbology,
+                            on_upload: on_upload,
+                            on_open_tool: on_open_tool,
+                            on_basemap_change: on_basemap_change,
+                            on_index_change: on_index_change,
+                            show_upload: true,
+                        }
+                        StacExplorePanel {
+                            collection: stac_collection,
+                            items: stac_items,
+                            on_search: move |_| {
+                                stac_items.set(run_stac_search(&stac_collection()));
+                            },
                         }
                     },
                     "remote-sensing" | "imagery" => rsx! {
@@ -166,30 +220,32 @@ pub fn ToolPanel(
                         IdentifyPanel { hits: identify_hits }
                     },
                     "symbology" => rsx! {
-                        div { class: "gs-native-tool-panel__section",
-                            span { class: "gs-native-tool-panel__label", "Symbology" }
-                            select {
-                                class: "gs-native-tool-panel__select",
-                                value: "{symbology_color()}",
-                                onchange: move |e| on_apply_symbology.call(e.value()),
-                                option { value: "blue", "Blue fill" }
-                                option { value: "green", "Green fill" }
-                                option { value: "orange", "Orange fill" }
-                                option { value: "red", "Red fill" }
-                                option { value: "purple", "Purple fill" }
-                            }
-                            p { class: "gs-native-tool-panel__hint",
-                                "Classified fill colors for vector overlays on the map."
-                            }
+                        SymbologyPanel {
+                            config: sym_config,
+                            on_apply: move |cfg: SymbologyConfig| {
+                                on_apply_symbology.call(cfg.single.fill_color.clone());
+                            },
                         }
                     },
                     "legend" => rsx! {
-                        p { class: "gs-native-tool-panel__hint",
-                            "Map legend shows active WMS / index layer symbology. Toggle index visibility in Remote sensing or Layer settings."
-                        }
-                        ul { class: "gs-native-identify-list",
-                            li { "NDVI / index ramp (demo)" }
-                            li { "Basemap: Esri imagery" }
+                        {
+                            let legend = legend_config_for_index(&index_for_legend, 5);
+                            rsx! {
+                                p { class: "gs-native-tool-panel__hint",
+                                    "Classification legend — {legend.label}"
+                                }
+                                ul { class: "gs-native-identify-list",
+                                    for seg in legend.segments.iter() {
+                                        li {
+                                            span {
+                                                class: "gs-aoi-report-swatch",
+                                                style: "background: {seg.color_hex}",
+                                            }
+                                            " {seg.label}"
+                                        }
+                                    }
+                                }
+                            }
                         }
                     },
                     "elev-profile" => rsx! {
@@ -204,21 +260,43 @@ pub fn ToolPanel(
                         }
                     },
                     "explore-indexes" => rsx! {
-                        p { class: "gs-native-tool-panel__hint",
-                            "Spectral index cards for Layer Live — open Remote sensing to switch the active index."
+                        StacExplorePanel {
+                            collection: stac_collection,
+                            items: stac_items,
+                            on_search: move |_| {
+                                stac_items.set(run_stac_search(&stac_collection()));
+                            },
                         }
-                        button {
-                            class: "gs-native-tool-panel__btn",
-                            r#type: "button",
-                            onclick: move |_| on_open_tool.call("remote-sensing".into()),
-                            "Open Remote sensing"
+                        p { class: "gs-native-tool-panel__hint", "Index catalog" }
+                        ul { class: "gs-native-identify-list",
+                            for def in index_catalog() {
+                                li { key: "{def.id}", "{def.label} ({def.id})" }
+                            }
                         }
                     },
-                    "charts" | "stats" | "quick-dashboard" => rsx! {
+                    "charts" | "stats" => rsx! {
                         ChartsPanel {
                             aois: aois,
                             selected_aoi_id: selected_aoi_id,
                             on_open_report: on_open_report,
+                        }
+                    },
+                    "quick-dashboard" => rsx! {
+                        QuickDashboardPanel {
+                            stats: dash_stats,
+                            index_id: layer_settings().active_index_id.clone(),
+                        }
+                        ProcessingWorkflowPanel {
+                            step: workflow_step,
+                            on_advance: move |_| workflow_step.with_mut(|s| {
+                                *s = match *s {
+                                    ProcessingStep::SelectAoi => ProcessingStep::PickIndex,
+                                    ProcessingStep::PickIndex => ProcessingStep::SetDates,
+                                    ProcessingStep::SetDates => ProcessingStep::GenerateTimeline,
+                                    ProcessingStep::GenerateTimeline => ProcessingStep::ReviewCharts,
+                                    ProcessingStep::ReviewCharts => ProcessingStep::SelectAoi,
+                                };
+                            }),
                         }
                     },
                     "geo-ai" => rsx! {
@@ -722,15 +800,18 @@ fn AoiPanel(
 }
 
 #[component]
-fn IdentifyPanel(hits: Signal<Vec<String>>) -> Element {
+fn IdentifyPanel(hits: Signal<Vec<crate::gis::IdentifyHit>>) -> Element {
     rsx! {
         p { class: "gs-native-tool-panel__hint", "Click the map to identify vector features." }
         if hits().is_empty() {
             p { class: "gs-native-tool-panel__empty", "No features identified yet." }
         } else {
             ul { class: "gs-native-identify-list",
-                for (i, line) in hits().iter().enumerate() {
-                    li { key: "{i}", "{line}" }
+                for hit in hits().iter() {
+                    li { key: "{hit.layer_id}",
+                        strong { "{hit.layer_name}" }
+                        span { " — {hit.geometry_type}" }
+                    }
                 }
             }
         }

@@ -1,10 +1,18 @@
 //! Sentinel Hub OGC WMS — TIME, MAXCC, GEOMETRY, EVALSCRIPT (Task 32.5a).
 
 mod aoi_clip;
+mod live_aoi_analysis;
 mod timeline;
+mod timeline_crossfade;
 mod wms_url;
+mod wms_legend_config;
 
 pub use aoi_clip::{clip_from_geojson, AoiClipResult};
+pub use live_aoi_analysis::{synthetic_zonal_analytics, LiveAnalysisStatus, ZonalAnalytics};
+pub use timeline_crossfade::{
+    crossfade_frames, CrossfadeFrame, TimelineTransitionMode,
+};
+pub use wms_legend_config::{legend_config_for_index, WmsLegendConfig};
 pub use timeline::{
     build_weekly_timeline, resolve_timeline_series_extents, wms_time_extent_for_week, TimelineWeek,
     TimelineSeriesExtents,

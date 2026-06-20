@@ -1,14 +1,23 @@
 //! GIS domain types and persistence.
 
+mod analytics;
 mod aoi;
+mod aoi_geometry;
 mod aoi_remote;
 mod aoi_report;
+mod aoi_zonal_stats;
+mod arcgis_layer;
+mod export;
 mod fields;
+mod identify;
 mod index_catalog;
 mod layers;
 mod remote_sensing;
+mod routing;
 pub mod sentinel;
+mod stac;
 mod symbology;
+mod upload_staging;
 pub mod parity;
 pub mod native;
 
@@ -17,6 +26,23 @@ pub use aoi::{
     AoiRecord,
 };
 pub use aoi_remote::{load_aois_for_session, persist_aoi, remove_aoi};
+pub use analytics::{
+    build_multi_layer_chart, chart_series_values, normalize_weekly_stats, sparkline_norm,
+    ChartLayerSeries, WeeklyCompositeStat,
+};
+pub use aoi_geometry::{draw_mode_bridge_name, rename_aoi_properties, vertex_count, DrawMode};
+pub use aoi_zonal_stats::{zonal_stats_for_aoi, AoiZonalStatRow};
+pub use arcgis_layer::{bounds_from_geojson, parse_arcgis_feature_layer_ref, query_geojson_url, ArcgisLayerRef};
+pub use export::{build_print_manifest, page_dimensions_mm, PrintManifest, PrintOrientation, PrintPageSpec};
+pub use identify::{identify_at_point, IdentifyHit};
+pub use routing::{
+    la_haversine_km, solve_location_allocation, solve_vrp_greedy, LaAssignment, LaDemand, LaFacility,
+    VrpRoute, VrpStop,
+};
+pub use stac::{demo_collections, search_items, StacCollection, StacItem, DEFAULT_STAC_API};
+pub use upload_staging::{
+    all_datasets_ready, build_staging_datasets, infer_kind, UploadKind, UploadStagingDataset,
+};
 pub use aoi_report::{
     build_aoi_vegetation_report, AoiVegetationReport, BuildReportInput, ChangeDetectionSlot,
     ReportIndexId, ReportTableRow, ReportTimePoint, TimelineWeekInput,
@@ -32,8 +58,9 @@ pub use index_catalog::{
 };
 pub use sentinel::wms_tile_url_simple as wms_tile_url;
 pub use sentinel::{
-    build_weekly_timeline, wms_tile_url_for_index, wms_tile_url_simple, TimelineWeek,
-    WmsTimeExtent,
+    build_weekly_timeline, crossfade_frames, legend_config_for_index, synthetic_zonal_analytics,
+    wms_tile_url_for_index, wms_tile_url_simple, CrossfadeFrame, TimelineTransitionMode,
+    TimelineWeek, WmsLegendConfig, WmsTimeExtent, ZonalAnalytics,
 };
 pub use layers::{AddedLayer, LayerKind, LayerSettings, LayerStore, INDEX_RASTER_LAYER_ID};
 pub use symbology::{

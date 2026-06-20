@@ -7,9 +7,13 @@ use super::{
     aoi_report_modal::AoiReportModal,
     basemap_picker::normalize_basemap_id,
     extended_panels::ChatLine,
+    feature_popup::FeaturePopup,
     map_floating_controls::MapFloatingControls,
     map_shell::MapShell,
     map_status_bar::MapPointer,
+    print_modal::PrintModal,
+    timeline_options_modal::{TimelineOptions, TimelineOptionsModal},
+    weather_intel_panel::WeatherIntelPanel,
     tool_panel::{
         demo_field_geojson, load_layer_settings, load_layers, paint_for_color, persist_layer_settings,
         persist_layers, ToolPanel, DEMO_LAYER_ID, WMS_LAYER_ID,
@@ -21,15 +25,17 @@ use crate::{
     api::{
         ai::chat::send_chat,
         gis::geocode::{search_places, GeocodeHit},
+        gis::open_meteo::demo_weather_at,
         settings::config::fetch_mapbox_config,
     },
     auth_session::AuthContext,
     components::{AppNavBar, AppNavSection},
     gis::{
         aoi_bounds, list_aois, load_fields, set_layer_preset, upsert_aoi_from_geojson, AddedLayer,
-        build_aoi_vegetation_report, build_weekly_timeline, AoiRecord, AoiVegetationReport,
-        BuildReportInput, FieldRecord, LayerKind, LayerSettings, RemoteSensingSettings,
-        ReportIndexId, SymbologyPreset, TimelineWeekInput,
+        build_aoi_vegetation_report, build_weekly_timeline, identify_at_point,
+        AoiRecord, AoiVegetationReport, BuildReportInput, FieldRecord, IdentifyHit, LayerKind,
+        LayerSettings, PrintPageSpec, RemoteSensingSettings, ReportIndexId, SymbologyPreset,
+        TimelineWeekInput,
         wms_tile_url_for_index,
         native::{
             resolve_gl_access_token, mapbox_light_for_minutes, merge_terrain_underlay, MapboxBridge,
@@ -163,7 +169,7 @@ pub fn NativeSatelliteWorkspace() -> Element {
     let mut float_rail_visible = use_signal(|| true);
     let mut aois = use_signal(|| list_aois(&tenant_id, &email));
     let mut selected_aoi_id = use_signal(|| None::<String>);
-    let mut identify_hits = use_signal(Vec::<String>::new);
+    let mut identify_hits = use_signal(Vec::<IdentifyHit>::new);
     let mut symbology_color = use_signal(|| "blue".to_string());
     let mut upload_json = use_signal(String::new);
     let mut draw_points = use_signal(|| 0_usize);
@@ -183,6 +189,12 @@ pub fn NativeSatelliteWorkspace() -> Element {
 
     let mut daylight_settings = use_signal(DaylightSettings::default);
     let mut terrain_enabled = use_signal(|| false);
+
+    let mut timeline_options_open = use_signal(|| false);
+    let mut timeline_options = use_signal(TimelineOptions::default);
+    let mut print_modal_open = use_signal(|| false);
+    let mut print_spec = use_signal(PrintPageSpec::default);
+    let mut weather_snapshot = use_signal(|| None::<crate::api::gis::open_meteo::WeatherSnapshot>);
 
     let mut fields = use_signal(|| load_fields(&tenant_id));
     let mut selected_field_id = use_signal(|| None::<String>);
@@ -301,11 +313,9 @@ pub fn NativeSatelliteWorkspace() -> Element {
             return;
         }
         if let Some(p) = pointer() {
-            let temp = 22.0 + (p.lat.abs() % 12.0) - 6.0;
-            weather_summary.set(format!(
-                "Partly cloudy · {:.0}°C · wind 12 km/h NE (demo at {:.2}°, {:.2}°)",
-                temp, p.lat, p.lng
-            ));
+            let snap = demo_weather_at(p.lat, p.lng);
+            weather_summary.set(snap.summary.clone());
+            weather_snapshot.set(Some(snap));
         } else {
             weather_summary.set("Move pointer over map for demo forecast.".into());
         }
@@ -954,6 +964,8 @@ pub fn NativeSatelliteWorkspace() -> Element {
                 active_tool: active_tool(),
                 map_ready: *map_ready.read(),
                 map_error: map_error.read().clone(),
+                gl_access_token: gl_access_token(),
+                viewport_density: "comfortable".to_string(),
                 pointer: pointer.read().clone(),
                 projection_label: projection_label(),
                 on_tool_select: move |id: String| {
@@ -1082,6 +1094,34 @@ pub fn NativeSatelliteWorkspace() -> Element {
                 open: report_open(),
                 report: aoi_report.read().clone(),
                 on_close: on_close_report,
+            }
+
+            TimelineOptionsModal {
+                open: timeline_options_open(),
+                options: timeline_options,
+                on_apply: move |opts| timeline_options.set(opts),
+                on_close: move |_| timeline_options_open.set(false),
+            }
+
+            PrintModal {
+                open: print_modal_open(),
+                spec: print_spec,
+                map_png: export_status.read().clone(),
+                on_print: on_export_print,
+                on_close: move |_| print_modal_open.set(false),
+            }
+
+            if weather_intel_active() {
+                WeatherIntelPanel {
+                    snapshot: weather_snapshot.read().clone(),
+                    lat: pointer.read().as_ref().map(|p| p.lat),
+                    lng: pointer.read().as_ref().map(|p| p.lng),
+                }
+            }
+
+            FeaturePopup {
+                hits: identify_hits,
+                on_close: move |_| identify_hits.set(Vec::new()),
             }
         }
     }

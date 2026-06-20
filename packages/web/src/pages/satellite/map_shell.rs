@@ -5,7 +5,9 @@ use dioxus::prelude::*;
 use super::{
     floating_drag::{DraggableFloat, FloatSlot},
     layer_swipe_panel::{LayerSwipePanel, SwipeState},
+    map_brand::MapGeoSyntraBrand,
     map_status_bar::{MapPointer, MapStatusBar},
+    map_token_banner::MapTokenStatusBanner,
     toolbox_rail::ToolboxRail,
     tool_panel::tool_panel_title,
 };
@@ -16,6 +18,8 @@ pub fn MapShell(
     active_tool: String,
     map_ready: bool,
     map_error: Option<String>,
+    gl_access_token: String,
+    viewport_density: String,
     pointer: Option<MapPointer>,
     projection_label: String,
     on_tool_select: EventHandler<String>,
@@ -51,10 +55,19 @@ pub fn MapShell(
     };
 
     rsx! {
-        div { class: "gs-gis-body gs-native-shell",
+        div {
+            class: "gs-gis-body gs-native-shell",
+            "data-viewport-density": "{viewport_density}",
             div { class: "gs-gis-main gs-native-main",
                 div { class: "gs-gis-map-wrap gs-native-map-wrap",
                     div { class: "gs-native-space-backdrop", aria_hidden: "true" }
+
+                    MapGeoSyntraBrand {}
+
+                    MapTokenStatusBanner {
+                        token: gl_access_token.clone(),
+                        map_ready: map_ready,
+                    }
 
                     if !map_ready {
                         div { class: "gs-gis-map-loading",

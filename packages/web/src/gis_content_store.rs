@@ -94,3 +94,31 @@ pub fn save_rows(rows: &[GisContentRow]) {
 pub fn find_row(id: &str) -> Option<GisContentRow> {
     load_rows().into_iter().find(|r| r.id == id)
 }
+
+pub fn create_folder(rows: &mut Vec<GisContentRow>, title: &str) -> GisContentRow {
+    let id = format!("folder-{}", crate::wall_clock::now_ms());
+    let row = GisContentRow {
+        id: id.clone(),
+        title: title.into(),
+        type_label: "Folder".into(),
+        modified: crate::gis::iso_today(),
+        folder_id: "all".into(),
+        sharing: "private".into(),
+    };
+    rows.push(row.clone());
+    row
+}
+
+pub fn move_rows_to_folder(rows: &mut [GisContentRow], ids: &[&str], folder_id: &str) {
+    for row in rows.iter_mut() {
+        if ids.contains(&row.id.as_str()) {
+            row.folder_id = folder_id.into();
+        }
+    }
+}
+
+pub fn set_sharing(rows: &mut [GisContentRow], id: &str, sharing: &str) {
+    if let Some(row) = rows.iter_mut().find(|r| r.id == id) {
+        row.sharing = sharing.into();
+    }
+}
