@@ -47,12 +47,9 @@ pub fn label_for(id: &str) -> String {
         .unwrap_or_else(|| rid.to_string())
 }
 
-/// Demo WMS tile template — same pattern as React Sentinel Hub OGC placeholder.
+/// Demo WMS tile template — delegates to Sentinel builder (Task 32.5a).
 pub fn wms_tile_url(index_id: &str) -> String {
-    let layer = resolve_index_id(index_id);
-    format!(
-        "https://services.sentinel-hub.com/ogc/wms/example?SERVICE=WMS&REQUEST=GetMap&LAYERS={layer}&FORMAT=image/png&TRANSPARENT=true&VERSION=1.3.0&STYLES=&CRS=EPSG:3857&BBOX={{bbox-epsg-3857}}&WIDTH=256&HEIGHT=256"
-    )
+    crate::gis::sentinel::wms_tile_url_simple(index_id)
 }
 
 #[cfg(test)]

@@ -56,6 +56,7 @@ pub fn ToolPanel(
     on_set_draw_tool: EventHandler<String>,
     on_generate_timeline: EventHandler<()>,
     on_open_charts: EventHandler<()>,
+    on_open_report: EventHandler<()>,
     on_aois_changed: EventHandler<()>,
     on_add_demo_layer: EventHandler<()>,
     on_sync_wms: EventHandler<bool>,
@@ -212,6 +213,7 @@ pub fn ToolPanel(
                         ChartsPanel {
                             aois: aois,
                             selected_aoi_id: selected_aoi_id,
+                            on_open_report: on_open_report,
                         }
                     },
                     "geo-ai" => rsx! {
@@ -716,7 +718,11 @@ fn IdentifyPanel(hits: Signal<Vec<String>>) -> Element {
 }
 
 #[component]
-fn ChartsPanel(aois: Signal<Vec<AoiRecord>>, selected_aoi_id: Signal<Option<String>>) -> Element {
+fn ChartsPanel(
+    aois: Signal<Vec<AoiRecord>>,
+    selected_aoi_id: Signal<Option<String>>,
+    on_open_report: EventHandler<()>,
+) -> Element {
     let aoi = selected_aoi_id()
         .and_then(|id| aois().into_iter().find(|a| a.id == id));
 
@@ -749,6 +755,12 @@ fn ChartsPanel(aois: Signal<Vec<AoiRecord>>, selected_aoi_id: Signal<Option<Stri
                             }
                         }
                     }
+                }
+                button {
+                    class: "gs-native-tool-panel__btn",
+                    r#type: "button",
+                    onclick: move |_| on_open_report.call(()),
+                    "Open vegetation report"
                 }
             }
         } else {

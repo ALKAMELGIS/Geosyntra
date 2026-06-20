@@ -32,19 +32,19 @@ pub const PARITY_AREAS: &[ParityArea] = &[
     ParityArea {
         id: "remote_sensing",
         label: "Remote sensing / indices",
-        percent: 20,
+        percent: 38,
         task: "32.5",
     },
     ParityArea {
         id: "aoi",
         label: "AOI",
-        percent: 25,
+        percent: 42,
         task: "32.6",
     },
     ParityArea {
         id: "symbology",
         label: "Symbology",
-        percent: 5,
+        percent: 22,
         task: "32.4",
     },
     ParityArea {
@@ -113,6 +113,21 @@ mod tests {
     #[test]
     fn backend_gis_apis_at_100_after_task_32_0() {
         assert_eq!(area_percent("backend_gis"), Some(100));
+    }
+
+    #[test]
+    fn remote_sensing_wms_builder_after_task_32_5a() {
+        assert!(area_percent("remote_sensing").unwrap_or(0) >= 35);
+    }
+
+    #[test]
+    fn symbology_engine_after_task_32_4b() {
+        assert!(area_percent("symbology").unwrap_or(0) >= 20);
+    }
+
+    #[test]
+    fn aoi_report_after_task_32_6d() {
+        assert!(area_percent("aoi").unwrap_or(0) >= 40);
     }
 
     #[test]

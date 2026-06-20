@@ -4,6 +4,7 @@ use dioxus::prelude::*;
 use serde_json::{json, Value};
 
 use super::{
+    aoi_report_modal::AoiReportModal,
     basemap_picker::normalize_basemap_id,
     extended_panels::ChatLine,
     map_floating_controls::MapFloatingControls,
@@ -26,8 +27,10 @@ use crate::{
     components::{AppNavBar, AppNavSection},
     gis::{
         aoi_bounds, list_aois, load_fields, set_layer_preset, upsert_aoi_from_geojson, AddedLayer,
-        AoiRecord, FieldRecord, LayerKind, LayerSettings, RemoteSensingSettings, SymbologyPreset,
-        wms_tile_url,
+        build_aoi_vegetation_report, build_weekly_timeline, AoiRecord, AoiVegetationReport,
+        BuildReportInput, FieldRecord, LayerKind, LayerSettings, RemoteSensingSettings,
+        ReportIndexId, SymbologyPreset, TimelineWeekInput,
+        wms_tile_url_for_index,
         native::{
             resolve_gl_access_token, MapboxBridge, MapCreateOptions, MapHandle, PROJECTION_GLOBE,
             PROJECTION_MERCATOR, DEFAULT_BASEMAP_ID, MAP_CONTAINER_ID, style_for_basemap,
@@ -44,6 +47,16 @@ fn field_layer_id(field_id: &str) -> String {
     format!("field-{field_id}")
 }
 
+fn resolve_wms_tile_url(
+    index_id: &str,
+    rs: &RemoteSensingSettings,
+    aois: &[AoiRecord],
+    timeline_active: bool,
+) -> String {
+    let aoi_geo = aois.first().map(|a| &a.geojson);
+    wms_tile_url_for_index(index_id, rs, aoi_geo, timeline_active)
+}
+
 fn sync_map_layers(
     handle: &MapHandle,
     layers: &[AddedLayer],
@@ -51,6 +64,8 @@ fn sync_map_layers(
     fields: &[FieldRecord],
     sym_color: &str,
     active_index_id: &str,
+    rs: &RemoteSensingSettings,
+    timeline_active: bool,
 ) {
     let paint = paint_for_color(sym_color);
 
@@ -61,7 +76,7 @@ fn sync_map_layers(
 
     if let Some(wms) = layers.iter().find(|l| l.id == WMS_LAYER_ID) {
         if wms.visible {
-            let url = wms_tile_url(active_index_id);
+            let url = resolve_wms_tile_url(active_index_id, rs, aois, timeline_active);
             MapboxBridge::add_raster_layer(handle, WMS_LAYER_ID, &[url], 0.85);
         } else {
             MapboxBridge::set_layer_visibility(handle, WMS_LAYER_ID, false);
@@ -162,6 +177,9 @@ pub fn NativeSatelliteWorkspace() -> Element {
     let mut weather_summary = use_signal(String::new);
     let mut export_status = use_signal(|| None::<String>);
 
+    let mut report_open = use_signal(|| false);
+    let mut aoi_report = use_signal(|| None::<AoiVegetationReport>);
+
     let mut fields = use_signal(|| load_fields(&tenant_id));
     let mut selected_field_id = use_signal(|| None::<String>);
 
@@ -233,6 +251,8 @@ pub fn NativeSatelliteWorkspace() -> Element {
         let field_list = fields();
         let color = symbology_color();
         let index_id = layer_settings().active_index_id.clone();
+        let rs = rs_settings();
+        let timeline = timeline_active();
         move || {
             if !*map_ready.read() {
                 return;
@@ -245,6 +265,8 @@ pub fn NativeSatelliteWorkspace() -> Element {
                     &field_list,
                     &color,
                     &index_id,
+                    &rs,
+                    timeline,
                 );
             }
         }
@@ -445,6 +467,8 @@ pub fn NativeSatelliteWorkspace() -> Element {
                 &fields(),
                 &symbology_color(),
                 &layer_settings().active_index_id,
+                &rs_settings(),
+                timeline_active(),
             );
         }
     };
@@ -492,6 +516,47 @@ pub fn NativeSatelliteWorkspace() -> Element {
 
     let on_open_charts = move |_| active_tool.set("charts".into());
 
+    let on_open_report = move |_| {
+        let aoi = selected_aoi_id()
+            .and_then(|id| aois().into_iter().find(|a| a.id == id))
+            .or_else(|| aois().first().cloned());
+        let Some(rec) = aoi else {
+            rs_status.set("Draw or select an AOI before opening the report.".into());
+            return;
+        };
+        let rs = rs_settings();
+        let weeks: Vec<TimelineWeekInput> = build_weekly_timeline(
+            &rs.time_series_start,
+            &rs.time_series_end,
+        )
+        .into_iter()
+        .map(|w| TimelineWeekInput {
+            start_date: w.start_date,
+            end_date: w.end_date,
+            mean: w.mean,
+        })
+        .collect();
+        let index = match layer_settings().active_index_id.as_str() {
+            "NDWI" => ReportIndexId::Ndwi,
+            "SAVI" => ReportIndexId::Savi,
+            "LST" => ReportIndexId::Lst,
+            _ => ReportIndexId::Ndvi,
+        };
+        if let Some(report) = build_aoi_vegetation_report(&BuildReportInput {
+            index_id: index,
+            date_start: &rs.time_series_start,
+            date_end: &rs.time_series_end,
+            aoi_name: &rec.name,
+            aoi_feature: &rec.geojson,
+            weekly: &weeks,
+        }) {
+            aoi_report.set(Some(report));
+            report_open.set(true);
+        }
+    };
+
+    let on_close_report = move |_| report_open.set(false);
+
     let on_toggle_swipe = move |_| {
         let next = !swipe_active();
         swipe_active.set(next);
@@ -522,7 +587,12 @@ pub fn NativeSatelliteWorkspace() -> Element {
             persist_layers(&tenant_index, &list);
             if let Some(handle) = map_handle.read().clone() {
                 if visible {
-                    let url = wms_tile_url(&layer_settings().active_index_id);
+                    let url = resolve_wms_tile_url(
+                        &layer_settings().active_index_id,
+                        &rs_settings(),
+                        &aois(),
+                        timeline_active(),
+                    );
                     MapboxBridge::add_raster_layer(&handle, WMS_LAYER_ID, &[url], 0.85);
                 } else {
                     MapboxBridge::set_layer_visibility(&handle, WMS_LAYER_ID, false);
@@ -570,7 +640,12 @@ pub fn NativeSatelliteWorkspace() -> Element {
     let on_sync_wms = move |visible: bool| {
         if let Some(handle) = map_handle.read().clone() {
             if visible {
-                let url = wms_tile_url(&layer_settings().active_index_id);
+                let url = resolve_wms_tile_url(
+                    &layer_settings().active_index_id,
+                    &rs_settings(),
+                    &aois(),
+                    timeline_active(),
+                );
                 MapboxBridge::add_raster_layer(&handle, WMS_LAYER_ID, &[url], 0.85);
             } else {
                 MapboxBridge::set_layer_visibility(&handle, WMS_LAYER_ID, false);
@@ -603,7 +678,12 @@ pub fn NativeSatelliteWorkspace() -> Element {
                 .map(|l| l.visible)
                 .unwrap_or(false)
             {
-                let url = wms_tile_url(&resolved);
+                let url = resolve_wms_tile_url(
+                    &resolved,
+                    &rs_settings(),
+                    &aois(),
+                    timeline_active(),
+                );
                 MapboxBridge::add_raster_layer(&handle, WMS_LAYER_ID, &[url], 0.85);
             }
         }
@@ -643,6 +723,8 @@ pub fn NativeSatelliteWorkspace() -> Element {
                 &fields(),
                 &symbology_color(),
                 &layer_settings().active_index_id,
+                &rs_settings(),
+                timeline_active(),
             );
             if let Some([w, s, e, n]) = aoi_bounds(&feature) {
                 MapboxBridge::fit_bounds(&handle, w, s, e, n);
@@ -929,6 +1011,7 @@ pub fn NativeSatelliteWorkspace() -> Element {
                         on_set_draw_tool: on_set_draw_tool,
                         on_generate_timeline: on_generate_timeline,
                         on_open_charts: on_open_charts,
+                        on_open_report: on_open_report,
                         on_aois_changed: on_aois_changed,
                         on_add_demo_layer: on_add_demo_layer,
                         on_sync_wms: on_sync_wms,
@@ -957,6 +1040,12 @@ pub fn NativeSatelliteWorkspace() -> Element {
                         on_field_select: on_field_select,
                     }
                 },
+            }
+
+            AoiReportModal {
+                open: report_open(),
+                report: aoi_report.read().clone(),
+                on_close: on_close_report,
             }
         }
     }

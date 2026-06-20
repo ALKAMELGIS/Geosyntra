@@ -1,5 +1,6 @@
 //! GeoAI satellite workspace — native Mapbox GIS (Task 31).
 
+mod aoi_report_modal;
 mod basemap_picker;
 mod extended_panels;
 mod map_floating_controls;
