@@ -1,12 +1,12 @@
 import { expect, test } from '../fixtures/test'
 
-import { loginViaApi } from '../fixtures/auth.js'
+import { openAdminPage, loginAsAdmin } from '../fixtures/admin.js'
 
 const API_URL = process.env.GEOSYNTRA_API_URL ?? 'http://127.0.0.1:3003'
 
 test.describe('admin CRUD forms', () => {
   test.beforeEach(async ({ page }) => {
-    await loginViaApi(page)
+    await loginAsAdmin(page)
   })
 
   test('create user returns server-assigned id', async ({ page }) => {
@@ -33,7 +33,7 @@ test.describe('admin CRUD forms', () => {
   })
 
   test('memberships page opens create modal with role and user selects', async ({ page }) => {
-    await page.goto('/admin/memberships', { waitUntil: 'networkidle' })
+    await openAdminPage(page, '/admin/memberships')
     await expect(page.getByRole('heading', { name: /membership/i }).first()).toBeVisible()
     await page.getByRole('button', { name: /add membership/i }).click()
     const dialog = page.getByRole('dialog')
@@ -51,7 +51,7 @@ test.describe('admin CRUD forms', () => {
   })
 
   test('grants page opens create modal with permission and duration selects', async ({ page }) => {
-    await page.goto('/admin/grants', { waitUntil: 'networkidle' })
+    await openAdminPage(page, '/admin/grants')
     await expect(page.getByRole('heading', { name: /temporary grant/i }).first()).toBeVisible()
     await page.getByRole('button', { name: /issue grant/i }).click()
     const dialog = page.getByRole('dialog')
@@ -68,7 +68,7 @@ test.describe('admin CRUD forms', () => {
   })
 
   test('users page opens create user stepper modal', async ({ page }) => {
-    await page.goto('/admin/users', { waitUntil: 'networkidle' })
+    await openAdminPage(page, '/admin/users')
     await page.getByRole('button', { name: /create user/i }).click()
     const dialog = page.getByRole('dialog')
     await expect(dialog).toBeVisible()

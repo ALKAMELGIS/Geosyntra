@@ -30,6 +30,7 @@ echo "==> Start Axum on :3003 (log: ${API_LOG})"
 (
   cd packages/api
   export DATABASE_URL JWT_SECRET PORT=3003
+  export AUTH_RATE_LIMIT_MAX="${AUTH_RATE_LIMIT_MAX:-10000}"
   nohup cargo run --bin geosyntra-api >> "${API_LOG}" 2>&1 &
 )
 for _ in $(seq 1 90); do

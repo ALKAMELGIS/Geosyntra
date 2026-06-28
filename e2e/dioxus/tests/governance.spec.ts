@@ -1,16 +1,16 @@
 import { expect, test } from '../fixtures/test'
 
-import { loginViaApi } from '../fixtures/auth.js'
+import { loginAsAdmin, openAdminPage } from '../fixtures/admin.js'
 
 const API_URL = process.env.GEOSYNTRA_API_URL ?? 'http://127.0.0.1:3003'
 
 test.describe('governance', () => {
   test.beforeEach(async ({ page }) => {
-    await loginViaApi(page)
+    await loginAsAdmin(page)
   })
 
   test('/admin/tenants loads and can open propose form', async ({ page }) => {
-    await page.goto('/admin/tenants', { waitUntil: 'networkidle' })
+    await openAdminPage(page, '/admin/tenants')
     await expect(page.getByRole('heading', { name: /tenant/i }).first()).toBeVisible()
     await expect(page.getByText(/propose|create/i).first()).toBeVisible()
   })
@@ -44,13 +44,13 @@ test.describe('governance', () => {
   })
 
   test('/admin/platform loads config snapshot', async ({ page }) => {
-    await page.goto('/admin/platform', { waitUntil: 'networkidle' })
+    await openAdminPage(page, '/admin/platform')
     await expect(page.getByRole('heading', { name: /platform config/i })).toBeVisible()
     await expect(page.getByText(/environment|gateway|capabilities/i).first()).toBeVisible()
   })
 
   test('/admin/governance shows inbox and nav badge', async ({ page }) => {
-    await page.goto('/admin/governance', { waitUntil: 'networkidle' })
+    await openAdminPage(page, '/admin/governance')
     await expect(page.getByRole('heading', { name: /governance inbox/i })).toBeVisible()
     await expect(page.getByRole('link', { name: /governance/i }).first()).toBeVisible()
   })
@@ -76,7 +76,7 @@ test.describe('governance', () => {
     const body = (await resp.json()) as { proposalId?: string }
     expect(body.proposalId).toBeTruthy()
 
-    await page.goto('/admin/governance', { waitUntil: 'networkidle' })
+    await openAdminPage(page, '/admin/governance')
     await expect(page.getByText(tenantId).first()).toBeVisible({ timeout: 15_000 })
     await expect(page.getByRole('link', { name: /governance \(\d+\)/i }).first()).toBeVisible()
   })
@@ -100,7 +100,7 @@ test.describe('governance', () => {
     })
     expect(create.ok()).toBeTruthy()
 
-    await page.goto('/admin/governance', { waitUntil: 'networkidle' })
+    await openAdminPage(page, '/admin/governance')
     await expect(page.getByText(tenantId).first()).toBeVisible({ timeout: 15_000 })
 
     const row = page.locator('tr').filter({ hasText: tenantId }).first()

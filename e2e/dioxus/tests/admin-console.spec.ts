@@ -1,6 +1,6 @@
 import { expect, test } from '../fixtures/test'
 
-import { loginViaApi } from '../fixtures/auth.js'
+import { loginAsAdmin, openAdminPage } from '../fixtures/admin.js'
 
 const adminPaths = [
   { path: '/admin/policies', heading: /polic/i },
@@ -18,12 +18,12 @@ const adminPaths = [
 
 test.describe('admin console', () => {
   test.beforeEach(async ({ page }) => {
-    await loginViaApi(page)
+    await loginAsAdmin(page)
   })
 
   for (const { path, heading } of adminPaths) {
     test(`${path} loads`, async ({ page }) => {
-      await page.goto(path, { waitUntil: 'networkidle' })
+      await openAdminPage(page, path)
       await expect(page.getByRole('heading', { name: heading }).first()).toBeVisible()
     })
   }

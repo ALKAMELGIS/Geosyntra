@@ -1,6 +1,6 @@
 import { expect, test } from '../fixtures/test'
 
-import { loginViaApi } from '../fixtures/auth.js'
+import { loginViaApiDashboard } from '../fixtures/auth.js'
 
 /**
  * Task 25.6 — responsive viewport matrix (port of React home-grid patterns).
@@ -24,16 +24,15 @@ test.describe('responsive layout (Task 25.6)', () => {
   for (const vp of VIEWPORTS) {
     test(`${vp.name}: public landing nav and hero`, async ({ page }) => {
       await page.setViewportSize({ width: vp.width, height: vp.height })
-      await page.goto('/', { waitUntil: 'networkidle' })
+      await page.goto('/', { waitUntil: 'domcontentloaded' })
       await expect(page.locator('.gs-app-nav')).toBeVisible()
       await expect(page.locator('.gs-landing-hero')).toBeVisible()
       await expectNoHorizontalOverflow(page)
     })
 
     test(`${vp.name}: signed-in dashboard uses unified nav`, async ({ page }) => {
-      await loginViaApi(page)
+      await loginViaApiDashboard(page)
       await page.setViewportSize({ width: vp.width, height: vp.height })
-      await page.goto('/dashboard', { waitUntil: 'networkidle' })
       await expect(page.locator('.gs-app-nav')).toBeVisible()
       await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
       await expect(

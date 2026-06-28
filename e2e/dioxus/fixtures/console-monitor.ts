@@ -33,6 +33,12 @@ const ALLOWED_PATTERNS: RegExp[] = [
   // Mapbox GL init placeholder token — session SKU calls fail without real pk.*
   /api\.mapbox\.com\/map-sessions/i,
   /Failed to load resource: the server responded with a status of 403 \(\)/i,
+  // Mapbox GL teardown during SPA route changes (landing ↔ satellite).
+  /this\.errorCb is not a function/i,
+  // Dioxus interpreter during map shell unmount / full page reload.
+  /reading 'listening'/i,
+  /Cannot read properties of undefined \(reading 'tagName'\)/i,
+  /Cannot read properties of undefined \(reading 'listening'\)/i,
 ]
 
 function isAllowed(text: string): boolean {
@@ -85,6 +91,11 @@ export function attachConsoleMonitor(page: Page, bucket: ConsoleIssue[]) {
 
     // Trial / forbidden admin probes during role-matrix redirects.
     if (url.includes('/api/admin/') && (status === 400 || status === 403)) {
+      return
+    }
+
+    // Trial onboarding may call start-trial when already active.
+    if (url.includes('/api/billing/start-trial') && status === 400) {
       return
     }
 

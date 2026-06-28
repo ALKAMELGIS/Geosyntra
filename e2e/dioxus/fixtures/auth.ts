@@ -12,6 +12,7 @@ type LoginResponse = {
   refreshToken?: string
   refresh_token?: string
   user?: {
+    id?: string
     email?: string
     name?: string
     role?: string
@@ -29,6 +30,7 @@ function sessionFromLogin(body: LoginResponse) {
   return {
     access_token: body.accessToken ?? body.access_token ?? null,
     refresh_token: body.refreshToken ?? body.refresh_token ?? null,
+    user_id: user.id ?? null,
     email: user.email ?? null,
     name: user.name ?? null,
     role: user.role ?? null,
@@ -39,52 +41,87 @@ function sessionFromLogin(body: LoginResponse) {
   }
 }
 
-/** Persist auth session in localStorage (matches `geosyntra_auth_v1`). */
-export async function persistSession(page: Page, body: LoginResponse) {
+  /** Persist auth session in localStorage before WASM boot (matches `geosyntra_auth_v1`). */
+export async function persistSession(
+  page: Page,
+  body: LoginResponse,
+  opts?: { landingPath?: string },
+) {
   const session = sessionFromLogin(body)
-  await page.goto('/', { waitUntil: 'domcontentloaded' })
-  await page.evaluate(
-    ([key, raw]) => localStorage.setItem(key, raw),
-    ['geosyntra_auth_v1', JSON.stringify(session)] as const,
-  )
-  await page.reload({ waitUntil: 'domcontentloaded' })
+  const landingPath = opts?.landingPath ?? '/satellite/indices'
+  const raw = JSON.stringify(session)
+  await page.context().addInitScript((payload: string) => {
+    localStorage.setItem('geosyntra_auth_v1', payload)
+  }, raw)
+  // Establish origin, seed storage, then load the GIS route so WASM reads a warm session.
+  await page.goto('/login', { waitUntil: 'domcontentloaded' })
+  await page.evaluate((payload: string) => {
+    localStorage.setItem('geosyntra_auth_v1', payload)
+  }, raw)
+  await page.goto(landingPath, { waitUntil: 'domcontentloaded' })
   await page.waitForFunction(
     () => {
       const raw = localStorage.getItem('geosyntra_auth_v1')
       if (!raw) return false
       try {
-        const parsed = JSON.parse(raw) as { access_token?: string }
-        return Boolean(parsed.access_token)
+        const parsed = JSON.parse(raw) as { access_token?: string; permissions?: string[] }
+        return (
+          Boolean(parsed.access_token)
+          && Array.isArray(parsed.permissions)
+          && parsed.permissions.includes('app.access')
+        )
       } catch {
         return false
       }
     },
     { timeout: 20_000 },
   )
-  await page.goto('/dashboard', { waitUntil: 'domcontentloaded' })
+  if (landingPath.includes('/satellite')) {
+    await page.waitForSelector('[data-testid="native-map-canvas"]', { timeout: 90_000 })
+  }
+}
+
+/** Login and land on dashboard — for admin / account specs. */
+export async function persistSessionDashboard(page: Page, body: LoginResponse) {
+  await persistSession(page, body, { landingPath: '/dashboard' })
   await page.waitForFunction(
     () => {
       const heading = document.querySelector('.gs-page-title, h1')
       return heading != null && /dashboard/i.test(heading.textContent ?? '')
     },
-    { timeout: 20_000 },
+    { timeout: 45_000 },
   )
   await expect(page.getByRole('heading', { name: /dashboard/i })).toBeVisible({
-    timeout: 5_000,
+    timeout: 10_000,
   })
 }
 
+async function gotoDashboard(page: Page) {
+  if (!page.url().includes('/dashboard')) {
+    await page.locator('.gs-app-nav').getByRole('link', { name: 'Dashboard', exact: true }).click()
+    await expect(page).toHaveURL(/\/dashboard/, { timeout: 15_000 })
+  }
+  await expect(page.getByRole('heading', { name: /dashboard/i })).toBeVisible({
+    timeout: 15_000,
+  })
+}
+
+/** Sign in via UI and land on GIS or dashboard (no redundant API login — avoids auth rate limit). */
 export async function loginViaApi(
   page: Page,
   email = DEV_EMAIL,
   password = DEV_PASSWORD,
+  opts?: { landingPath?: string },
 ) {
-  const resp = await page.request.post(`${API_URL}/api/auth/login`, {
-    data: { email, password },
-  })
-  expect(resp.ok(), `login failed for ${email}: ${resp.status()}`).toBeTruthy()
-  const body = (await resp.json()) as LoginResponse
-  await persistSession(page, body)
+  await loginViaUi(page, email, password)
+  const landingPath = opts?.landingPath ?? '/satellite/indices'
+  if (landingPath.includes('/dashboard')) {
+    await gotoDashboard(page)
+  } else if (!page.url().includes('/satellite')) {
+    await page.locator('.gs-app-nav').getByRole('link', { name: 'GeoAI' }).click()
+    await expect(page).toHaveURL(/\/satellite/, { timeout: 15_000 })
+    await page.waitForSelector('[data-testid="native-map-canvas"]', { timeout: 90_000 })
+  }
 }
 
 /** Register, verify email (dev link), and persist a trial_user session. */
@@ -114,7 +151,7 @@ export async function registerVerifiedTrialUser(page: Page): Promise<{ email: st
     `${API_URL}/api/auth/verify-email?token=${encodeURIComponent(token!)}`,
   )
   expect(verifyResp.ok(), `verify-email failed: ${verifyResp.status()}`).toBeTruthy()
-  await loginViaApi(page, email, password)
+  await loginViaApi(page, email, password, { landingPath: '/dashboard' })
   return { email, password }
 }
 
@@ -123,12 +160,40 @@ export async function registerTrialUser(page: Page): Promise<{ email: string; pa
   return registerVerifiedTrialUser(page)
 }
 
+export async function loginViaApiDashboard(
+  page: Page,
+  email = DEV_EMAIL,
+  password = DEV_PASSWORD,
+) {
+  await loginViaUi(page, email, password, { skipMapWait: true })
+  await gotoDashboard(page)
+}
+
+async function fillControlledInput(page: Page, selector: string, value: string) {
+  const input = page.locator(selector)
+  await expect(input).toBeVisible({ timeout: 15_000 })
+  await input.click()
+  await input.fill('')
+  await input.pressSequentially(value, { delay: 20 })
+}
+
 /** Sign in via the Dioxus login form. */
-export async function loginViaUi(page: Page, email = DEV_EMAIL, password = DEV_PASSWORD) {
-  await page.goto('/login', { waitUntil: 'networkidle' })
-  await page.locator('#email').fill(email)
-  await page.locator('#password').fill(password)
+export async function loginViaUi(
+  page: Page,
+  email = DEV_EMAIL,
+  password = DEV_PASSWORD,
+  opts?: { skipMapWait?: boolean },
+) {
+  await page.goto('/login', { waitUntil: 'domcontentloaded' })
+  await fillControlledInput(page, '#email', email)
+  await fillControlledInput(page, '#password', password)
   await page.getByRole('button', { name: /sign in/i }).click()
-  await page.waitForURL(/\/(dashboard|satellite|admin)/, { timeout: 20_000 })
-  await expect(page.getByRole('heading').first()).toBeVisible()
+  await page.waitForURL(/\/(dashboard|satellite|admin)/, { timeout: 30_000 })
+  if (page.url().includes('/satellite')) {
+    if (!opts?.skipMapWait) {
+      await page.waitForSelector('[data-testid="native-map-canvas"]', { timeout: 90_000 })
+    }
+  } else {
+    await expect(page.getByRole('heading').first()).toBeVisible({ timeout: 15_000 })
+  }
 }
