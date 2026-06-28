@@ -1,5 +1,8 @@
 //! Native Mapbox GIS workspace (Task 31) — 3D globe, toolbox panels, layer sync.
 
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
+
 use dioxus::prelude::*;
 use serde_json::{json, Value};
 
@@ -24,23 +27,29 @@ use crate::gis::RemoteSensingStore;
 use crate::{
     api::{
         ai::chat::send_chat,
-        gis::geocode::{search_places, GeocodeHit},
-        gis::open_meteo::demo_weather_at,
+        gis::{
+            geocode::{search_places, GeocodeHit},
+            graphhopper::{fetch_route, RouteWaypoint},
+            open_meteo::fetch_weather_at,
+        },
         settings::config::fetch_mapbox_config,
     },
-    auth_session::AuthContext,
+    auth_session::{AuthContext, AuthSession},
     components::{AppNavBar, AppNavSection},
     gis::{
-        aoi_bounds, list_aois, load_fields, set_layer_preset, upsert_aoi_from_geojson, AddedLayer,
-        build_aoi_vegetation_report, build_weekly_timeline, identify_at_point,
-        AoiRecord, AoiVegetationReport, BuildReportInput, FieldRecord, IdentifyHit, LayerKind,
+        aoi_bounds, build_aoi_vegetation_report, build_weekly_timeline, chart_markers_geojson,
+        chart_markers_paint, fetch_zonal_stats_for_aoi, identify_at_point, list_aois,
+        load_aois_for_session, load_fields, persist_aoi, set_layer_preset,
+        upsert_aoi_from_geojson, wms_time_extent_for_week, AoiRecord, AoiVegetationReport,
+        AoiZonalStatRow, AddedLayer, BuildReportInput, FieldRecord, IdentifyHit, LayerKind,
         LayerSettings, PrintPageSpec, RemoteSensingSettings, ReportIndexId, SymbologyPreset,
-        TimelineWeekInput,
-        wms_tile_url_for_index,
+        TimelineWeek, TimelineWeekInput, WeeklyCompositeStat, wms_tile_url_for_index,
+        wms_tile_url_for_index_at_time, weather_overlay_paint, weather_point_geojson,
+        CHARTS_OVERLAY_LAYER_ID, WEATHER_OVERLAY_LAYER_ID,
         native::{
             resolve_gl_access_token, mapbox_light_for_minutes, merge_terrain_underlay, MapboxBridge,
-            MapCreateOptions, MapHandle, DaylightSettings, PROJECTION_GLOBE, PROJECTION_MERCATOR,
-            DEFAULT_BASEMAP_ID, MAP_CONTAINER_ID, style_for_basemap,
+            MapCreateOptions, MapHandle, DaylightSettings, polygon_area_km2, PROJECTION_GLOBE,
+            PROJECTION_MERCATOR, DEFAULT_BASEMAP_ID, MAP_CONTAINER_ID, style_for_basemap,
         },
     },
     routes::Route,
@@ -50,18 +59,28 @@ fn aoi_layer_id(aoi_id: &str) -> String {
     format!("aoi-{aoi_id}")
 }
 
-fn field_layer_id(field_id: &str) -> String {
-    format!("field-{field_id}")
-}
+const ROUTE_LAYER_ID: &str = "computed-route";
 
 fn resolve_wms_tile_url(
     index_id: &str,
     rs: &RemoteSensingSettings,
     aois: &[AoiRecord],
     timeline_active: bool,
+    timeline_weeks: &[TimelineWeek],
+    timeline_week_index: usize,
 ) -> String {
     let aoi_geo = aois.first().map(|a| &a.geojson);
+    if timeline_active && !timeline_weeks.is_empty() {
+        let idx = timeline_week_index.min(timeline_weeks.len().saturating_sub(1));
+        let week = &timeline_weeks[idx];
+        let time = wms_time_extent_for_week(week, None);
+        return wms_tile_url_for_index_at_time(index_id, rs, aoi_geo, time);
+    }
     wms_tile_url_for_index(index_id, rs, aoi_geo, timeline_active)
+}
+
+fn field_layer_id(field_id: &str) -> String {
+    format!("field-{field_id}")
 }
 
 fn sync_map_layers(
@@ -73,6 +92,8 @@ fn sync_map_layers(
     active_index_id: &str,
     rs: &RemoteSensingSettings,
     timeline_active: bool,
+    timeline_weeks: &[TimelineWeek],
+    timeline_week_index: usize,
 ) {
     let paint = paint_for_color(sym_color);
 
@@ -83,7 +104,14 @@ fn sync_map_layers(
 
     if let Some(wms) = layers.iter().find(|l| l.id == WMS_LAYER_ID) {
         if wms.visible {
-            let url = resolve_wms_tile_url(active_index_id, rs, aois, timeline_active);
+            let url = resolve_wms_tile_url(
+                active_index_id,
+                rs,
+                aois,
+                timeline_active,
+                timeline_weeks,
+                timeline_week_index,
+            );
             MapboxBridge::add_raster_layer(handle, WMS_LAYER_ID, &[url], 0.85);
         } else {
             MapboxBridge::set_layer_visibility(handle, WMS_LAYER_ID, false);
@@ -132,12 +160,85 @@ fn download_png(data_url: &str) {
 #[cfg(not(all(feature = "web", target_arch = "wasm32")))]
 fn download_png(_data_url: &str) {}
 
+async fn sleep_ms(ms: i32) {
+    #[cfg(all(feature = "web", target_arch = "wasm32"))]
+    {
+        use wasm_bindgen::JsValue;
+        use wasm_bindgen_futures::JsFuture;
+        let promise = js_sys::Promise::new(&mut |resolve, _| {
+            if let Some(window) = web_sys::window() {
+                let _ = window.set_timeout_with_callback_and_timeout_and_arguments(
+                    &resolve,
+                    ms,
+                    &js_sys::Array::new(),
+                );
+            }
+        });
+        let _ = JsFuture::from(promise).await;
+    }
+    #[cfg(not(all(feature = "web", target_arch = "wasm32")))]
+    {
+        let _ = ms;
+    }
+}
+
+fn workspace_authorized(session: &crate::auth_session::AuthSession) -> bool {
+    session.is_signed_in()
+        && session.has_permission("app.access")
+        && session.has_permission("aoi.read")
+}
+
 #[component]
 pub fn NativeSatelliteWorkspace() -> Element {
     let auth = AuthContext::use_auth();
     let nav = use_navigator();
+
+    let session = use_memo(move || {
+        let cached = auth.session.read().clone();
+        if cached.is_signed_in() {
+            cached
+        } else {
+            AuthSession::read_local()
+        }
+    });
+
+    use_effect(move || {
+        let local = AuthSession::read_local();
+        if local.is_signed_in() && !auth.session.read().is_signed_in() {
+            auth.set_session(local);
+        }
+    });
+
+    use_effect(move || {
+        let session = auth.session.read().clone();
+        if !session.is_signed_in() {
+            let _ = nav.replace(Route::Login {});
+        } else if !session.has_permission("app.access") || !session.has_permission("aoi.read") {
+            let _ = nav.replace(Route::Landing {});
+        }
+    });
+
+    if !workspace_authorized(&session()) {
+        let pending = !session().is_signed_in() && AuthSession::read_local().is_signed_in();
+        let gate_msg = if pending {
+            "Loading workspace…"
+        } else {
+            "Sign in to open the GeoAI workspace."
+        };
+        return rsx! {
+            div { class: "gs-gis-gate", p { "{gate_msg}" } }
+        };
+    }
+
+    rsx! {
+        NativeSatelliteWorkspaceMap {}
+    }
+}
+
+#[component]
+fn NativeSatelliteWorkspaceMap() -> Element {
+    let auth = AuthContext::use_auth();
     let session = auth.session.read().clone();
-    let signed_in = session.is_signed_in();
     let tenant_id = session.tenant_id.clone().unwrap_or_else(|| "default".into());
     let email = session
         .email
@@ -147,15 +248,20 @@ pub fn NativeSatelliteWorkspace() -> Element {
     let mut basemap_id = use_signal(|| DEFAULT_BASEMAP_ID.to_string());
     let mut basemap_open = use_signal(|| false);
     let mut active_tool = use_signal(String::new);
-    let mut toolbox_open = use_signal(|| false);
     let mut toolbox_pinned = use_signal(|| false);
     let mut globe_mode = use_signal(|| true);
     let mut map_handle = use_signal(|| None::<MapHandle>);
+    let map_store = use_hook(|| Rc::new(RefCell::new(None::<MapHandle>)));
+    let window_listeners_alive = use_hook(|| Rc::new(Cell::new(true)));
     let mut map_ready = use_signal(|| false);
     let mut map_error = use_signal(|| None::<String>);
     let mut pointer = use_signal(|| None::<MapPointer>);
     let mut projection_label = use_signal(|| "3D Scene".to_string());
     let mut gl_access_token = use_signal(|| resolve_gl_access_token(None));
+    let mut mapbox_config_ready = use_signal(|| false);
+    let mut mapbox_configured = use_signal(|| false);
+    let mut mapbox_proxy_mode = use_signal(|| false);
+    let mut mapbox_has_public_token = use_signal(|| false);
 
     let mut layers = use_signal(|| load_layers(&tenant_id));
     let mut layer_settings = use_signal(|| load_layer_settings(&tenant_id));
@@ -166,7 +272,6 @@ pub fn NativeSatelliteWorkspace() -> Element {
     let mut swipe_active = use_signal(|| false);
     let mut swipe_state = use_signal(SwipeState::default);
     let mut weather_intel_active = use_signal(|| false);
-    let mut float_rail_visible = use_signal(|| true);
     let mut aois = use_signal(|| list_aois(&tenant_id, &email));
     let mut selected_aoi_id = use_signal(|| None::<String>);
     let mut identify_hits = use_signal(Vec::<IdentifyHit>::new);
@@ -204,25 +309,54 @@ pub fn NativeSatelliteWorkspace() -> Element {
     let mut search_hits = use_signal(Vec::<GeocodeHit>::new);
     let mut search_busy = use_signal(|| false);
 
-    let session_gate = session.clone();
-    use_effect(move || {
-        if !session_gate.is_signed_in() {
-            let _ = nav.replace(Route::Login {});
-        } else if !session_gate.has_permission("app.access") || !session_gate.has_permission("aoi.read")
-        {
-            let _ = nav.replace(Route::Landing {});
+    let mut route_waypoints = use_signal(Vec::<(f64, f64)>::new);
+    let mut route_status = use_signal(String::new);
+    let mut chart_zonal = use_signal(Vec::<AoiZonalStatRow>::new);
+    let mut dash_stats = use_signal(Vec::<WeeklyCompositeStat>::new);
+    let mut timeline_weeks = use_signal(Vec::<TimelineWeek>::new);
+    let mut timeline_week_index = use_signal(|| 0_usize);
+
+    let tenant_boot = tenant_id.clone();
+    let email_boot = email.clone();
+    let token_boot = session.bearer().map(str::to_string);
+    use_future(move || {
+        let tenant = tenant_boot.clone();
+        let email = email_boot.clone();
+        let token = token_boot.clone();
+        async move {
+            let list = load_aois_for_session(&tenant, &email, token.as_deref()).await;
+            aois.set(list);
         }
     });
 
     use_future(move || async move {
-        if let Ok(cfg) = fetch_mapbox_config().await {
-            if let Some(pk) = cfg.public_token.as_deref().filter(|t| t.starts_with("pk.")) {
-                gl_access_token.set(pk.to_string());
+        match fetch_mapbox_config().await {
+            Ok(cfg) => {
+                let configured = cfg.configured.unwrap_or(false);
+                let proxy_mode = cfg.proxy_mode.unwrap_or(false);
+                let has_public = cfg
+                    .public_token
+                    .as_deref()
+                    .map(|t| t.starts_with("pk."))
+                    .unwrap_or(false);
+                gl_access_token.set(resolve_gl_access_token(cfg.public_token.as_deref()));
+                mapbox_configured.set(configured);
+                mapbox_proxy_mode.set(proxy_mode);
+                mapbox_has_public_token.set(has_public);
+            }
+            Err(_) => {
+                // Esri/OSM fallback — map still mounts with GL init placeholder.
             }
         }
+        mapbox_config_ready.set(true);
     });
 
-    use_effect(move || {
+    use_effect({
+        let store = map_store.clone();
+        move || {
+        if !mapbox_config_ready() {
+            return;
+        }
         if !MapboxBridge::is_available() {
             map_error.set(Some(
                 "Mapbox GL bridge not loaded — check index.html scripts.".into(),
@@ -235,20 +369,28 @@ pub fn NativeSatelliteWorkspace() -> Element {
 
         let mut opts = MapCreateOptions::default();
         opts.access_token = Some(gl_access_token.read().clone());
+        opts.proxy_mode = mapbox_proxy_mode();
         opts.style = style_for_basemap(DEFAULT_BASEMAP_ID);
 
         if let Some(handle) = MapboxBridge::create(MAP_CONTAINER_ID, &opts) {
+            *store.borrow_mut() = Some(handle.clone());
             map_handle.set(Some(handle));
             map_ready.set(true);
             map_error.set(None);
         } else {
             map_error.set(Some("Failed to create map.".into()));
         }
+        }
     });
 
-    use_drop(move || {
-        if let Some(h) = map_handle.read().clone() {
-            MapboxBridge::destroy(&h);
+    use_drop({
+        let store = map_store.clone();
+        let alive = window_listeners_alive.clone();
+        move || {
+            alive.set(false);
+            if let Some(h) = store.borrow_mut().take() {
+                MapboxBridge::destroy(&h);
+            }
         }
     });
 
@@ -289,6 +431,8 @@ pub fn NativeSatelliteWorkspace() -> Element {
         let index_id = layer_settings().active_index_id.clone();
         let rs = rs_settings();
         let timeline = timeline_active();
+        let weeks = timeline_weeks();
+        let week_idx = timeline_week_index();
         move || {
             if !*map_ready.read() {
                 return;
@@ -303,29 +447,135 @@ pub fn NativeSatelliteWorkspace() -> Element {
                     &index_id,
                     &rs,
                     timeline,
+                    &weeks,
+                    week_idx,
                 );
             }
         }
     });
 
+    let weather_session = session.clone();
     use_effect(move || {
         if !weather_enabled() {
             return;
         }
-        if let Some(p) = pointer() {
-            let snap = demo_weather_at(p.lat, p.lng);
-            weather_summary.set(snap.summary.clone());
-            weather_snapshot.set(Some(snap));
-        } else {
-            weather_summary.set("Move pointer over map for demo forecast.".into());
-        }
+        let Some(p) = pointer() else { return; };
+        let token = weather_session.bearer().map(str::to_string);
+        let lat = p.lat;
+        let lng = p.lng;
+        spawn(async move {
+            match fetch_weather_at(lat, lng, token.as_deref()).await {
+                Ok(snap) => {
+                    weather_summary.set(snap.summary.clone());
+                    weather_snapshot.set(Some(snap));
+                }
+                Err(_) => {
+                    weather_summary.set(format!(
+                        "Weather unavailable at {:.2}°, {:.2}°",
+                        lat, lng
+                    ));
+                }
+            }
+        });
     });
 
     use_effect(move || {
+        let Some(snap) = weather_snapshot.read().clone() else { return; };
+        let Some(p) = pointer() else { return; };
+        if !weather_enabled() {
+            return;
+        }
+        if let Some(handle) = map_handle.read().clone() {
+            let geo = weather_point_geojson(p.lat, p.lng, &snap);
+            MapboxBridge::add_geojson_layer(
+                &handle,
+                WEATHER_OVERLAY_LAYER_ID,
+                &geo,
+                &weather_overlay_paint(),
+            );
+        }
+    });
+
+    use_effect({
+        move || {
+            let aoi = selected_aoi_id()
+                .and_then(|id| aois().into_iter().find(|a| a.id == id))
+                .or_else(|| aois().first().cloned());
+            let Some(rec) = aoi else {
+                chart_zonal.set(Vec::new());
+                dash_stats.set(Vec::new());
+                return;
+            };
+            let index_id = layer_settings().active_index_id.clone();
+            let datetime = rs_settings().imagery_date.clone();
+            let area = polygon_area_km2(&rec.geojson).unwrap_or(0.0);
+            let weeks = build_weekly_timeline(
+                &rs_settings().time_series_start,
+                &rs_settings().time_series_end,
+            );
+            spawn(async move {
+                let rows = fetch_zonal_stats_for_aoi(
+                    &[index_id.as_str()],
+                    &rec.id,
+                    &rec.geojson,
+                    area,
+                    &datetime,
+                )
+                .await;
+                chart_zonal.set(rows);
+                let stats: Vec<WeeklyCompositeStat> = weeks
+                    .into_iter()
+                    .map(|w| WeeklyCompositeStat {
+                        week_start: w.start_date,
+                        week_end: w.end_date,
+                        mean: w.mean,
+                        min: w.mean - 0.05,
+                        max: w.mean + 0.05,
+                    })
+                    .collect();
+                dash_stats.set(stats);
+            });
+        }
+    });
+
+    use_effect({
+        move || {
+            let aoi_list = aois();
+            let Some(rec) = aoi_list.first() else { return; };
+            let stats = dash_stats();
+            if stats.is_empty() {
+                return;
+            }
+            if let Some([w, s, e, n]) = aoi_bounds(&rec.geojson) {
+                let centroid = [(w + e) / 2.0, (s + n) / 2.0];
+                if let Some(handle) = map_handle.read().clone() {
+                    let geo = chart_markers_geojson(
+                        centroid,
+                        &stats,
+                        &layer_settings().active_index_id,
+                    );
+                    MapboxBridge::add_geojson_layer(
+                        &handle,
+                        CHARTS_OVERLAY_LAYER_ID,
+                        &geo,
+                        &chart_markers_paint(),
+                    );
+                }
+            }
+        }
+    });
+
+    use_effect({
+        let store = map_store.clone();
+        let alive_flag = window_listeners_alive.clone();
+        move || {
         #[cfg(all(feature = "web", target_arch = "wasm32"))]
         {
             use wasm_bindgen::prelude::*;
             use wasm_bindgen::JsCast;
+
+            let store = store.clone();
+            let alive = alive_flag.clone();
 
             let read_f64 = |obj: &js_sys::Object, key: &str| -> f64 {
                 js_sys::Reflect::get(obj, &key.into())
@@ -335,12 +585,19 @@ pub fn NativeSatelliteWorkspace() -> Element {
             };
 
             let on_resize = Closure::wrap(Box::new(move || {
-                if let Some(handle) = map_handle.read().clone() {
+                if !alive.get() {
+                    return;
+                }
+                if let Some(handle) = store.borrow().clone() {
                     MapboxBridge::resize(&handle);
                 }
             }) as Box<dyn FnMut()>);
 
+            let alive_pointer = alive_flag.clone();
             let on_pointer = Closure::wrap(Box::new(move |event: web_sys::Event| {
+                if !alive_pointer.get() {
+                    return;
+                }
                 if let Some(target) = event.target() {
                     if let Ok(custom) = target.dyn_into::<web_sys::CustomEvent>() {
                         if let Some(detail) = custom.detail().dyn_ref::<js_sys::Object>() {
@@ -353,7 +610,11 @@ pub fn NativeSatelliteWorkspace() -> Element {
                 }
             }) as Box<dyn FnMut(_)>);
 
+            let alive_move = alive_flag.clone();
             let on_move = Closure::wrap(Box::new(move |event: web_sys::Event| {
+                if !alive_move.get() {
+                    return;
+                }
                 if let Some(target) = event.target() {
                     if let Ok(custom) = target.dyn_into::<web_sys::CustomEvent>() {
                         if let Some(detail) = custom.detail().dyn_ref::<js_sys::Object>() {
@@ -372,7 +633,11 @@ pub fn NativeSatelliteWorkspace() -> Element {
                 }
             }) as Box<dyn FnMut(_)>);
 
+            let alive_draw = alive_flag.clone();
             let on_draw = Closure::wrap(Box::new(move |event: web_sys::Event| {
+                if !alive_draw.get() {
+                    return;
+                }
                 if let Some(target) = event.target() {
                     if let Ok(custom) = target.dyn_into::<web_sys::CustomEvent>() {
                         if let Some(detail) = custom.detail().dyn_ref::<js_sys::Object>() {
@@ -386,12 +651,31 @@ pub fn NativeSatelliteWorkspace() -> Element {
                                 .and_then(|v| v.as_f64())
                                 .unwrap_or(0.0);
                             measure_length_m.set(len);
+                            if let Ok(points_val) = js_sys::Reflect::get(detail, &"points".into()) {
+                                if let Ok(arr) = points_val.dyn_into::<js_sys::Array>() {
+                                    let mut wps = Vec::new();
+                                    for i in 0..arr.length() {
+                                        if let Ok(pair) = arr.get(i).dyn_into::<js_sys::Array>() {
+                                            if pair.length() >= 2 {
+                                                let lng = pair.get(0).as_f64().unwrap_or(0.0);
+                                                let lat = pair.get(1).as_f64().unwrap_or(0.0);
+                                                wps.push((lng, lat));
+                                            }
+                                        }
+                                    }
+                                    route_waypoints.set(wps);
+                                }
+                            }
                         }
                     }
                 }
             }) as Box<dyn FnMut(_)>);
 
+            let alive_click = alive_flag.clone();
             let on_click = Closure::wrap(Box::new(move |event: web_sys::Event| {
+                if !alive_click.get() {
+                    return;
+                }
                 let tool = active_tool();
                 if tool != "identify" && tool != "feature" {
                     return;
@@ -402,7 +686,7 @@ pub fn NativeSatelliteWorkspace() -> Element {
                             let features_val = js_sys::Reflect::get(detail, &"features".into())
                                 .unwrap_or(wasm_bindgen::JsValue::NULL);
                             if let Ok(arr) = features_val.dyn_into::<js_sys::Array>() {
-                                let mut lines = Vec::new();
+                                let mut hits = Vec::new();
                                 for i in 0..arr.length() {
                                     if let Ok(f) = arr.get(i).dyn_into::<js_sys::Object>() {
                                         let layer = js_sys::Reflect::get(&f, &"layer".into())
@@ -418,13 +702,15 @@ pub fn NativeSatelliteWorkspace() -> Element {
                                                     .and_then(|v| v.as_string())
                                             })
                                             .unwrap_or_else(|| "feature".into());
-                                        lines.push(format!("{layer}: {label}"));
+                                        hits.push(IdentifyHit {
+                                            layer_id: layer.clone(),
+                                            layer_name: layer,
+                                            properties: json!({ "name": label }),
+                                            geometry_type: "Feature".into(),
+                                        });
                                     }
                                 }
-                                if lines.is_empty() {
-                                    lines.push("No vector features at click.".into());
-                                }
-                                identify_hits.set(lines);
+                                identify_hits.set(hits);
                             }
                         }
                     }
@@ -455,6 +741,7 @@ pub fn NativeSatelliteWorkspace() -> Element {
             on_move.forget();
             on_draw.forget();
             on_click.forget();
+        }
         }
     });
 
@@ -503,6 +790,8 @@ pub fn NativeSatelliteWorkspace() -> Element {
                 &layer_settings().active_index_id,
                 &rs_settings(),
                 timeline_active(),
+                &timeline_weeks(),
+                timeline_week_index(),
             );
         }
     };
@@ -533,19 +822,58 @@ pub fn NativeSatelliteWorkspace() -> Element {
     let on_generate_timeline = move |_| {
         if timeline_active() {
             timeline_active.set(false);
-            rs_status.set("Timeline stopped. Adjust the date range and tap Generate timeline to start again.".into());
+            timeline_week_index.set(0);
+            rs_status.set(
+                "Timeline stopped. Adjust the date range and tap Generate timeline to start again."
+                    .into(),
+            );
             return;
         }
         if aois().is_empty() {
             rs_status.set("Draw or upload an AOI first, then generate timeline.".into());
             return;
         }
+        let rs = rs_settings();
+        let weeks = build_weekly_timeline(&rs.time_series_start, &rs.time_series_end);
+        if weeks.is_empty() {
+            rs_status.set("Invalid date range for timeline.".into());
+            return;
+        }
+        timeline_weeks.set(weeks.clone());
+        timeline_week_index.set(0);
         timeline_active.set(true);
-        let start = rs_settings().time_series_start.clone();
-        let end = rs_settings().time_series_end.clone();
         rs_status.set(format!(
-            "Timeline ready · {start} → {end} (demo — open Charts for AOI stats)."
+            "Timeline playing · {} weeks · {} → {}",
+            weeks.len(),
+            rs.time_series_start,
+            rs.time_series_end
         ));
+        let week_count = weeks.len();
+        spawn(async move {
+            loop {
+                if !timeline_active() {
+                    break;
+                }
+                sleep_ms(2500).await;
+                if !timeline_active() {
+                    break;
+                }
+                timeline_week_index.with_mut(|idx| {
+                    *idx = (*idx + 1) % week_count.max(1);
+                });
+                if let Some(handle) = map_handle.read().clone() {
+                    let url = resolve_wms_tile_url(
+                        &layer_settings().active_index_id,
+                        &rs_settings(),
+                        &aois(),
+                        true,
+                        &timeline_weeks(),
+                        timeline_week_index(),
+                    );
+                    MapboxBridge::add_raster_layer(&handle, WMS_LAYER_ID, &[url], 0.85);
+                }
+            }
+        });
     };
 
     let on_open_charts = move |_| active_tool.set("charts".into());
@@ -616,8 +944,12 @@ pub fn NativeSatelliteWorkspace() -> Element {
         }
     };
 
-    let on_toolbox_toggle = move |_| toolbox_open.set(!toolbox_open());
     let on_toolbox_pin = move |pinned: bool| toolbox_pinned.set(pinned);
+    let on_toolbox_mouse_leave = move |_| {
+        if !toolbox_pinned() && !active_tool().is_empty() {
+            active_tool.set(String::new());
+        }
+    };
 
     let tenant_index = tenant_id.clone();
     let on_toggle_index = move |_| {
@@ -634,6 +966,8 @@ pub fn NativeSatelliteWorkspace() -> Element {
                         &rs_settings(),
                         &aois(),
                         timeline_active(),
+                        &timeline_weeks(),
+                        timeline_week_index(),
                     );
                     MapboxBridge::add_raster_layer(&handle, WMS_LAYER_ID, &[url], 0.85);
                 } else {
@@ -645,12 +979,9 @@ pub fn NativeSatelliteWorkspace() -> Element {
 
     let on_toggle_weather_intel = move |_| weather_intel_active.set(!weather_intel_active());
     let on_open_remote_sensing_float = move |_| {
-        toolbox_open.set(true);
         active_tool.set("remote-sensing".into());
     };
     let on_tool_panel_close = move |_| active_tool.set(String::new());
-    let on_float_rail_close = move |_| float_rail_visible.set(false);
-    let on_float_rail_open = move |_| float_rail_visible.set(true);
 
     let tenant_demo = tenant_id.clone();
     let on_add_demo_layer = move |_| {
@@ -687,6 +1018,8 @@ pub fn NativeSatelliteWorkspace() -> Element {
                     &rs_settings(),
                     &aois(),
                     timeline_active(),
+                    &timeline_weeks(),
+                    timeline_week_index(),
                 );
                 MapboxBridge::add_raster_layer(&handle, WMS_LAYER_ID, &[url], 0.85);
             } else {
@@ -725,6 +1058,8 @@ pub fn NativeSatelliteWorkspace() -> Element {
                     &rs_settings(),
                     &aois(),
                     timeline_active(),
+                    &timeline_weeks(),
+                    timeline_week_index(),
                 );
                 MapboxBridge::add_raster_layer(&handle, WMS_LAYER_ID, &[url], 0.85);
             }
@@ -747,6 +1082,7 @@ pub fn NativeSatelliteWorkspace() -> Element {
 
     let tenant_aoi = tenant_id.clone();
     let email_aoi = email.clone();
+    let token_aoi = session.bearer().map(str::to_string);
     let on_finish_draw = move |_| {
         let Some(handle) = map_handle.read().clone() else {
             return;
@@ -754,10 +1090,17 @@ pub fn NativeSatelliteWorkspace() -> Element {
         if let Some(feature) = MapboxBridge::finish_draw_polygon(&handle) {
             let name = format!("AOI {}", aois().len() + 1);
             let rec = upsert_aoi_from_geojson(&tenant_aoi, &email_aoi, &name, &feature);
-            let updated = list_aois(&tenant_aoi, &email_aoi);
-            aois.set(updated);
             selected_aoi_id.set(Some(rec.id.clone()));
             draw_points.set(0);
+            let token = token_aoi.clone();
+            let rec_clone = rec.clone();
+            let tenant_spawn = tenant_aoi.clone();
+            let email_spawn = email_aoi.clone();
+            spawn(async move {
+                let saved = persist_aoi(&rec_clone, token.as_deref()).await;
+                aois.set(list_aois(&tenant_spawn, &email_spawn));
+                selected_aoi_id.set(Some(saved.id));
+            });
             sync_map_layers(
                 &handle,
                 &layers(),
@@ -767,6 +1110,8 @@ pub fn NativeSatelliteWorkspace() -> Element {
                 &layer_settings().active_index_id,
                 &rs_settings(),
                 timeline_active(),
+                &timeline_weeks(),
+                timeline_week_index(),
             );
             if let Some([w, s, e, n]) = aoi_bounds(&feature) {
                 MapboxBridge::fit_bounds(&handle, w, s, e, n);
@@ -840,9 +1185,59 @@ pub fn NativeSatelliteWorkspace() -> Element {
     let on_clear_route = move |_| {
         if let Some(handle) = map_handle.read().clone() {
             MapboxBridge::clear_draw(&handle);
+            MapboxBridge::remove_layer(&handle, ROUTE_LAYER_ID);
             draw_points.set(0);
             measure_length_m.set(0.0);
+            route_waypoints.set(Vec::new());
+            route_status.set(String::new());
         }
+    };
+
+    let token_route = session.bearer().map(str::to_string);
+    let on_compute_route = move |_| {
+        let wps = route_waypoints();
+        if wps.len() < 2 {
+            route_status.set("Add at least two waypoints.".into());
+            return;
+        }
+        route_status.set("Computing route…".into());
+        let waypoints: Vec<RouteWaypoint> = wps
+            .iter()
+            .map(|(lng, lat)| RouteWaypoint { lng: *lng, lat: *lat })
+            .collect();
+        let token = token_route.clone();
+        spawn(async move {
+            match fetch_route(&waypoints, "car", token.as_deref()).await {
+                Ok(session) => {
+                    measure_length_m.set(session.distance_m);
+                    route_status.set(format!(
+                        "Route via {} · {:.1} km · {} min",
+                        session.provider,
+                        session.distance_m / 1000.0,
+                        session.time_ms / 60_000
+                    ));
+                    if let Some(handle) = map_handle.read().clone() {
+                        let coords: Vec<Vec<f64>> = session
+                            .coordinates
+                            .iter()
+                            .map(|[lng, lat]| vec![*lng, *lat])
+                            .collect();
+                        let geo = json!({
+                            "type": "Feature",
+                            "geometry": { "type": "LineString", "coordinates": coords },
+                            "properties": { "name": "Route" }
+                        });
+                        let paint = json!({
+                            "line-color": "#3b82f6",
+                            "line-width": 4,
+                            "line-opacity": 0.9
+                        });
+                        MapboxBridge::add_geojson_layer(&handle, ROUTE_LAYER_ID, &geo, &paint);
+                    }
+                }
+                Err(err) => route_status.set(err.user_message()),
+            }
+        });
     };
 
     let on_toggle_weather = move |on: bool| weather_enabled.set(on);
@@ -940,24 +1335,22 @@ pub fn NativeSatelliteWorkspace() -> Element {
 
     let tenant_reload = tenant_id.clone();
     let email_reload = email.clone();
+    let token_reload = session.bearer().map(str::to_string);
     let on_aois_changed = move |_| {
-        aois.set(list_aois(&tenant_reload, &email_reload));
+        let tenant = tenant_reload.clone();
+        let email = email_reload.clone();
+        let token = token_reload.clone();
+        spawn(async move {
+            let list = load_aois_for_session(&tenant, &email, token.as_deref()).await;
+            aois.set(list);
+        });
     };
-
-    if !signed_in
-        || !session.has_permission("app.access")
-        || !session.has_permission("aoi.read")
-    {
-        return rsx! {
-            div { class: "gs-gis-gate", p { "Sign in to open the GeoAI workspace." } }
-        };
-    }
 
     rsx! {
         div { class: "gs-gis-page gs-gis-page--native si-page si-page--map-canvas",
             AppNavBar {
                 active: AppNavSection::GeoAi,
-                subtitle: Some("Satellite intelligence".into()),
+                compact: true,
             }
 
             MapShell {
@@ -965,34 +1358,31 @@ pub fn NativeSatelliteWorkspace() -> Element {
                 map_ready: *map_ready.read(),
                 map_error: map_error.read().clone(),
                 gl_access_token: gl_access_token(),
+                mapbox_configured: mapbox_configured(),
+                mapbox_proxy_mode: mapbox_proxy_mode(),
+                mapbox_has_public_token: mapbox_has_public_token(),
                 viewport_density: "comfortable".to_string(),
                 pointer: pointer.read().clone(),
                 projection_label: projection_label(),
                 on_tool_select: move |id: String| {
-                    toolbox_open.set(true);
                     if active_tool() == id {
                         active_tool.set(String::new());
                     } else {
                         active_tool.set(id);
                     }
                 },
-                toolbox_open: toolbox_open(),
                 toolbox_pinned: toolbox_pinned(),
-                on_toolbox_toggle: on_toolbox_toggle,
                 on_toolbox_pin: on_toolbox_pin,
+                on_toolbox_mouse_leave: on_toolbox_mouse_leave,
                 swipe_active: swipe_active(),
                 swipe_state: swipe_state,
                 map_handle_id: map_handle.read().as_ref().map(|h| h.id.clone()),
-                on_toggle_swipe: on_toggle_swipe,
                 on_swipe_close: on_swipe_close,
                 on_tool_panel_close: on_tool_panel_close,
-                float_rail_visible: float_rail_visible(),
-                on_float_rail_close: on_float_rail_close,
-                on_float_rail_open: on_float_rail_open,
                 on_zoom_in: zoom_in,
                 on_zoom_out: zoom_out,
                 on_go_home: go_home,
-                floating_controls: rsx! {
+                map_tools: rsx! {
                     MapFloatingControls {
                         basemap_id: basemap_id(),
                         basemap_open: *basemap_open.read(),
@@ -1024,8 +1414,6 @@ pub fn NativeSatelliteWorkspace() -> Element {
                         on_search_query: move |q: String| search_query.set(q),
                         on_search: on_search,
                         on_search_pick: on_search_pick,
-                        visible: float_rail_visible(),
-                        on_close: on_float_rail_close,
                     }
                 },
                 tool_panel: rsx! {
@@ -1078,11 +1466,15 @@ pub fn NativeSatelliteWorkspace() -> Element {
                         on_clear_measure: on_clear_measure,
                         on_start_route: on_start_route,
                         on_clear_route: on_clear_route,
+                        on_compute_route: on_compute_route,
+                        route_status: route_status,
                         weather_summary: weather_summary,
                         weather_enabled: weather_enabled,
                         on_toggle_weather: on_toggle_weather,
                         on_export_print: on_export_print,
                         export_status: export_status,
+                        chart_zonal: chart_zonal,
+                        dash_stats: dash_stats,
                         fields: fields,
                         selected_field_id: selected_field_id,
                         on_field_select: on_field_select,

@@ -5,6 +5,7 @@ mod aoi_report_modal;
 mod basemap_picker;
 mod contextual_dock;
 mod daylight_panel;
+mod dock_panel;
 mod extended_panels;
 mod feature_popup;
 mod floating_drag;

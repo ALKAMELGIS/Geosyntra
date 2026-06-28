@@ -2,7 +2,7 @@
 
 use dioxus::prelude::*;
 
-use crate::gis::{build_staging_datasets, UploadStagingDataset};
+use crate::gis::UploadStagingDataset;
 
 #[component]
 pub fn UploadStagingPanel(datasets: Signal<Vec<UploadStagingDataset>>) -> Element {
@@ -30,8 +30,5 @@ pub fn UploadStagingPanel(datasets: Signal<Vec<UploadStagingDataset>>) -> Elemen
 }
 
 pub fn stage_demo_files() -> Vec<UploadStagingDataset> {
-    build_staging_datasets(&[
-        ("field.geojson".into(), 4096),
-        ("zones.shp".into(), 8192),
-    ])
+    Vec::new()
 }

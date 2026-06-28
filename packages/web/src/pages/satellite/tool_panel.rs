@@ -12,9 +12,9 @@ use super::layer_control_mount::LayerControlMount;
 use super::processing_workflow_panel::{ProcessingStep, ProcessingWorkflowPanel};
 use super::quick_dashboard_panel::QuickDashboardPanel;
 use super::remote_sensing_panel::RemoteSensingPanel;
-use super::stac_explore_panel::{run_stac_search, StacExplorePanel};
+use super::stac_explore_panel::StacExplorePanel;
 use super::symbology_panel::SymbologyPanel;
-use super::upload_panel::{stage_demo_files, UploadStagingPanel};
+use super::upload_panel::UploadStagingPanel;
 use crate::gis::{
     index_catalog, index_label_for, legend_config_for_index, resolve_index_id, AddedLayer,
     AoiRecord, FieldRecord, LayerKind, LayerSettings, LayerStore, RemoteSensingSettings,
@@ -88,11 +88,15 @@ pub fn ToolPanel(
     on_clear_measure: EventHandler<()>,
     on_start_route: EventHandler<()>,
     on_clear_route: EventHandler<()>,
+    on_compute_route: EventHandler<()>,
+    route_status: Signal<String>,
     weather_summary: Signal<String>,
     weather_enabled: Signal<bool>,
     on_toggle_weather: EventHandler<bool>,
     on_export_print: EventHandler<()>,
     export_status: Signal<Option<String>>,
+    chart_zonal: Signal<Vec<crate::gis::AoiZonalStatRow>>,
+    dash_stats: Signal<Vec<WeeklyCompositeStat>>,
     fields: Signal<Vec<FieldRecord>>,
     selected_field_id: Signal<Option<String>>,
     on_field_select: EventHandler<String>,
@@ -107,9 +111,8 @@ pub fn ToolPanel(
     let mut sym_config = use_signal(SymbologyConfig::default);
     let mut stac_collection = use_signal(|| "sentinel-2-l2a".to_string());
     let mut stac_items = use_signal(Vec::<crate::gis::StacItem>::new);
-    let mut upload_datasets = use_signal(stage_demo_files);
+    let mut upload_datasets = use_signal(Vec::<crate::gis::UploadStagingDataset>::new);
     let mut workflow_step = use_signal(|| ProcessingStep::SelectAoi);
-    let mut dash_stats = use_signal(Vec::<WeeklyCompositeStat>::new);
     let index_for_legend = layer_settings().active_index_id.clone();
 
     rsx! {
@@ -178,9 +181,7 @@ pub fn ToolPanel(
                         StacExplorePanel {
                             collection: stac_collection,
                             items: stac_items,
-                            on_search: move |_| {
-                                stac_items.set(run_stac_search(&stac_collection()));
-                            },
+                            bbox: None,
                         }
                     },
                     "remote-sensing" | "imagery" => rsx! {
@@ -263,9 +264,7 @@ pub fn ToolPanel(
                         StacExplorePanel {
                             collection: stac_collection,
                             items: stac_items,
-                            on_search: move |_| {
-                                stac_items.set(run_stac_search(&stac_collection()));
-                            },
+                            bbox: None,
                         }
                         p { class: "gs-native-tool-panel__hint", "Index catalog" }
                         ul { class: "gs-native-identify-list",
@@ -278,6 +277,8 @@ pub fn ToolPanel(
                         ChartsPanel {
                             aois: aois,
                             selected_aoi_id: selected_aoi_id,
+                            zonal_stats: chart_zonal,
+                            index_id: layer_settings().active_index_id.clone(),
                             on_open_report: on_open_report,
                         }
                     },
@@ -320,7 +321,9 @@ pub fn ToolPanel(
                         RoutePanel {
                             length_m: measure_length_m,
                             point_count: draw_points,
+                            route_status: route_status,
                             on_start: on_start_route,
+                            on_compute: on_compute_route,
                             on_clear: on_clear_route,
                         }
                     },
@@ -570,7 +573,7 @@ fn LayersPanel(
                                 class: "gs-native-tool-panel__btn",
                                 r#type: "button",
                                 onclick: move |_| on_add_demo_layer.call(()),
-                                "Add demo field polygon"
+                                "Add sample field polygon"
                             }
 
                             div { class: "gs-native-tool-panel__section",
@@ -822,6 +825,8 @@ fn IdentifyPanel(hits: Signal<Vec<crate::gis::IdentifyHit>>) -> Element {
 fn ChartsPanel(
     aois: Signal<Vec<AoiRecord>>,
     selected_aoi_id: Signal<Option<String>>,
+    zonal_stats: Signal<Vec<crate::gis::AoiZonalStatRow>>,
+    index_id: String,
     on_open_report: EventHandler<()>,
 ) -> Element {
     let aoi = selected_aoi_id()
@@ -830,7 +835,11 @@ fn ChartsPanel(
     let area = aoi
         .as_ref()
         .and_then(|a| polygon_area_km2(&a.geojson));
-    let pct_demo = area.map(|a| (a * 12.4).min(100.0));
+    let zonal = zonal_stats();
+    let mean_pct = zonal
+        .iter()
+        .find(|r| r.index_id.eq_ignore_ascii_case(&index_id))
+        .map(|r| (r.mean * 100.0).clamp(0.0, 100.0));
 
     rsx! {
         if let Some(rec) = aoi {
@@ -842,10 +851,10 @@ fn ChartsPanel(
                         rsx! { p { "{text}" } }
                     }
                 }
-                if let Some(pct) = pct_demo {
+                if let Some(pct) = mean_pct {
                     {
                         let width = format!("{pct:.0}%");
-                        let label = format!("NDVI mean (demo) {pct:.0}%");
+                        let label = format!("{index_id} mean (live) {pct:.0}%");
                         rsx! {
                             div { class: "gs-native-chart-bar",
                                 div {
@@ -856,6 +865,8 @@ fn ChartsPanel(
                             }
                         }
                     }
+                } else if zonal.is_empty() {
+                    p { class: "gs-native-tool-panel__hint", "Fetching zonal stats…" }
                 }
                 button {
                     class: "gs-native-tool-panel__btn",

@@ -297,7 +297,7 @@ pub fn RemoteSensingPanel(
                                     icon: "fa-solid fa-chart-pie",
                                     title: "AOI timeline charts",
                                     pressed: false,
-                                    disabled: !timeline_on,
+                                    disabled: false,
                                     onclick: move |_| on_open_charts.call(()),
                                 }
                             }

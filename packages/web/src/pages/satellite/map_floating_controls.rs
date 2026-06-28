@@ -1,8 +1,10 @@
-//! Left floating map controls — React `si-map-floating-controls__left` parity.
+//! Left map tools dock — basemap, search, layer toggles (Task 31.2).
 
 use dioxus::prelude::*;
 
-use super::{basemap_picker::BasemapGallery, floating_drag::{DraggableFloat, FloatSlot}, map_search::MapSearchControl};
+use super::{
+    basemap_picker::BasemapGallery, dock_panel::MapDock, map_search::MapSearchControl,
+};
 use crate::api::gis::geocode::GeocodeHit;
 
 #[component]
@@ -30,20 +32,12 @@ pub fn MapFloatingControls(
     on_search_query: EventHandler<String>,
     on_search: EventHandler<()>,
     on_search_pick: EventHandler<(f64, f64, String)>,
-    visible: bool,
-    on_close: EventHandler<()>,
 ) -> Element {
-    if !visible {
-        return rsx! {};
-    }
-
     rsx! {
-        DraggableFloat {
-            storage_key: "float-left-rail".to_string(),
-            slot: FloatSlot::MapControls,
-            class: "gs-native-float-left".to_string(),
-            title: Some("Map tools".into()),
-            on_close: Some(on_close),
+        MapDock {
+            class: "gs-native-map-tools-dock".to_string(),
+            // title: Some("Map tools".into()),
+            on_close: None,
 
             MapSearchControl {
                 open: search_open,

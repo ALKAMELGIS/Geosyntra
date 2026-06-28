@@ -21,7 +21,7 @@ pub fn GeoAiPanel(
     rsx! {
         div { class: "gs-native-geo-ai",
             p { class: "gs-native-tool-panel__hint",
-                "Ask about layers, AOI, or map context. Uses Axum simulated GeoAI when live keys are off."
+                "Ask about layers, AOI, or map context via Axum Geo AI chat."
             }
             div { class: "gs-native-geo-ai__log",
                 for (i, msg) in messages().iter().enumerate() {
@@ -110,22 +110,35 @@ pub fn MeasurePanel(
 pub fn RoutePanel(
     length_m: Signal<f64>,
     point_count: Signal<usize>,
+    route_status: Signal<String>,
     on_start: EventHandler<()>,
+    on_compute: EventHandler<()>,
     on_clear: EventHandler<()>,
 ) -> Element {
     let km = length_m() / 1000.0;
     let len_text = format!("Route length ≈ {km:.2} km");
     rsx! {
         p { class: "gs-native-tool-panel__hint",
-            "Click waypoints to sketch a route (demo). Points: {point_count()}"
+            "Click waypoints, then compute route via GraphHopper (Axum gateway)."
         }
         p { "{len_text}" }
+        p { class: "gs-native-tool-panel__hint", "Waypoints: {point_count()}" }
+        if !route_status().is_empty() {
+            p { class: "gs-native-route-status", "{route_status()}" }
+        }
         div { class: "gs-native-tool-panel__actions",
             button {
                 class: "gs-native-tool-panel__btn",
                 r#type: "button",
                 onclick: move |_| on_start.call(()),
                 "Add waypoints"
+            }
+            button {
+                class: "gs-native-tool-panel__btn",
+                r#type: "button",
+                disabled: point_count() < 2,
+                onclick: move |_| on_compute.call(()),
+                "Compute route"
             }
             button {
                 class: "gs-native-tool-panel__btn gs-native-tool-panel__btn--ghost",
@@ -141,7 +154,7 @@ pub fn RoutePanel(
 pub fn WeatherPanel(summary: Signal<String>, enabled: Signal<bool>, on_toggle: EventHandler<bool>) -> Element {
     rsx! {
         p { class: "gs-native-tool-panel__hint",
-            "Demo weather readout at map pointer (Open-Meteo integration in production)."
+            "Open-Meteo at map pointer; OpenWeatherMap when platform token is configured."
         }
         label { class: "gs-native-tool-panel__toggle",
             input {
@@ -195,7 +208,7 @@ pub fn FieldsPanel(
     on_select: EventHandler<String>,
 ) -> Element {
     rsx! {
-        p { class: "gs-native-tool-panel__hint", "Agricultural field parcels (demo data)." }
+        p { class: "gs-native-tool-panel__hint", "Agricultural field parcels from local workspace storage." }
         ul { class: "gs-native-fields-list",
             for field in fields().iter() {
                 {
