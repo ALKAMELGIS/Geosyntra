@@ -29,27 +29,56 @@
     return !token || String(token).indexOf('gl-init-placeholder') >= 0;
   }
 
-  /** Disable events.mapbox.com + map-sessions when using GL init placeholder (fixes CORS noise). */
-  function configureMapboxGl(accessToken) {
-    ensureMapbox();
-    var placeholder = isPlaceholderToken(accessToken);
+  /** Block Mapbox analytics/session calls (placeholder pk.* cannot reach events.mapbox.com). */
+  function disableMapboxTelemetry() {
     try {
-      if (mapboxgl.config && placeholder) {
+      if (mapboxgl.config) {
         mapboxgl.config.EVENTS_URL = null;
       }
       if (typeof mapboxgl.setTelemetryEnabled === 'function') {
-        mapboxgl.setTelemetryEnabled(!placeholder);
+        mapboxgl.setTelemetryEnabled(false);
       }
     } catch (_) {
       //
     }
+  }
+
+  function configureMapboxGl(accessToken) {
+    ensureMapbox();
+    var placeholder = isPlaceholderToken(accessToken);
     if (accessToken) mapboxgl.accessToken = accessToken;
+    // Always off in browser — Esri basemap + Axum proxy; avoids localhost CORS noise.
+    disableMapboxTelemetry();
     return placeholder;
   }
 
-  function transformRequestForPlaceholder(url) {
+  function blockMapboxVendorRequests(url) {
     if (/events\.mapbox\.com/i.test(url) || /\/map-sessions\//i.test(url)) {
       return { url: 'data:application/octet-stream,' };
+    }
+    return { url: url };
+  }
+
+  function isMapboxVendorUrl(url) {
+    try {
+      var host = new URL(url).hostname.toLowerCase();
+      return host === 'mapbox.com' || host.endsWith('.mapbox.com');
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /** Express `siMapTransformRequest` — server injects sk.* via `/api/mapbox-proxy`. */
+  function mapTransformRequest(url, resourceType, proxyMode) {
+    var blocked = blockMapboxVendorRequests(url);
+    if (blocked.url !== url) {
+      return blocked;
+    }
+    if (proxyMode && isMapboxVendorUrl(url)) {
+      var origin = typeof window !== 'undefined' && window.location ? window.location.origin : '';
+      return {
+        url: origin + '/api/mapbox-proxy?url=' + encodeURIComponent(url),
+      };
     }
     return { url: url };
   }
@@ -279,7 +308,7 @@
           paint: { 'fill-color': '#4ade80', 'fill-opacity': 0.3, 'line-color': '#4ade80' },
         };
         applyOverlaySpec(mapId, entry.drawGeojson);
-        dispatch('draw-change', { mapId: mapId, geojson: geo, pointCount: entry.drawPoints.length, mode: 'polygon' });
+        dispatch('draw-change', { mapId: mapId, geojson: geo, pointCount: entry.drawPoints.length, mode: 'polygon', points: entry.drawPoints.slice() });
         return;
       }
       if (entry.drawMode === 'line') {
@@ -308,6 +337,7 @@
           pointCount: entry.drawPoints.length,
           mode: 'line',
           lengthM: lenM,
+          points: entry.drawPoints.slice(),
         });
       }
     });
@@ -370,6 +400,7 @@
 
       var token = String(opts.accessToken || opts.token || '').trim();
       var placeholder = configureMapboxGl(token);
+      var proxyMode = Boolean(opts.proxyMode);
 
       var mapOpts = {
         container: containerId,
@@ -383,11 +414,15 @@
         attributionControl: false,
         logoPosition: 'bottom-left',
         performanceMetricsCollection: false,
+        transformRequest: function (url, resourceType) {
+          return mapTransformRequest(url, resourceType, proxyMode);
+        },
       };
       if (placeholder) {
-        mapOpts.transformRequest = transformRequestForPlaceholder;
+        // GL init placeholder — tiles/styles may still use Axum proxy when proxyMode.
       }
       var map = new mapboxgl.Map(mapOpts);
+      disableMapboxTelemetry();
 
       map.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-left');
 
@@ -574,7 +609,7 @@
       entry.drawPoints = [];
       entry.drawGeojson = null;
       removeOverlayFromMap(entry.map, '__draw__');
-      dispatch('draw-change', { mapId: mapId, geojson: null, pointCount: 0 });
+      dispatch('draw-change', { mapId: mapId, geojson: null, pointCount: 0, points: [] });
     },
 
     getDrawGeoJson: function (mapId) {
@@ -644,7 +679,9 @@
       var light = parseJson(lightJson, null);
       if (!light) return;
       try {
-        if (typeof entry.map.setLight === 'function') {
+        if (typeof entry.map.setLights === 'function') {
+          entry.map.setLights({ flat: light });
+        } else if (typeof entry.map.setLight === 'function') {
           entry.map.setLight(light);
         }
       } catch (_) {
@@ -737,5 +774,13 @@
       'position:absolute;top:0;right:0;bottom:0;left:' +
       x +
       'px;background:rgba(8,12,22,.08);pointer-events:none;';
+  }
+
+  if (typeof mapboxgl !== 'undefined') {
+    try {
+      disableMapboxTelemetry();
+    } catch (_) {
+      //
+    }
   }
 })();
