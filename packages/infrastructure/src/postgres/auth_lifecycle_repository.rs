@@ -288,24 +288,26 @@ impl AuthLifecycleRepository for PostgresAuthLifecycleRepository {
     }
 
     async fn get_profile_extra(&self, email: &Email) -> AppResult<Value> {
-        let current: Option<String> = sqlx::query_scalar(
+        let current = sqlx::query_scalar::<_, Option<String>>(
             "SELECT profile_extra FROM admin_users WHERE LOWER(email) = LOWER($1) LIMIT 1",
         )
         .bind(email.email())
         .fetch_optional(self.pool.as_ref())
         .await
-        .map_err(map_sqlx)?;
+        .map_err(map_sqlx)?
+        .flatten();
         Ok(parse_profile_extra(current))
     }
 
     async fn put_profile_extra(&self, email: &Email, patch: Value) -> AppResult<Value> {
-        let current: Option<String> = sqlx::query_scalar(
+        let current = sqlx::query_scalar::<_, Option<String>>(
             "SELECT profile_extra FROM admin_users WHERE LOWER(email) = LOWER($1) LIMIT 1",
         )
         .bind(email.email())
         .fetch_optional(self.pool.as_ref())
         .await
-        .map_err(map_sqlx)?;
+        .map_err(map_sqlx)?
+        .flatten();
         let merged = merge_profile_extra(current, patch);
         let result = sqlx::query(
             r#"

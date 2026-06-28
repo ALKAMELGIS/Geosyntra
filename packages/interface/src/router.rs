@@ -1,6 +1,6 @@
 use axum::{
     middleware,
-    routing::{delete, get, patch, post, put},
+    routing::{any, delete, get, patch, post, put},
     Router,
 };
 
@@ -143,6 +143,14 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/api/gateway/openweathermap/{*path}",
             get(gateway::openweathermap_proxy),
+        )
+        .route(
+            "/api/analysis-engine/{*path}",
+            any(gateway::analysis_engine_proxy),
+        )
+        .route(
+            "/api/analysis-engine",
+            any(gateway::analysis_engine_proxy),
         )
         .route(
             "/api/gateway/gemini/generate-content",

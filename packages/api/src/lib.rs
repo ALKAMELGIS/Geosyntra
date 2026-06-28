@@ -1,6 +1,7 @@
 //! GeoSyntra HTTP API — composition root and router (Task 12–15).
 
 pub mod integration_seed;
+pub mod local_env;
 
 use std::sync::Arc;
 
