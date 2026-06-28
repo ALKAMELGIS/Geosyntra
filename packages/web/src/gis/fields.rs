@@ -73,7 +73,7 @@ pub fn load_fields(tenant_id: &str) -> Vec<FieldRecord> {
             }
         }
     }
-    demo_fields(tenant_id)
+    Vec::new()
 }
 
 pub fn save_fields(tenant_id: &str, fields: &[FieldRecord]) {

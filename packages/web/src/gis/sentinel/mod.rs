@@ -2,6 +2,7 @@
 
 mod aoi_clip;
 mod live_aoi_analysis;
+mod raster_cache;
 mod timeline;
 mod timeline_crossfade;
 mod wms_url;
@@ -13,6 +14,7 @@ pub use timeline_crossfade::{
     crossfade_frames, CrossfadeFrame, TimelineTransitionMode,
 };
 pub use wms_legend_config::{legend_config_for_index, WmsLegendConfig};
+pub use raster_cache::RasterCache;
 pub use timeline::{
     build_weekly_timeline, resolve_timeline_series_extents, wms_time_extent_for_week, TimelineWeek,
     TimelineSeriesExtents,
@@ -31,7 +33,6 @@ pub fn wms_tile_url_for_index(
     aoi_geojson: Option<&serde_json::Value>,
     timeline_active: bool,
 ) -> String {
-    let layer = resolve_index_id(index_id);
     let time = if timeline_active {
         WmsTimeExtent {
             start: settings.time_series_start.clone(),
@@ -44,6 +45,17 @@ pub fn wms_tile_url_for_index(
             end: day,
         }
     };
+    wms_tile_url_for_index_at_time(index_id, settings, aoi_geojson, time)
+}
+
+/// WMS URL for a specific time extent (timeline week playback).
+pub fn wms_tile_url_for_index_at_time(
+    index_id: &str,
+    _settings: &crate::gis::RemoteSensingSettings,
+    aoi_geojson: Option<&serde_json::Value>,
+    time: WmsTimeExtent,
+) -> String {
+    let layer = resolve_index_id(index_id);
     let clip = aoi_geojson.and_then(clip_from_geojson);
     build_wms_tile_url(WmsTileUrlParams {
         base_url: default_wms_base_url(None),

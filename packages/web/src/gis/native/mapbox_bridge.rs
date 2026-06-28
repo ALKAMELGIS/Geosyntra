@@ -18,6 +18,9 @@ pub struct MapHandle {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MapCreateOptions {
     pub access_token: Option<String>,
+    /// Route `api.mapbox.com` fetches through `/api/mapbox-proxy` (Express/React parity).
+    #[serde(rename = "proxyMode")]
+    pub proxy_mode: bool,
     pub style: Value,
     pub center: [f64; 2],
     pub zoom: f64,
@@ -30,6 +33,7 @@ impl Default for MapCreateOptions {
     fn default() -> Self {
         Self {
             access_token: None,
+            proxy_mode: false,
             style: super::basemap::style_for_basemap(super::basemap::DEFAULT_BASEMAP_ID),
             center: [GLOBE_HOME_LNG, GLOBE_HOME_LAT],
             zoom: GLOBE_HOME_ZOOM,
@@ -61,6 +65,7 @@ impl MapboxBridge {
     pub fn create(container_id: &str, options: &MapCreateOptions) -> Option<MapHandle> {
         let payload = serde_json::json!({
             "accessToken": options.access_token,
+            "proxyMode": options.proxy_mode,
             "style": options.style,
             "center": options.center,
             "zoom": options.zoom,
