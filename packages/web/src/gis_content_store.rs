@@ -71,7 +71,7 @@ pub fn load_rows() -> Vec<GisContentRow> {
             }
         }
     }
-    demo_rows()
+    Vec::new()
 }
 
 pub fn save_rows(rows: &[GisContentRow]) {

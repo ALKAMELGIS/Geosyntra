@@ -1,7 +1,7 @@
 use dioxus::prelude::*;
 
 use crate::{
-    auth_session::AuthContext,
+    auth_session::{AuthContext, AuthSession},
     components::{layout::AppLayout, AppNavSection},
     routes::Route,
 };
@@ -11,25 +11,52 @@ use crate::{
 pub fn Dashboard() -> Element {
     let auth = AuthContext::use_auth();
     let nav = use_navigator();
-    let session = auth.session.read().clone();
-    let session_gate = session.clone();
+
+    let session = use_memo(move || {
+        let cached = auth.session.read().clone();
+        if cached.is_signed_in() {
+            cached
+        } else {
+            AuthSession::read_local()
+        }
+    });
 
     use_effect(move || {
-        if !session_gate.is_signed_in() {
+        let local = AuthSession::read_local();
+        if local.is_signed_in() && !auth.session.read().is_signed_in() {
+            auth.set_session(local);
+        }
+    });
+
+    use_effect(move || {
+        let snap = auth.session.read().clone();
+        if !snap.is_signed_in() {
             let _ = nav.replace(Route::Login {});
-        } else if !session_gate.can_access_app() {
+        } else if snap.permissions.is_empty() {
+            return;
+        } else if !snap.can_access_app() {
             let _ = nav.replace(Route::Landing {});
         }
     });
 
-    if !session.can_access_app() {
+    if !session().can_access_app() {
+        let local = AuthSession::read_local();
+        let pending = local.is_signed_in()
+            && (!session().is_signed_in() || session().permissions.is_empty());
         return rsx! {
             div { class: "gs-app gs-main",
-                p { class: "gs-hint", "Sign in to open your dashboard." }
+                p { class: "gs-hint",
+                    if pending {
+                        "Loading dashboard…"
+                    } else {
+                        "Sign in to open your dashboard."
+                    }
+                }
             }
         };
     }
 
+    let session = session();
     let tenant = session.active_tenant().to_string();
     let lead = format!("GeoSyntra operational hub — workspace for {tenant}.");
     rsx! {

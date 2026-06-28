@@ -9,6 +9,7 @@ use crate::{
 };
 
 #[cfg(all(target_arch = "wasm32", feature = "web"))]
+#[allow(dead_code)]
 fn post_login_path(route: &Route) -> Option<String> {
     Some(match route {
         Route::Landing {} => "/".into(),
@@ -64,22 +65,7 @@ fn post_login_path(route: &Route) -> Option<String> {
 
 macro_rules! navigate_after_login {
     ($nav:expr, $route:expr) => {{
-        #[cfg(all(target_arch = "wasm32", feature = "web"))]
-        {
-            if let Some(path) = post_login_path(&$route) {
-                if let Some(window) = web_sys::window() {
-                    let _ = window.location().assign(&path);
-                } else {
-                    $nav.replace($route);
-                }
-            } else {
-                $nav.replace($route);
-            }
-        }
-        #[cfg(not(all(target_arch = "wasm32", feature = "web")))]
-        {
-            $nav.replace($route);
-        }
+        $nav.replace($route);
     }};
 }
 

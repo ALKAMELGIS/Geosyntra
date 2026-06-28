@@ -269,4 +269,24 @@ mod tests {
         assert!(!session.is_email_verified());
         assert!(!session.can_access_app());
     }
+
+    #[test]
+    fn deserialize_playwright_persisted_session() {
+        let raw = r#"{
+            "access_token":"jwt-test",
+            "refresh_token":null,
+            "user_id":"230",
+            "email":"admin@geosyntra.com",
+            "name":"GeoSyntra Admin",
+            "role":"Owner",
+            "role_slug":"owner",
+            "status":"Active",
+            "tenant_id":"geosyntra-default",
+            "permissions":["app.access","aoi.read","admin.panel"]
+        }"#;
+        let session: AuthSession = serde_json::from_str(raw).unwrap();
+        assert!(session.is_signed_in());
+        assert!(session.has_permission("app.access"));
+        assert!(session.has_permission("aoi.read"));
+    }
 }

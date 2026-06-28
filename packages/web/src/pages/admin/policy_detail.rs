@@ -361,6 +361,10 @@ pub fn PolicyDetail(id: String) -> Element {
                         }
                     }
                 }
+            } else if let Some(err) = error.read().clone() {
+                p { class: "gs-error", "{err}" }
+            } else {
+                p { class: "gs-hint", "Policy not found or unavailable for this tenant." }
             }
             }
         }

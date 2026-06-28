@@ -1,7 +1,7 @@
 use dioxus::prelude::*;
 
 use crate::{
-    auth_session::AuthContext,
+    auth_session::{AuthContext, AuthSession},
     i18n::LanguageToggle,
     routes::Route,
 };
@@ -10,19 +10,36 @@ use crate::{
 pub fn SettingsShell(children: Element) -> Element {
     let auth = AuthContext::use_auth();
     let nav = use_navigator();
-    let session = auth.session.read().clone();
-    let session_gate = session.clone();
+
+    let session = use_memo(move || {
+        let cached = auth.session.read().clone();
+        if cached.is_signed_in() {
+            cached
+        } else {
+            AuthSession::read_local()
+        }
+    });
 
     use_effect(move || {
-        if !session_gate.is_signed_in() {
+        let local = AuthSession::read_local();
+        if local.is_signed_in() && !auth.session.read().is_signed_in() {
+            auth.set_session(local);
+        }
+    });
+
+    use_effect(move || {
+        if !auth.session.read().is_signed_in() {
             let _ = nav.push(Route::Login {});
         }
     });
 
-    if !session.is_signed_in() {
+    if !session().is_signed_in() {
+        let pending = !session().is_signed_in() && AuthSession::read_local().is_signed_in();
         return rsx! {
             div { class: "gs-app gs-main",
-                p { class: "gs-hint", "Sign in to open settings." }
+                p { class: "gs-hint",
+                    if pending { "Loading settings…" } else { "Sign in to open settings." }
+                }
             }
         };
     }
@@ -32,7 +49,7 @@ pub fn SettingsShell(children: Element) -> Element {
             div { class: "gs-shell",
                 aside { class: "gs-sidebar gs-sidebar--settings",
                     div { class: "gs-sidebar__brand", "Settings" }
-                    p { class: "gs-hint gs-sidebar__meta", "Tenant: {session.active_tenant()}" }
+                    p { class: "gs-hint gs-sidebar__meta", "Tenant: {session().active_tenant()}" }
                     div { class: "gs-sidebar__tools", LanguageToggle {} }
                     nav { class: "gs-nav",
                         Link {
@@ -48,7 +65,7 @@ pub fn SettingsShell(children: Element) -> Element {
                         Link {
                             to: Route::SettingsApiIntegrations {},
                             class: "gs-nav-link",
-                            style: if session.can_manage_api_integrations() { "" } else { "opacity:0.45; pointer-events:none" },
+                            style: if session().can_manage_api_integrations() { "" } else { "opacity:0.45; pointer-events:none" },
                             "API integrations"
                         }
                         Link {

@@ -30,21 +30,28 @@ fn link_class(section: AppNavSection, active: AppNavSection) -> &'static str {
 pub fn AppNavBar(
     active: AppNavSection,
     #[props(default)] subtitle: Option<String>,
+    #[props(default)] compact: bool,
 ) -> Element {
     let auth = AuthContext::use_auth();
     let session = auth.session.read().clone();
     let signed_in = session.is_signed_in();
     let show_admin = session.can_access_admin();
+    let nav_class = if compact {
+        "gs-app-nav gs-app-nav--compact"
+    } else {
+        "gs-app-nav"
+    };
 
     rsx! {
-        header { class: "gs-app-nav",
-            Link { to: Route::Landing {}, class: "gs-app-nav__brand", "{BRAND}" }
-            if let Some(sub) = subtitle {
-                span { class: "gs-app-nav__subtitle", "{sub}" }
-            } else {
-                span { class: "gs-app-nav__subtitle gs-app-nav__subtitle--empty" }
+        header { class: "{nav_class}",
+            div { class: "gs-app-nav__start",
+                Link { to: Route::Landing {}, class: "gs-app-nav__brand", "{BRAND}" }
+                if let Some(sub) = subtitle {
+                    span { class: "gs-app-nav__subtitle", "{sub}" }
+                }
             }
-            nav { class: "gs-app-nav__links",
+
+            nav { class: "gs-app-nav__links", aria_label: "Main",
                 if signed_in {
                     Link {
                         to: Route::Landing {},
@@ -86,7 +93,10 @@ pub fn AppNavBar(
                         }
                     }
                 }
-                LanguageToggle {}
+            }
+
+            div { class: "gs-app-nav__actions",
+                // LanguageToggle {}
                 LandingStatusBar {}
             }
         }
