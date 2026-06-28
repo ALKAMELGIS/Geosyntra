@@ -2,8 +2,12 @@
 # Task 24.3 — rsync Dioxus web bundle to Hostinger staging (:3003) and restart Axum staging.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$ROOT"
 
+if command -v geosyntra-deploy >/dev/null 2>&1; then
+  exec geosyntra-deploy dioxus staging "$@"
+fi
+
+cd "$ROOT"
 HOST="${GEOSYNTRA_DEPLOY_HOST:-}"
 USER="${GEOSYNTRA_DEPLOY_USER:-root}"
 PORT="${GEOSYNTRA_DEPLOY_PORT:-22}"

@@ -1,5 +1,5 @@
 # GeoSyntra Rust API package for Nix / deploy-rs profiles.
-{ lib, rustPlatform, pkg-config, openssl, writeShellScriptBin }:
+{ lib, pkgs, rustPlatform, pkg-config, openssl, writeShellScriptBin, deploy-rs }:
 
 let
   src = lib.cleanSourceWith {
@@ -69,16 +69,17 @@ UNIT
     set -euo pipefail
     mkdir -p /var/lib/geosyntra-api-staging /etc/geosyntra
     if [ ! -f /etc/geosyntra/api-staging.env ]; then
-      echo "# GeoSyntra Axum staging (Task 18) — parallel to Express on :3001" > /etc/geosyntra/api-staging.env
+      echo "# GeoSyntra Axum preview — app.geosyntra.org :3003" > /etc/geosyntra/api-staging.env
       echo "GEOSYNTRA_API_PORT=3003" >> /etc/geosyntra/api-staging.env
-      echo "GEOSYNTRA_BIND_HOST=0.0.0.0" >> /etc/geosyntra/api-staging.env
-      echo "# DATABASE_URL=postgres://..." >> /etc/geosyntra/api-staging.env
+      echo "GEOSYNTRA_BIND_HOST=127.0.0.1" >> /etc/geosyntra/api-staging.env
+      echo "APP_ORIGIN=https://app.geosyntra.org" >> /etc/geosyntra/api-staging.env
+      echo "# DATABASE_URL=postgres://geosyntra:...@127.0.0.1:5432/geosyntra_axum" >> /etc/geosyntra/api-staging.env
       echo "# JWT_SECRET=..." >> /etc/geosyntra/api-staging.env
       chmod 600 /etc/geosyntra/api-staging.env
     fi
     cat > /etc/systemd/system/geosyntra-api-staging.service <<UNIT
 [Unit]
-Description=GeoSyntra Axum API staging (:3003, Task 18 parity)
+Description=GeoSyntra Axum API preview (app subdomain :3003)
 After=network-online.target postgresql.service
 Wants=network-online.target
 
@@ -86,7 +87,7 @@ Wants=network-online.target
 Type=simple
 User=root
 EnvironmentFile=-/etc/geosyntra/api-staging.env
-Environment=GEOSYNTRA_BIND_HOST=0.0.0.0
+Environment=GEOSYNTRA_BIND_HOST=127.0.0.1
 Environment=GEOSYNTRA_API_PORT=3003
 Environment=RUST_LOG=info
 ExecStart=${geosyntra-api}/bin/geosyntra-api
@@ -102,6 +103,10 @@ UNIT
     systemctl enable geosyntra-api-staging
     systemctl restart geosyntra-api-staging
   '';
+
+  geosyntra-deploy = import ./deploy-cli {
+    inherit lib pkgs deploy-rs;
+  };
 in {
-  inherit geosyntra-api geosyntra-api-systemd geosyntra-api-staging-systemd;
+  inherit geosyntra-api geosyntra-api-systemd geosyntra-api-staging-systemd geosyntra-deploy;
 }

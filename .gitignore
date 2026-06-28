@@ -14,6 +14,13 @@ backend/dist/
 hostinger.secrets.env
 backend/.env
 
+# VPS backup pulls (secrets + DB) — never commit
+migration/vps-backup/*
+!migration/vps-backup/.gitkeep
+migration/vps-backup/restore-ready/
+secrets/api.yaml
+secrets/.sops.yaml
+
 # Server-side API token store (Mapbox, Gemini, …) — never commit.
 backend/server/geosyntra_api_secrets.json
 backend/server/geosyntra_user_profiles.json
