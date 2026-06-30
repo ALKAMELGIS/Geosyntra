@@ -13,6 +13,18 @@ function nowIso() {
   return new Date().toISOString()
 }
 
+/** pg timestamptz columns reject JS Date `.toString()` — always ISO-8601. */
+function toPgTimestamptz(value, fallback) {
+  const fb = fallback ?? nowIso()
+  if (value == null || value === '') return fb
+  if (value instanceof Date) return value.toISOString()
+  const s = String(value).trim()
+  if (/^\d{4}-\d{2}-\d{2}T/.test(s)) return s
+  const parsed = new Date(s)
+  if (!Number.isNaN(parsed.getTime())) return parsed.toISOString()
+  return fb
+}
+
 function normalizeEmail(e) {
   return String(e || '').trim().toLowerCase()
 }
@@ -237,8 +249,8 @@ export function createPostgresAdminDirectoryStore(sql) {
             oauthGoogleSub: u.oauthGoogleSub != null ? String(u.oauthGoogleSub) : null,
             oauthAppleSub: u.oauthAppleSub != null ? String(u.oauthAppleSub) : null,
             profileExtra: profileExtraToSql(u.profileExtra),
-            createdAt: u.createdAt ? String(u.createdAt) : ts,
-            updatedAt: ts,
+            createdAt: toPgTimestamptz(u.createdAt, ts),
+            updatedAt: toPgTimestamptz(ts, ts),
           },
         )
       }
@@ -248,7 +260,7 @@ export function createPostgresAdminDirectoryStore(sql) {
           await tx.runNamed(
             `INSERT INTO admin_audit (at, actor, action, target, details) VALUES (@at, @actor, @action, @target, @details)`,
             {
-              at: String(a.at || ts),
+              at: toPgTimestamptz(a.at, ts),
               actor: a.actor != null ? String(a.actor) : null,
               action: String(a.action || 'event'),
               target: a.target != null ? String(a.target) : null,

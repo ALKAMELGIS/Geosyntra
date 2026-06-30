@@ -1,0 +1,19 @@
+// GeoSyntra design tokens — ported from React admin.css (Task 20.5)
+
+:root {
+  --gs-bg: #020408;
+  --gs-text: #e8edf5;
+  --gs-muted: rgba(148, 163, 184, 0.88);
+  --gs-cyan: rgba(56, 189, 248, 0.9);
+  --gs-border: rgba(255, 255, 255, 0.08);
+  --gs-border-strong: rgba(255, 255, 255, 0.12);
+  --gs-glass: rgba(8, 12, 20, 0.52);
+  --gs-glass-panel: linear-gradient(
+    165deg,
+    rgba(18, 24, 38, 0.68) 0%,
+    rgba(6, 8, 14, 0.82) 100%
+  );
+  --gs-blur: blur(22px) saturate(165%);
+  --gs-radius: 1rem;
+  --gs-font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}

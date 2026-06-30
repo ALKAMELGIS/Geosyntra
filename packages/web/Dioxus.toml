@@ -1,0 +1,26 @@
+[application]
+name = "geosyntra-web"
+default_platform = "web"
+asset_dir = "public"
+
+[web.app]
+title = "GeoSyntra"
+base_path = "/"
+
+[web.resource]
+style = ["/assets/css/app.css"]
+script = []
+
+[web.resource.dev]
+style = ["/assets/css/app.css"]
+script = []
+
+[[web.proxy]]
+backend = "http://127.0.0.1:3003/api"
+
+[[web.proxy]]
+backend = "http://127.0.0.1:3003/health"
+
+[server]
+port = 8080
+address = "127.0.0.1"

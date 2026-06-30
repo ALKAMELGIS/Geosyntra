@@ -34,6 +34,8 @@
     "db:sync:rollback": "node scripts/db-sync.mjs --rollback",
     "db:sync:test:unit": "node --test scripts/db-sync/config.test.mjs",
     "vps:deploy": "node scripts/vps-deploy.mjs",
+    "vps:deploy:react": "node scripts/vps-deploy-react.mjs",
+    "vps:deploy:production": "node scripts/vps-deploy-production.mjs",
     "vps:env": "node scripts/vps-deploy.mjs --env",
     "vps:ssh": "node scripts/vps-ssh.mjs",
     "preview": "npm run preview -w frontend",

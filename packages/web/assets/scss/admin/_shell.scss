@@ -1,0 +1,34 @@
+@use "../tokens";
+
+.gs-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.gs-badge--task {
+  background: rgba(56, 189, 248, 0.14);
+  color: var(--gs-cyan);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+}
+
+.gs-hint {
+  margin: 0 0 0.75rem;
+  padding: 0.55rem 0.85rem;
+  border-radius: 0.65rem;
+  font-size: 0.82rem;
+  color: rgba(203, 213, 225, 0.92);
+  border: 1px solid var(--gs-border);
+  background: rgba(8, 12, 20, 0.45);
+}
+
+.gs-error {
+  color: #fca5a5;
+  font-size: 0.85rem;
+  margin: 0.5rem 0 0;
+}

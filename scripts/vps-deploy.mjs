@@ -3,7 +3,7 @@
 // What it does:
 //   1. Builds a tarball of backend/ (excludes node_modules, .git, .env*).
 //   2. Generates a production .env from hostinger.secrets.env with VPS path overrides.
-//   3. Uploads both over SSH (ssh2, password auth from hostinger.secrets.env).
+//   3. Uploads both over SSH (key or password from hostinger.secrets.env).
 //   4. Extracts, installs deps, restarts the systemd service, and verifies HTTPS.
 //
 // Usage:
@@ -15,41 +15,31 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { connectSsh2, loadEnvFile, repoRoot } from './lib/vps-ssh.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const root = path.resolve(__dirname, '..');
+const root = repoRoot;
 const backendDir = path.join(root, 'backend');
 
 const args = process.argv.slice(2);
 const ENV_ONLY = args.includes('--env');
 const SKIP_INSTALL = args.includes('--no-install');
 
-function loadEnvFile(p) {
-  const out = {};
-  if (!fs.existsSync(p)) return out;
-  for (const line of fs.readFileSync(p, 'utf8').split(/\r?\n/)) {
-    if (/^\s*#/.test(line) || !line.trim()) continue;
-    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/i);
-    if (!m) continue;
-    let v = m[2];
-    if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1);
-    out[m[1]] = v;
-  }
-  return out;
-}
-
 const secrets = loadEnvFile(path.join(root, 'hostinger.secrets.env'));
-const HOST = process.env.VPS_HOST || secrets.VPS_HOST;
-const PORT = Number(process.env.VPS_SSH_PORT || secrets.VPS_SSH_PORT || 22);
-const USER = process.env.VPS_SSH_USER || secrets.VPS_SSH_USER || 'root';
-const PASS = process.env.VPS_ROOT_PASS || secrets.VPS_ROOT_PASS;
+const backupExpressEnv = loadEnvFile(
+  path.join(root, 'migration/vps-backup/restore-ready/env/express.env.from-vps'),
+);
+const mergedSecrets = { ...backupExpressEnv, ...secrets };
+const HOST = process.env.VPS_HOST || secrets.VPS_HOST || secrets.GEOSYNTRA_DEPLOY_HOST;
+const PORT = Number(process.env.VPS_SSH_PORT || secrets.VPS_SSH_PORT || secrets.GEOSYNTRA_DEPLOY_PORT || 22);
+const USER = process.env.VPS_SSH_USER || secrets.VPS_SSH_USER || secrets.GEOSYNTRA_DEPLOY_USER || 'root';
 const APP_DIR = process.env.VPS_APP_DIR || secrets.VPS_APP_DIR || '/opt/geosyntra-api';
 const DATA_DIR = '/var/lib/geosyntra-api';
 const SERVICE = 'geosyntra-api';
-const API_BASE = secrets.VITE_API_BASE_URL || 'https://api.geosyntra.org';
+const API_BASE = mergedSecrets.VITE_API_BASE_URL || 'https://api.geosyntra.org';
 
-if (!HOST || !PASS) {
-  console.error('Missing VPS_HOST or VPS_ROOT_PASS in hostinger.secrets.env');
+if (!HOST) {
+  console.error('Missing VPS_HOST / GEOSYNTRA_DEPLOY_HOST in hostinger.secrets.env');
   process.exit(2);
 }
 
@@ -69,15 +59,21 @@ function buildServerEnv() {
     'NODE_ENV=production',
     `GEOSYNTRA_DATA_DIR=${DATA_DIR}`,
     `GEOSYNTRA_USER_DB_PATH=${DATA_DIR}/geosyntra_platform.db`,
+    `AGRI_DATA_DIR=${DATA_DIR}`,
+    `AGRI_USER_DB_PATH=${DATA_DIR}/geosyntra_platform.db`,
   ];
-  const seen = new Set(['GEOSYNTRA_ENV', 'NODE_ENV', 'GEOSYNTRA_DATA_DIR', 'GEOSYNTRA_USER_DB_PATH']);
-  for (const [k, v] of Object.entries(secrets)) {
+  const seen = new Set([
+    'GEOSYNTRA_ENV', 'NODE_ENV',
+    'GEOSYNTRA_DATA_DIR', 'GEOSYNTRA_USER_DB_PATH',
+    'AGRI_DATA_DIR', 'AGRI_USER_DB_PATH',
+  ]);
+  for (const [k, v] of Object.entries(mergedSecrets)) {
     if (INFRA_KEYS.has(k) || seen.has(k) || !v) continue;
     lines.push(`${k}=${v}`);
     seen.add(k);
   }
   // Mirror a pk.* Mapbox token into MAPBOX_PUBLIC_TOKEN for the browser GL client.
-  const mapbox = secrets.MAPBOX_TOKEN || secrets.MAPBOX || '';
+  const mapbox = mergedSecrets.MAPBOX_TOKEN || mergedSecrets.MAPBOX || '';
   if (mapbox.startsWith('pk.') && !seen.has('MAPBOX_PUBLIC_TOKEN')) {
     lines.push(`MAPBOX_PUBLIC_TOKEN=${mapbox}`);
   }
@@ -93,18 +89,6 @@ function buildTarball() {
   return out;
 }
 
-let ssh2;
-try { ssh2 = await import('ssh2'); }
-catch { console.error('ssh2 not installed. Run: npm install ssh2 --no-save'); process.exit(2); }
-const { Client } = ssh2.default || ssh2;
-
-function connect() {
-  return new Promise((resolve, reject) => {
-    const conn = new Client();
-    conn.on('ready', () => resolve(conn)).on('error', reject)
-      .connect({ host: HOST, port: PORT, username: USER, password: PASS, readyTimeout: 30000, keepaliveInterval: 10000 });
-  });
-}
 function exec(conn, cmd) {
   return new Promise((resolve, reject) => {
     conn.exec(cmd, { pty: false }, (err, stream) => {
@@ -139,7 +123,7 @@ async function main() {
     console.log(`  ${(fs.statSync(tarball).size / 1024).toFixed(0)} KB`);
   }
 
-  const conn = await connect();
+  const { conn } = await connectSsh2();
   try {
     await exec(conn, `mkdir -p ${APP_DIR} ${DATA_DIR}`);
     console.log('Uploading .env…');
@@ -152,7 +136,8 @@ async function main() {
       await exec(conn, `cd ${APP_DIR} && tar -xzf deploy.tgz --warning=no-unknown-keyword && rm -f deploy.tgz`);
       if (!SKIP_INSTALL) {
         console.log('Installing dependencies (npm install --omit=dev)…');
-        const code = await exec(conn, `cd ${APP_DIR} && npm install --omit=dev --no-audit --no-fund 2>&1 | tail -5`);
+        const npmInstall = `cd ${APP_DIR} && (if command -v npm >/dev/null 2>&1; then npm install --omit=dev --no-audit --no-fund; else NPM="$(find /nix/store -maxdepth 4 -path '*/nodejs-slim-*/bin/npm' 2>/dev/null | head -1)"; [ -n "$NPM" ] || NPM="$(find /nix/store -maxdepth 4 -path '*/bin/npm' 2>/dev/null | head -1)"; [ -n "$NPM" ] || { echo "npm not found — run geosyntra-deploy nixos switch (nodejs_22)" >&2; exit 127; }; "$NPM" install --omit=dev --no-audit --no-fund; fi) 2>&1 | tail -8`;
+        const code = await exec(conn, npmInstall);
         if (code !== 0) throw new Error(`npm install failed (exit ${code})`);
       }
     }

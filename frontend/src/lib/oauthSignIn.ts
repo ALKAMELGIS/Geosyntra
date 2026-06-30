@@ -10,10 +10,19 @@ function normalizedBasePath(): string {
  * Google OAuth redirect URI (no `#` fragment — Google rejects fragments).
  * Static `public/oauth-return.html` forwards `?code&state` to `/#/app/auth/login?…`.
  */
+function isLocalDevRedirectUri(uri: string): boolean {
+  try {
+    const host = new URL(uri).hostname
+    return host === 'localhost' || host === '127.0.0.1'
+  } catch {
+    return false
+  }
+}
+
 /** Popup / code-exchange redirect (must match Google Console + LinkedIn app exactly). */
 export function getGoogleOAuthRedirectUri(): string {
   const custom = String(import.meta.env.VITE_AUTH_GOOGLE_REDIRECT_URI ?? '').trim()
-  if (custom) return custom
+  if (custom && (isLocalDevHost() || !isLocalDevRedirectUri(custom))) return custom
   if (typeof window === 'undefined') return ''
   const base = normalizedBasePath()
   const prefix = base ? `${base}/` : '/'
@@ -29,10 +38,16 @@ export function resolveOAuthPopupRedirectUri(provider: 'google' | 'linkedin' | '
         : provider === 'github'
           ? String(import.meta.env.VITE_AUTH_GITHUB_REDIRECT_URI ?? '').trim()
           : String(import.meta.env.VITE_AUTH_APPLE_REDIRECT_URI ?? '').trim()
+
+  // Production: never use localhost redirect URIs baked in from dev .env at build time.
+  if (!isLocalDevHost()) {
+    const fromApi = String(cachedOAuthPublicConfig?.redirectUri ?? '').trim()
+    if (fromApi) return fromApi
+    if (fromEnv && !isLocalDevRedirectUri(fromEnv)) return fromEnv
+    return getGoogleOAuthRedirectUri()
+  }
+
   if (fromEnv) return fromEnv
-  if (isLocalDevHost()) return getGoogleOAuthRedirectUri()
-  const fromApi = String(cachedOAuthPublicConfig?.redirectUri ?? '').trim()
-  if (fromApi) return fromApi
   return getGoogleOAuthRedirectUri()
 }
 
@@ -278,7 +293,7 @@ export function resolveAppleAuthorizationUrl(): string | null {
 
 function getGitHubOAuthRedirectUri(): string {
   const custom = String(import.meta.env.VITE_AUTH_GITHUB_REDIRECT_URI ?? '').trim()
-  if (custom) return custom
+  if (custom && (isLocalDevHost() || !isLocalDevRedirectUri(custom))) return custom
   return getGoogleOAuthRedirectUri()
 }
 

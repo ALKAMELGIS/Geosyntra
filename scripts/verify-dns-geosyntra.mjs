@@ -73,7 +73,12 @@ if (!apexIps.length) {
 const apiIps = await resolve4('api.geosyntra.org')
 if (apiIps.length) ok(`api → ${apiIps.join(', ')} (Hostinger API — separate from Pages)`)
 
-console.log('\nHostinger fixes:')
+console.log('\nHostinger DNS (NixOS VPS — React + Express on same server):')
+console.log('  www  CNAME or A  → 2.24.11.216')
+console.log('  @    A           → 2.24.11.216  (or keep GitHub A records if apex still on Pages)')
+console.log('  api  A           → 2.24.11.216')
+console.log('  app  A           → 2.24.11.216  (optional — Axum preview only)')
+console.log('\nLegacy GitHub Pages fixes (if not using VPS for www):')
 console.log('  1. Delete CNAME www → ALKAMELGIS.github.ae')
 console.log('  2. Add    CNAME www → alkamelgis.github.io')
 console.log('  3. Delete A     @  → 46.202.183.152')
