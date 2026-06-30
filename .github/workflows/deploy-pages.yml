@@ -48,6 +48,8 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci --no-audit --no-fund
+      - name: Verify no secrets in tracked files
+        run: node scripts/verify-no-secrets-in-git.mjs
       - name: Build SPA for GitHub Pages (no local .env — safe for push protection)
         env:
           # Large map chunks (mapbox-gl + SatelliteIntelligenceMain) can exhaust the

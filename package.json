@@ -26,6 +26,7 @@
     "sync-pages-docs": "node scripts/sync-pages-docs.mjs",
     "rbac:create-owner": "node scripts/create-owner.mjs",
     "verify:dns": "node scripts/verify-dns-geosyntra.mjs",
+    "verify:secrets": "node scripts/verify-no-secrets-in-git.mjs",
     "hostinger:api-env": "node scripts/apply-hostinger-api-env.mjs",
     "hostinger:api-check": "node scripts/apply-hostinger-api-env.mjs --check",
     "db:sync": "node scripts/db-sync.mjs",

@@ -22,6 +22,8 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci --no-audit --no-fund
+      - name: Verify no secrets in tracked files
+        run: node scripts/verify-no-secrets-in-git.mjs
       - name: Typecheck frontend
         run: npm run typecheck
       - name: Build frontend (staging env)
