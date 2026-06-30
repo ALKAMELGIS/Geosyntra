@@ -28,6 +28,10 @@ import {
   normalizeSiContourSurfaceType,
   type SiContourSurfaceType,
 } from './siContourClassification';
+import {
+  ensureSiMapTerrainDemSource,
+  setSiPreferredTerrainDemKind,
+} from './siMapTerrainDemRuntime';
 
 export type SiMapProjectionMode = '2d' | 'globe';
 
@@ -79,7 +83,98 @@ export const SI_MAP_ELEVATION_PITCH_LS = 'si-map-elevation-pitch-v1';
 export const SI_MAPBOX_TERRAIN_DEM_SOURCE_ID = 'si-mapbox-terrain-dem';
 /** Canonical raster-dem source for `setTerrain` (Terrarium / Esri / Mapbox DEM runtime). */
 export const SI_TERRAIN_DEM_SOURCE_ID = 'si-global-terrain-dem';
+/** Legacy Mapbox token-gated DEM — kept only as a last-resort mesh fallback. */
 const DEM_SOURCE_ID = SI_MAPBOX_TERRAIN_DEM_SOURCE_ID;
+
+/** 3D elevation source: Esri World Elevation Terrain3D (default), free global Terrarium, or Mapbox. */
+export type SiTerrainElevationProvider = 'esri' | 'terrarium' | 'mapbox';
+export const SI_DEFAULT_ELEVATION_PROVIDER: SiTerrainElevationProvider = 'esri';
+export const SI_MAP_ELEVATION_PROVIDER_LS = 'si-map-elevation-provider-v1';
+
+export function normalizeSiTerrainElevationProvider(
+  raw: string | null | undefined,
+): SiTerrainElevationProvider {
+  return raw === 'terrarium' || raw === 'mapbox' ? raw : 'esri';
+}
+
+/** Esri World Hillshade relief — draped raster overlay that conforms to the 3D terrain mesh. */
+const ESRI_HILLSHADE_OVERLAY_SOURCE_ID = 'si-esri-hillshade-overlay';
+const ESRI_HILLSHADE_OVERLAY_LAYER_ID = 'si-esri-hillshade-overlay-layer';
+const ESRI_WORLD_HILLSHADE_TILE_URL =
+  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Hillshade/MapServer/tile/{z}/{y}/{x}';
+
+/**
+ * Mount the active elevation DEM (Esri Terrain3D / Terrarium / Mapbox) on the canonical
+ * `setTerrain` source and return its id. Falls back to the legacy Mapbox DEM only if the
+ * runtime source cannot be created so the mesh still renders.
+ */
+export function ensureSiTerrainRenderDemSource(
+  map: MapboxMap,
+  provider: SiTerrainElevationProvider = SI_DEFAULT_ELEVATION_PROVIDER,
+): string {
+  const kind = provider === 'esri' ? 'esri' : provider === 'mapbox' ? 'mapbox' : 'terrarium';
+  setSiPreferredTerrainDemKind(kind);
+  try {
+    const ok = ensureSiMapTerrainDemSource(map, {
+      preferEsriDem: provider === 'esri',
+      preferMapboxDem: provider === 'mapbox',
+    });
+    if (ok && map.getSource(SI_TERRAIN_DEM_SOURCE_ID)) return SI_TERRAIN_DEM_SOURCE_ID;
+  } catch {
+    /* style not ready — fall through to legacy fallback */
+  }
+  if (!map.getSource(DEM_SOURCE_ID)) {
+    map.addSource(DEM_SOURCE_ID, {
+      type: 'raster-dem',
+      url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
+      tileSize: 512,
+      maxzoom: 14,
+    });
+  }
+  return DEM_SOURCE_ID;
+}
+
+/** Esri World Hillshade relief overlay (draped on terrain) — toggled with the Esri provider. */
+function syncSiEsriHillshadeOverlay(map: MapboxMap, enabled: boolean): void {
+  if (!enabled) {
+    try {
+      if (map.getLayer(ESRI_HILLSHADE_OVERLAY_LAYER_ID)) {
+        map.removeLayer(ESRI_HILLSHADE_OVERLAY_LAYER_ID);
+      }
+    } catch {
+      /* ignore */
+    }
+    return;
+  }
+  try {
+    if (!map.getSource(ESRI_HILLSHADE_OVERLAY_SOURCE_ID)) {
+      map.addSource(ESRI_HILLSHADE_OVERLAY_SOURCE_ID, {
+        type: 'raster',
+        tiles: [ESRI_WORLD_HILLSHADE_TILE_URL],
+        tileSize: 256,
+        maxzoom: 16,
+        attribution: 'Tiles © Esri',
+      });
+    }
+    if (!map.getLayer(ESRI_HILLSHADE_OVERLAY_LAYER_ID)) {
+      const beforeId = findFirstNonBasemapLayerId(map) ?? findLabelLayerId(map) ?? undefined;
+      map.addLayer(
+        {
+          id: ESRI_HILLSHADE_OVERLAY_LAYER_ID,
+          type: 'raster',
+          source: ESRI_HILLSHADE_OVERLAY_SOURCE_ID,
+          paint: {
+            'raster-opacity': 0.5,
+            'raster-fade-duration': 200,
+          },
+        },
+        beforeId,
+      );
+    }
+  } catch {
+    /* style not ready */
+  }
+}
 const TERRAIN_VECTOR_SOURCE_ID = 'si-mapbox-terrain-v2';
 /**
  * Tiny upward bias (metres above ground) for the elevated contour line. With
@@ -170,6 +265,8 @@ export const SI_CONTOUR_THEME_PRESETS: Record<
 };
 
 export type SiMapTerrainSettings = {
+  /** 3D elevation DEM provider (Esri Terrain3D default / free Terrarium / Mapbox). */
+  elevationProvider: SiTerrainElevationProvider;
   /** Vertical scaling (Mapbox terrain exaggeration). */
   exaggeration: number;
   /** Hillshade relief strength (elevation intensity). */
@@ -215,6 +312,7 @@ export type SiMapTerrainSettings = {
 };
 
 export const SI_DEFAULT_TERRAIN_SETTINGS: SiMapTerrainSettings = {
+  elevationProvider: SI_DEFAULT_ELEVATION_PROVIDER,
   exaggeration: 1.2,
   hillshadeIntensity: 0.28,
   contourEnabled: false,
@@ -822,7 +920,7 @@ function syncSiHillshadeLayer(
   map: MapboxMap,
   hillshadeIntensity: number,
   enabled: boolean,
-  opts?: { allowOverRasterBasemap?: boolean },
+  opts?: { allowOverRasterBasemap?: boolean; demSourceId?: string },
 ): void {
   if (!enabled) {
     if (map.getLayer(HILLSHADE_LAYER_ID)) map.removeLayer(HILLSHADE_LAYER_ID);
@@ -835,14 +933,7 @@ function syncSiHillshadeLayer(
     return;
   }
 
-  if (!map.getSource(DEM_SOURCE_ID)) {
-    map.addSource(DEM_SOURCE_ID, {
-      type: 'raster-dem',
-      url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
-      tileSize: 512,
-      maxzoom: 14,
-    });
-  }
+  const hillshadeSourceId = opts?.demSourceId ?? ensureSiTerrainRenderDemSource(map);
 
   const exaggeration = hillshadeIntensity * (rasterBasemap ? 0.45 : 0.65);
   const shadowColor = rasterBasemap ? '#0f172a' : '#020617';
@@ -862,7 +953,7 @@ function syncSiHillshadeLayer(
     {
       id: HILLSHADE_LAYER_ID,
       type: 'hillshade',
-      source: DEM_SOURCE_ID,
+      source: hillshadeSourceId,
       paint: {
         'hillshade-exaggeration': exaggeration,
         'hillshade-shadow-color': shadowColor,
@@ -905,17 +996,10 @@ export function ensureSiMapDaylightTerrainSupport(
   }
 
   try {
-    if (!map.getSource(DEM_SOURCE_ID)) {
-      map.addSource(DEM_SOURCE_ID, {
-        type: 'raster-dem',
-        url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
-        tileSize: 512,
-        maxzoom: 14,
-      });
-    }
-    syncSiHillshadeLayer(map, 0.42, true, { allowOverRasterBasemap: true });
+    const demSourceId = ensureSiTerrainRenderDemSource(map);
+    syncSiHillshadeLayer(map, 0.42, true, { allowOverRasterBasemap: true, demSourceId });
     if (!map.getTerrain()) {
-      map.setTerrain({ source: DEM_SOURCE_ID, exaggeration: 1.15 });
+      map.setTerrain({ source: demSourceId, exaggeration: 1.15 });
     }
 
     siMapDaylightTerrainReady.set(map, true);
@@ -954,8 +1038,11 @@ export function applySiMapTerrain(map: MapboxMap, opts: SiMapTerrainOptions): vo
   const t = terrainOptsFromPartial(opts);
 
   try {
+    const provider = normalizeSiTerrainElevationProvider(opts.elevationProvider);
+
     if (!opts.enabled) {
       removeSiTerrainMeshOverlays(map);
+      syncSiEsriHillshadeOverlay(map, false);
       if (t.contourEnabled) {
         syncSiMapContourOverlaysOnCanvas(map, t);
       } else {
@@ -964,18 +1051,12 @@ export function applySiMapTerrain(map: MapboxMap, opts: SiMapTerrainOptions): vo
       return;
     }
 
-    if (!map.getSource(DEM_SOURCE_ID)) {
-      map.addSource(DEM_SOURCE_ID, {
-        type: 'raster-dem',
-        url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
-        tileSize: 512,
-        maxzoom: 14,
-      });
-    }
+    const demSourceId = ensureSiTerrainRenderDemSource(map, provider);
 
-    map.setTerrain({ source: DEM_SOURCE_ID, exaggeration: t.exaggeration });
+    map.setTerrain({ source: demSourceId, exaggeration: t.exaggeration });
 
-    syncSiHillshadeLayer(map, t.hillshadeIntensity, true);
+    syncSiHillshadeLayer(map, t.hillshadeIntensity, true, { demSourceId });
+    syncSiEsriHillshadeOverlay(map, provider === 'esri');
     syncSiContourLayer(map, t, t.contourEnabled);
     syncSiContourLabelLayer(map, t);
 
@@ -1014,6 +1095,7 @@ export function siMapTerrainSettingsSignature(opts: SiMapTerrainOptions): string
   const t = terrainOptsFromPartial(opts);
   return [
     opts.enabled ? '1' : '0',
+    normalizeSiTerrainElevationProvider(opts.elevationProvider),
     t.exaggeration.toFixed(2),
     t.hillshadeIntensity.toFixed(2),
     t.contourEnabled ? '1' : '0',
@@ -1742,6 +1824,9 @@ export function loadStoredSiTerrainSettings(): SiMapTerrainSettings {
     const contourLabelSize = Number(window.localStorage.getItem(SI_MAP_TERRAIN_CONTOUR_LABEL_SIZE_LS));
     const contourLabelColor = window.localStorage.getItem(SI_MAP_TERRAIN_CONTOUR_LABEL_COLOR_LS);
     const settings: SiMapTerrainSettings = {
+      elevationProvider: normalizeSiTerrainElevationProvider(
+        window.localStorage.getItem(SI_MAP_ELEVATION_PROVIDER_LS),
+      ),
       exaggeration: Number.isFinite(exaggeration)
         ? clampTerrainExaggeration(exaggeration)
         : SI_DEFAULT_TERRAIN_SETTINGS.exaggeration,
@@ -1869,6 +1954,10 @@ export function persistSiTerrainSettings(settings: SiMapTerrainSettings): void {
     ? settings
     : { ...settings, contourLabelsEnabled: false };
   try {
+    window.localStorage.setItem(
+      SI_MAP_ELEVATION_PROVIDER_LS,
+      normalizeSiTerrainElevationProvider(toStore.elevationProvider),
+    );
     window.localStorage.setItem(SI_MAP_TERRAIN_EXAGGERATION_LS, String(clampTerrainExaggeration(toStore.exaggeration)));
     window.localStorage.setItem(
       SI_MAP_TERRAIN_HILLSHADE_INTENSITY_LS,

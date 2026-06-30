@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  isSiMapAnalysisOverlayLayerId,
   isSiMapBasemapMapboxLayerId,
   isSiMapCustomLayerAuxMapboxLayerId,
   isSiMapCustomVectorMapboxLayerId,
   isSiMapUiOverlayLayerId,
   lowerSiMapBasemapLayersToBottom,
   raiseSiMapCustomVectorLayersToTop,
+  raiseSiMapUiOverlayLayersToTop,
   syncSiMapOverlayLayerStack,
 } from './siMapCustomVectorLayerStack';
 
@@ -26,6 +28,45 @@ describe('isSiMapUiOverlayLayerId', () => {
     expect(isSiMapUiOverlayLayerId('si-draw-draft-fill')).toBe(true);
     expect(isSiMapUiOverlayLayerId('si-aoi-fields-line')).toBe(true);
     expect(isSiMapCustomVectorMapboxLayerId('si-aoi-fields-line')).toBe(false);
+  });
+});
+
+describe('isSiMapAnalysisOverlayLayerId', () => {
+  it('matches hydro and flood analysis output layers only', () => {
+    expect(isSiMapAnalysisOverlayLayerId('si-hydro-streams-order-1')).toBe(true);
+    expect(isSiMapAnalysisOverlayLayerId('si-hydro-basin-fill')).toBe(true);
+    expect(isSiMapAnalysisOverlayLayerId('si-flood-extent-raster')).toBe(true);
+    expect(isSiMapAnalysisOverlayLayerId('si-multi-aoi-line')).toBe(false);
+    expect(isSiMapAnalysisOverlayLayerId('si-draw-draft-fill')).toBe(false);
+  });
+});
+
+describe('raiseSiMapUiOverlayLayersToTop', () => {
+  it('raises AOI/draw reference overlays first, then analysis layers on top', () => {
+    const moveLayer = vi.fn();
+    const layerIds = [
+      'si-hydro-dem-raster',
+      'si-multi-aoi-fill',
+      'si-multi-aoi-line',
+      'si-flood-extent-raster',
+      'si-draw-draft-line',
+    ];
+    const map = {
+      getStyle: () => ({ layers: layerIds.map(id => ({ id })) }),
+      getLayer: (id: string) => (layerIds.includes(id) ? {} : null),
+      moveLayer,
+    };
+    raiseSiMapUiOverlayLayersToTop(map as never);
+    const raised = moveLayer.mock.calls.map(c => c[0]);
+    // Reference overlays move before analysis layers; last raised (top) is analysis.
+    expect(raised).toEqual([
+      'si-multi-aoi-fill',
+      'si-multi-aoi-line',
+      'si-draw-draft-line',
+      'si-hydro-dem-raster',
+      'si-flood-extent-raster',
+    ]);
+    expect(isSiMapAnalysisOverlayLayerId(raised[raised.length - 1])).toBe(true);
   });
 });
 
@@ -102,6 +143,7 @@ describe('raiseSiMapCustomVectorLayersToTop', () => {
       'arcgis-1--ag-label-point',
     ]);
   });
+
 });
 
 describe('syncSiMapOverlayLayerStack', () => {

@@ -86,7 +86,9 @@
     <link rel="apple-touch-icon" href="/favicon.svg" />
     <link rel="shortcut icon" href="/favicon.svg" />
     <title>Geosyntra</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <!-- Font Awesome is bundled via main.tsx (@fortawesome/fontawesome-free). The previous
+         render-blocking cdnjs <link> duplicated it and re-downloaded the icon webfonts, so it
+         was removed to speed up first paint. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="preconnect" href="https://api.mapbox.com" crossorigin />
@@ -96,7 +98,7 @@
     <!-- Mapbox GL + GeoSyntra API — avoids blank map canvas from overly strict default CSP on some hosts -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://cdnjs.cloudflare.com https://unpkg.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: blob: https:; connect-src 'self' https: wss: blob:; worker-src blob: 'self'; child-src blob:; media-src 'self' blob: data: https:;"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://cdnjs.cloudflare.com https://unpkg.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: blob: https:; connect-src 'self' https: ws: wss: blob: data:; worker-src blob: 'self'; child-src blob:; media-src 'self' blob: data: https:;"
     />
     <link
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap"

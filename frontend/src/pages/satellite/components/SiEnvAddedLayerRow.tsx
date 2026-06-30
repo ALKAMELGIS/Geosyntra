@@ -143,6 +143,34 @@ export function SiEnvAddedLayerRow({
           ) : (
             <span className="si-layer-tree__static-badge">on</span>
           )}
+          {layer.onExport ? (
+            <button
+              type="button"
+              className="si-layer-tree__icon-btn"
+              title="Export raster — GeoTIFF clipped to AOI"
+              aria-label={`Export ${layer.label}`}
+              onClick={e => {
+                e.stopPropagation();
+                layer.onExport?.();
+              }}
+            >
+              <i className="fa-solid fa-file-export" aria-hidden />
+            </button>
+          ) : null}
+          {layer.onRemove ? (
+            <button
+              type="button"
+              className="si-layer-tree__icon-btn si-layer-tree__icon-btn--danger"
+              title="Remove layer"
+              aria-label={`Remove ${layer.label}`}
+              onClick={e => {
+                e.stopPropagation();
+                layer.onRemove?.();
+              }}
+            >
+              <i className="fa-solid fa-trash-can" aria-hidden />
+            </button>
+          ) : null}
           {layer.actionable && lid && onLayerOptionsMenuToggle ? (
             <div data-si-env-layer-options-anchor={lid}>
               <button
@@ -167,6 +195,24 @@ export function SiEnvAddedLayerRow({
             </div>
           ) : null}
         </div>
+        {layer.onOpacityChange ? (
+          <div
+            className="si-layer-tree__opacity"
+            onClick={e => e.stopPropagation()}
+            title={`Opacity ${Math.round((layer.opacity ?? 1) * 100)}%`}
+          >
+            <i className="fa-solid fa-circle-half-stroke" aria-hidden />
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={layer.opacity ?? 1}
+              aria-label={`Opacity for ${layer.label}`}
+              onChange={e => layer.onOpacityChange?.(Number(e.target.value))}
+            />
+          </div>
+        ) : null}
         {dropIndicatorAfter ? <div className="si-layer-tree__drop-line" aria-hidden /> : null}
       </div>
     );

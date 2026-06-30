@@ -35,6 +35,7 @@ import { ensureSystemOwnerAccounts } from './rbac/ensureSystemOwnerAccounts.js'
 import { promoteWorkspaceRole } from './rbac/promoteWorkspaceRole.js'
 import { registerAnalysisEngineProxy } from './registerAnalysisEngineProxy.js'
 import { registerGeoGroundingRoutes } from './registerGeoGroundingRoutes.js'
+import { registerCropClassificationRoutes } from './cropClassificationProxy.js'
 import { registerBillingRoutes } from './billing/registerBillingRoutes.js'
 import { optionalAuthOrFree, checkPlanForGroundingTool } from './billing/checkPlan.js'
 import { ensurePlatformDataLayout, platformEnvVar, resolvePlatformPaths } from './platformDataPaths.js'
@@ -413,6 +414,8 @@ registerGeoGroundingRoutes(app, {
     checkPlanForGroundingTool,
   ],
 })
+
+registerCropClassificationRoutes(app, { secretsFilePath: API_SECRETS_FILE, broadcast })
 
 try {
   await bootstrapRbacSuperAdmin(authDirectoryStore)

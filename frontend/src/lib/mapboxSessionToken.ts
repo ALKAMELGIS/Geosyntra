@@ -126,20 +126,36 @@ type MapboxConfigPayload = {
   error?: string
 }
 
+/** Hard cap so a hanging/unreachable API host can never stall Mapbox init forever. */
+const MAPBOX_CONFIG_FETCH_TIMEOUT_MS = 8000
+
 async function fetchMapboxConfigOnce(): Promise<{
   ok: boolean
   data: MapboxConfigPayload
   networkError: boolean
 }> {
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null
+  const timer = controller
+    ? window.setTimeout(() => {
+        try {
+          controller.abort()
+        } catch {
+          /* noop */
+        }
+      }, MAPBOX_CONFIG_FETCH_TIMEOUT_MS)
+    : null
   try {
     const res = await fetch(resolveApiUrl('/api/config/mapbox'), {
       headers: { Accept: 'application/json' },
       credentials: 'omit',
+      signal: controller?.signal,
     })
     const data = (await res.json().catch(() => ({}))) as MapboxConfigPayload
     return { ok: res.ok && data.ok !== false, data, networkError: false }
   } catch {
     return { ok: false, data: {}, networkError: true }
+  } finally {
+    if (timer !== null) window.clearTimeout(timer)
   }
 }
 

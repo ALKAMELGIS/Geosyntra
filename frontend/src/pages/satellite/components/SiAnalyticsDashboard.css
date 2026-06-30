@@ -1,0 +1,238 @@
+/* =============================================================================
+ * Geosyntra · Intelligence Dashboard — persistent bottom analytics cockpit.
+ * Separates EXECUTION (toolbox) from INTELLIGENCE (this panel). Dark glass with
+ * neon emerald/cyan accents; one interactive card per analysis.
+ * ========================================================================== */
+.si-adash {
+  position: fixed;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  z-index: 70;
+  width: min(1180px, calc(100vw - 360px));
+  max-width: calc(100vw - 40px);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  padding: 0;
+  background:
+    radial-gradient(120% 120% at 0% 0%, rgba(16, 185, 129, 0.1) 0%, rgba(10, 10, 10, 0) 45%),
+    radial-gradient(120% 120% at 100% 0%, rgba(56, 189, 248, 0.1) 0%, rgba(10, 10, 10, 0) 45%),
+    linear-gradient(180deg, rgba(12, 14, 17, 0.9) 0%, rgba(7, 8, 10, 0.95) 100%);
+  -webkit-backdrop-filter: blur(22px) saturate(150%);
+  backdrop-filter: blur(22px) saturate(150%);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  box-shadow: 0 26px 70px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  color: #e8edf4;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  animation: si-adash-rise 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.si-adash *,
+.si-adash *::before,
+.si-adash *::after { box-sizing: border-box; }
+
+@keyframes si-adash-rise {
+  from { opacity: 0; transform: translate(-50%, 16px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.si-adash__bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+.si-adash__brand { display: flex; align-items: center; gap: 10px; flex: 1 1 auto; min-width: 0; }
+.si-adash__brand > i {
+  font-size: 16px;
+  color: #34d399;
+  filter: drop-shadow(0 0 8px rgba(52, 211, 153, 0.6));
+}
+.si-adash__brand-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.si-adash__title { font-size: 13px; font-weight: 800; letter-spacing: 0.3px; color: #fff; }
+.si-adash__sub { font-size: 10px; color: rgba(173, 230, 220, 0.6); }
+.si-adash__count {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.16);
+  color: #9bdcff;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+.si-adash__close {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.72);
+  cursor: pointer;
+  flex: 0 0 auto;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.si-adash__close:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
+
+.si-adash__track {
+  display: flex;
+  gap: 12px;
+  padding: 12px 14px 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x proximity;
+}
+.si-adash__track::-webkit-scrollbar { height: 8px; }
+.si-adash__track::-webkit-scrollbar-thumb {
+  background: rgba(56, 189, 248, 0.25);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.si-adash__empty {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 22px 14px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 12px;
+}
+.si-adash__empty i { font-size: 18px; color: rgba(56, 189, 248, 0.6); }
+
+/* ── Embedded (in-panel) variant: vertical stack of full-width cards ───────── */
+.si-adash__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.si-adash__stack .si-adash-card {
+  flex: 0 0 auto;
+  width: 100%;
+  scroll-snap-align: unset;
+}
+.si-adash__empty--panel {
+  flex-direction: column;
+  text-align: center;
+  gap: 9px;
+  padding: 20px 10px;
+  line-height: 1.4;
+}
+
+/* ── Card ─────────────────────────────────────────────────────────────────── */
+.si-adash-card {
+  --adash-accent: #34d399;
+  flex: 0 0 290px;
+  width: 290px;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 13px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  animation: si-adash-card-in 0.3s ease;
+}
+.si-adash-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--adash-accent), transparent);
+  opacity: 0.85;
+}
+.si-adash-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--adash-accent) 45%, transparent);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+@keyframes si-adash-card-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.si-adash-card__head { display: flex; align-items: center; gap: 9px; }
+.si-adash-card__icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: #04130d;
+  background: var(--adash-accent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--adash-accent) 55%, transparent);
+  flex: 0 0 auto;
+}
+.si-adash-card__titlewrap { display: flex; flex-direction: column; gap: 1px; flex: 1 1 auto; min-width: 0; }
+.si-adash-card__title { font-size: 12.5px; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.si-adash-card__live { display: inline-flex; align-items: center; gap: 5px; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; color: rgba(255, 255, 255, 0.45); }
+.si-adash-card__dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--adash-accent);
+  box-shadow: 0 0 6px var(--adash-accent);
+  animation: si-adash-pulse 1.8s ease-in-out infinite;
+}
+@keyframes si-adash-pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
+
+.si-adash-card__viewtoggle { display: inline-flex; gap: 2px; background: rgba(255, 255, 255, 0.06); border-radius: 8px; padding: 2px; }
+.si-adash-card__viewtoggle button {
+  width: 26px; height: 22px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  font-size: 11px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.si-adash-card__viewtoggle button.is-on { background: color-mix(in srgb, var(--adash-accent) 28%, transparent); color: #fff; }
+
+.si-adash-card__metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+  gap: 6px;
+}
+.si-adash-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.si-adash-metric__value { font-size: 14px; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.si-adash-metric__label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.4px; color: rgba(255, 255, 255, 0.5); }
+.si-adash-metric__sub { font-size: 9px; color: var(--adash-accent); }
+
+.si-adash-card__chart { min-height: 100px; }
+.si-adash-pie-wrap { display: flex; align-items: center; gap: 10px; }
+.si-adash-pie { width: 90px; height: 90px; flex: 0 0 auto; filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.45)); }
+.si-adash-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; flex: 1 1 auto; min-width: 0; }
+.si-adash-legend li { display: flex; align-items: center; gap: 6px; font-size: 10px; color: rgba(255, 255, 255, 0.85); }
+.si-adash-legend__name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.si-adash-legend__pct { font-variant-numeric: tabular-nums; color: rgba(255, 255, 255, 0.6); }
+.si-adash-swatch { width: 10px; height: 10px; border-radius: 3px; flex: 0 0 auto; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3); }
+
+.si-adash-bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.si-adash-bar { display: grid; grid-template-columns: 78px 1fr auto; align-items: center; gap: 7px; font-size: 10px; }
+.si-adash-bar__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgba(255, 255, 255, 0.82); }
+.si-adash-bar__track { height: 7px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+.si-adash-bar__fill { display: block; height: 100%; border-radius: 999px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25); transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1); }
+.si-adash-bar__val { font-variant-numeric: tabular-nums; color: rgba(255, 255, 255, 0.7); font-weight: 600; }
+
+.si-adash-card__note { margin: 0; font-size: 9.5px; color: rgba(255, 255, 255, 0.45); line-height: 1.4; }
+
+@media (max-width: 900px) {
+  .si-adash { width: calc(100vw - 28px); left: 14px; right: 14px; transform: none; }
+  @keyframes si-adash-rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+}

@@ -2,9 +2,10 @@ import type { Map as MapboxMap } from 'mapbox-gl';
 import { applySiGlobeFogNoHalo } from './siMapWeatherEffects';
 import {
   SI_ELEVATION_VIEW_PITCH,
-  SI_MAPBOX_TERRAIN_DEM_SOURCE_ID,
   applySiMapTerrain,
   clampElevationPitch,
+  ensureSiTerrainRenderDemSource,
+  normalizeSiTerrainElevationProvider,
   SI_TERRAIN_EXAGGERATION_MAX,
   SI_TERRAIN_EXAGGERATION_MIN,
   configureSiMapScrollZoomForElevation,
@@ -12,6 +13,7 @@ import {
   siElevationPitchScreenOffset,
   type SiMapCameraSnapshot,
   type SiMapTerrainSettings,
+  type SiTerrainElevationProvider,
 } from './siMapProjectionTerrain';
 
 export type SiElevationTransitionProgress = {
@@ -45,14 +47,11 @@ export function siElevationCrossfadeOpacity(t: number): number {
   return Math.sin(x * Math.PI) * 0.14;
 }
 
-function ensureSiMapTerrainDemSource(map: MapboxMap): void {
-  if (map.getSource(SI_MAPBOX_TERRAIN_DEM_SOURCE_ID)) return;
-  map.addSource(SI_MAPBOX_TERRAIN_DEM_SOURCE_ID, {
-    type: 'raster-dem',
-    url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
-    tileSize: 512,
-    maxzoom: 14,
-  });
+function ensureSiMapTerrainDemSource(
+  map: MapboxMap,
+  provider?: SiTerrainElevationProvider,
+): string {
+  return ensureSiTerrainRenderDemSource(map, provider);
 }
 
 function readTerrainExaggeration(map: MapboxMap): number {
@@ -80,10 +79,10 @@ function prepSiMapElevationScene(map: MapboxMap, enable: boolean): void {
   }
   if (!enable) return;
   try {
-    ensureSiMapTerrainDemSource(map);
+    const demSourceId = ensureSiMapTerrainDemSource(map);
     applySiGlobeFogNoHalo(map);
     if (!map.getTerrain()) {
-      map.setTerrain({ source: SI_MAPBOX_TERRAIN_DEM_SOURCE_ID, exaggeration: 0 });
+      map.setTerrain({ source: demSourceId, exaggeration: 0 });
     }
   } catch {
     /* ignore */
@@ -104,9 +103,9 @@ export function warmSiMapElevationScene(map: MapboxMap): void {
     /* ignore */
   }
   try {
-    ensureSiMapTerrainDemSource(map);
+    const demSourceId = ensureSiMapTerrainDemSource(map);
     if (!map.getTerrain()) {
-      map.setTerrain({ source: SI_MAPBOX_TERRAIN_DEM_SOURCE_ID, exaggeration: 0 });
+      map.setTerrain({ source: demSourceId, exaggeration: 0 });
     }
     siElevationSceneWarmed.set(map, true);
   } catch {
@@ -162,9 +161,9 @@ export function maintainSiMapElevationDockTerrain(
       ...terrain,
     });
     const exag = clampTerrainExaggeration(terrain.exaggeration);
-    if (map.getSource(SI_MAPBOX_TERRAIN_DEM_SOURCE_ID)) {
-      map.setTerrain({ source: SI_MAPBOX_TERRAIN_DEM_SOURCE_ID, exaggeration: exag });
-    }
+    const provider = normalizeSiTerrainElevationProvider(terrain.elevationProvider);
+    const demSourceId = ensureSiTerrainRenderDemSource(map, provider);
+    map.setTerrain({ source: demSourceId, exaggeration: exag });
   } catch {
     /* ignore */
   }
@@ -227,6 +226,11 @@ export function runSiMapElevationViewTransition(
 
   prepSiMapElevationScene(map, enable);
 
+  const elevationProvider = normalizeSiTerrainElevationProvider(terrain.elevationProvider);
+  const transitionDemSourceId = enable
+    ? ensureSiTerrainRenderDemSource(map, elevationProvider)
+    : null;
+
   let raf = 0;
   let cancelled = false;
   let cameraDone = false;
@@ -266,8 +270,8 @@ export function runSiMapElevationViewTransition(
     const pitch = startPitch + (targetPitch - startPitch) * eased;
 
     try {
-      if (map.getSource(SI_MAPBOX_TERRAIN_DEM_SOURCE_ID)) {
-        map.setTerrain({ source: SI_MAPBOX_TERRAIN_DEM_SOURCE_ID, exaggeration: exag });
+      if (transitionDemSourceId && map.getSource(transitionDemSourceId)) {
+        map.setTerrain({ source: transitionDemSourceId, exaggeration: exag });
       }
     } catch {
       /* ignore mid-style */

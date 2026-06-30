@@ -154,7 +154,7 @@ body:has(.si-page.si-page--map-canvas) .si-map-tools-dock-host--viewport-anchore
   inset-inline-end: var(--si-lux-tb-edge-inset, 0px) !important;
   inset-inline-start: auto !important;
   flex-direction: row-reverse !important;
-  filter: drop-shadow(0 20px 48px rgba(0, 0, 0, 0.45));
+  filter: none !important;
   margin: 0 !important;
   padding: 0 !important;
   width: fit-content;
@@ -174,13 +174,32 @@ body:has(.si-page.si-page--map-canvas) .si-map-tools-dock-host--viewport-anchore
   border-end-end-radius: 0;
   border-start-start-radius: var(--si-lux-tb-radius);
   border-end-start-radius: var(--si-lux-tb-radius);
-  border: 1px solid var(--si-lux-tb-border);
-  border-inline-end-width: 0;
-  background: var(--si-lux-tb-bg) !important;
-  backdrop-filter: var(--si-lux-tb-blur);
-  -webkit-backdrop-filter: var(--si-lux-tb-blur);
-  box-shadow: var(--si-lux-tb-shadow);
+  /* Luxury black glass — translucent obsidian panel that matches the system. */
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-inline-end: 0 !important;
+  background: linear-gradient(
+    180deg,
+    rgba(15, 18, 28, 0.66) 0%,
+    rgba(8, 10, 16, 0.74) 100%
+  ) !important;
+  backdrop-filter: blur(20px) saturate(135%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(135%) !important;
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
   overflow: hidden;
+}
+
+/* Keep the outer wrappers (shell + dock) invisible so only the rail shows the
+   luxury black-glass panel — no doubled frame around it. */
+.si-lux-tb-shell,
+.si-sat-ctx-dock--luxury-float {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  filter: none !important;
 }
 
 [dir='rtl'] .si-sat-ctx-dock--luxury-float .si-sat-ctx-rail {
@@ -458,11 +477,19 @@ body:has(.si-page.si-page--map-canvas)
   .si-map-tools-dock-host
   .si-sat-ctx-dock--luxury-float.si-sat-ctx-dock--map-toolbox
   .si-sat-ctx-rail {
-  background: var(--si-lux-tb-bg) !important;
-  backdrop-filter: var(--si-lux-tb-blur) !important;
-  -webkit-backdrop-filter: var(--si-lux-tb-blur) !important;
-  border: 1px solid var(--si-lux-tb-border) !important;
-  box-shadow: var(--si-lux-tb-shadow) !important;
+  /* Luxury black glass on the floating rail (matches the base luxury-float rule). */
+  background: linear-gradient(
+    180deg,
+    rgba(15, 18, 28, 0.66) 0%,
+    rgba(8, 10, 16, 0.74) 100%
+  ) !important;
+  backdrop-filter: blur(20px) saturate(135%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(135%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-inline-end: 0 !important;
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
 }
 
 /* Luxury float wins over full-height map-toolbox square corners — trailing edge flush to viewport. */
@@ -543,4 +570,79 @@ body:has(.si-page.si-page--map-canvas)
   .si-sat-ctx-dock--luxury-float .si-sat-ctx-rail {
     max-height: min(52vh, 380px);
   }
+}
+
+/* =============================================================================
+ * Compact rail — shrink every map-toolbox icon so all tools fit without
+ * scrolling/clipping. Scoped to the floating luxury map toolbox; placed last so
+ * it overrides the 34px button defaults above (equal specificity, later wins).
+ * ========================================================================== */
+.si-sat-ctx-dock--luxury-float .si-sat-ctx-rail,
+.si-sat-ctx-dock--luxury-float.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail {
+  max-height: min(94vh, 900px) !important;
+}
+
+.si-sat-ctx-dock--luxury-float .si-sat-ctx-rail__scroll {
+  gap: 1px;
+  padding: 5px 5px;
+  max-height: min(94vh, 900px);
+}
+
+.si-sat-ctx-dock--luxury-float .si-sat-ctx-rail-btn--map,
+.si-sat-ctx-dock--luxury-float .si-sat-ctx-rail-btn--map-collapsed {
+  width: 27px;
+  height: 27px;
+  min-height: 27px;
+  border-radius: 9px !important;
+}
+
+/* The glyph itself (Font Awesome <i> and inline SVG marks). */
+.si-sat-ctx-dock--luxury-float .si-sat-ctx-rail-btn--map > i,
+.si-sat-ctx-dock--luxury-float .si-sat-ctx-rail-btn--map .si-sat-ctx-rail-legend-glyph,
+.si-sat-ctx-dock--luxury-float .si-sat-ctx-rail-btn--map .si-sat-ctx-rail-route-glyph,
+.si-sat-ctx-dock--luxury-float .si-sat-ctx-rail-btn--map .si-sat-ctx-rail-elev-profile-glyph,
+.si-sat-ctx-dock--luxury-float .si-sat-ctx-rail-btn--map .si-sat-ctx-rail-swipe-glyph,
+.si-sat-ctx-dock--luxury-float .si-sat-ctx-rail-btn--map .si-sat-ctx-rail-wx-intel-glyph,
+.si-sat-ctx-dock--luxury-float .si-sat-ctx-rail-btn--map .si-sat-ctx-rail-explore-indexes-glyph,
+.si-sat-ctx-dock--luxury-float .si-sat-ctx-rail-btn--map .si-sat-ctx-rail-qdash-glyph,
+.si-sat-ctx-dock--luxury-float .si-sat-ctx-rail-btn--map .si-sat-ctx-rail-print-glyph,
+.si-sat-ctx-dock--luxury-float .si-sat-ctx-rail-btn--map .si-sat-ctx-rail-legend-glyph > i,
+.si-sat-ctx-dock--luxury-float .si-sat-ctx-rail-btn--map .si-sat-ctx-rail-route-glyph > i,
+.si-sat-ctx-dock--luxury-float .si-sat-ctx-rail-btn--map .si-sat-ctx-rail-elev-profile-glyph > i,
+.si-sat-ctx-dock--luxury-float .si-sat-ctx-rail-btn--map .si-sat-ctx-rail-swipe-glyph > i,
+.si-sat-ctx-dock--luxury-float .si-sat-ctx-rail-btn--map .si-sat-ctx-rail-wx-intel-glyph > i,
+.si-sat-ctx-dock--luxury-float .si-sat-ctx-rail-btn--map .si-sat-ctx-rail-explore-indexes-glyph > i,
+.si-sat-ctx-dock--luxury-float .si-sat-ctx-rail-btn--map .si-sat-ctx-rail-qdash-glyph > i,
+.si-sat-ctx-dock--luxury-float .si-sat-ctx-rail-btn--map .si-sat-ctx-rail-print-glyph > i {
+  font-size: 12px !important;
+  width: auto !important;
+  height: auto !important;
+  min-width: 0 !important;
+}
+
+.si-sat-ctx-dock--luxury-float .si-sat-ctx-rail-btn--map svg {
+  width: 13px !important;
+  height: 13px !important;
+}
+
+/* Group expand/collapse toggles + pin — shrink to match the smaller tools. */
+.si-sat-ctx-dock--luxury-float .si-lux-tb-group-toggle {
+  width: 27px;
+  height: 27px;
+  font-size: 11px;
+  border-radius: 9px;
+}
+
+.si-sat-ctx-dock--luxury-float .si-lux-tb-pin {
+  width: 24px;
+  height: 24px;
+  font-size: 11px;
+}
+
+.si-sat-ctx-dock--luxury-float .si-lux-tb-pin-wrap {
+  padding: 4px 6px 2px;
+}
+
+.si-sat-ctx-dock--luxury-float .si-sat-ctx-rail-sep {
+  margin: 2px 8px;
 }

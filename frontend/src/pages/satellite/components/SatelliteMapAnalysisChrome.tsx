@@ -382,6 +382,20 @@ export type SatelliteMapAnalysisChromeProps = {
   onToggleQuickDashboard?: () => void;
   exploreIndexesOpen?: boolean;
   onToggleExploreIndexes?: () => void;
+  /** Map toolbox rail: floating Draw/Edit tools bar open state + toggle. */
+  drawToolsOpen?: boolean;
+  onToggleDrawTools?: () => void;
+  /** Map toolbox rail: unified Measurement panel open state + toggle. */
+  measureToolsOpen?: boolean;
+  onToggleMeasureTools?: () => void;
+  /** Map toolbox rail: Crop Classification (Prithvi) panel open state + toggle. */
+  cropClassificationOpen?: boolean;
+  onToggleCropClassification?: () => void;
+  floodMonitoringOpen?: boolean;
+  onToggleFloodMonitoring?: () => void;
+  /** Map toolbox rail: Hydro Watershed terrain-hydrology panel open state + toggle. */
+  hydroWatershedOpen?: boolean;
+  onToggleHydroWatershed?: () => void;
   /** When true, map analysis tools cannot open until feature pop-ups are closed. */
   mapAnalysisToolsLockedByPopups?: boolean;
 };
@@ -513,6 +527,16 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     onToggleQuickDashboard,
     exploreIndexesOpen = false,
     onToggleExploreIndexes,
+    drawToolsOpen = false,
+    onToggleDrawTools,
+    measureToolsOpen = false,
+    onToggleMeasureTools,
+    cropClassificationOpen = false,
+    onToggleCropClassification,
+    floodMonitoringOpen = false,
+    onToggleFloodMonitoring,
+    hydroWatershedOpen = false,
+    onToggleHydroWatershed,
     mapAnalysisToolsLockedByPopups = false,
   } = props;
 
@@ -813,6 +837,16 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
       onToggleQuickDashboard={onToggleQuickDashboard}
       exploreIndexesOpen={exploreIndexesOpen}
       onToggleExploreIndexes={onToggleExploreIndexes}
+      drawToolsOpen={drawToolsOpen}
+      onToggleDrawTools={onToggleDrawTools}
+      measureToolsOpen={measureToolsOpen}
+      onToggleMeasureTools={onToggleMeasureTools}
+      cropClassificationOpen={cropClassificationOpen}
+      onToggleCropClassification={onToggleCropClassification}
+      floodMonitoringOpen={floodMonitoringOpen}
+      onToggleFloodMonitoring={onToggleFloodMonitoring}
+      hydroWatershedOpen={hydroWatershedOpen}
+      onToggleHydroWatershed={onToggleHydroWatershed}
       mapAnalysisToolsLockedByPopups={mapAnalysisToolsLockedByPopups}
       drawAssistHint={drawAssistHint}
       hasEditableAoiGeometry={hasEditableAoiGeometry}

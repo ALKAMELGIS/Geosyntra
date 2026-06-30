@@ -32,4 +32,15 @@ export type SiAddedLayerRowModel = {
   canMoveDown?: boolean;
   /** Small inline busy indicator (map refresh / sync) — does not affect map canvas. */
   busy?: boolean;
+  /** Developer-only system rows (e.g. pinned 3D terrain infrastructure). */
+  devOnly?: boolean;
+  /**
+   * Virtual rows (e.g. Hydro analysis results) that are not backed by a
+   * `customLayers` item but expose their own opacity / export / remove controls.
+   */
+  kind?: 'raster' | 'vector';
+  opacity?: number;
+  onOpacityChange?: (value: number) => void;
+  onExport?: () => void;
+  onRemove?: () => void;
 };

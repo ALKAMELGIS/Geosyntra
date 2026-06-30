@@ -767,6 +767,13 @@
   border-top: 1px solid rgba(148, 163, 184, 0.14);
 }
 
+/* Vertex-edit sub-tools row appears only while Edit is active — allow wrap so all
+   tools stay reachable inside the narrow embedded Drawing Tools widget. */
+.si-map-analysis-toolbar__row--edit {
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
 .si-field-analysis .si-map-analysis-toolbar--embedded,
 .si-sat-ctx-map-toolbox-host .si-map-analysis-toolbar--embedded {
   gap: 4px;

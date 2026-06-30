@@ -177,6 +177,17 @@ export type SatelliteContextualAnalysisDockProps = {
   /** Explore Indexes — spectral band cards (Layer Live companion). */
   exploreIndexesOpen?: boolean;
   onToggleExploreIndexes?: () => void;
+  /** Floating Draw/Edit tools bar — toggled from the map toolbox "Edit Tools" rail button. */
+  drawToolsOpen?: boolean;
+  onToggleDrawTools?: () => void;
+  measureToolsOpen?: boolean;
+  onToggleMeasureTools?: () => void;
+  cropClassificationOpen?: boolean;
+  onToggleCropClassification?: () => void;
+  floodMonitoringOpen?: boolean;
+  onToggleFloodMonitoring?: () => void;
+  hydroWatershedOpen?: boolean;
+  onToggleHydroWatershed?: () => void;
 };
 
 const RAIL: Array<{ id: SatelliteContextPanelId; icon: string; label: string; title: string; hint: string }> = [
@@ -400,6 +411,16 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
     onToggleQuickDashboard,
     exploreIndexesOpen = false,
     onToggleExploreIndexes,
+    drawToolsOpen = false,
+    onToggleDrawTools,
+    measureToolsOpen = false,
+    onToggleMeasureTools,
+    cropClassificationOpen = false,
+    onToggleCropClassification,
+    floodMonitoringOpen = false,
+    onToggleFloodMonitoring,
+    hydroWatershedOpen = false,
+    onToggleHydroWatershed,
   } = props;
 
   const popupsToolLockTitle =
@@ -759,6 +780,166 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
               <span className="si-sat-ctx-rail-label-desc">Upload or connect a new map layer</span>
             </span>
           </button>
+        ) : null}
+        {isMap && onToggleDrawTools ? (
+          <SiSmartToolboxTooltip
+            title={language === 'ar' ? 'أدوات التعديل' : 'Edit Tools'}
+            hint={
+              language === 'ar'
+                ? 'إظهار شريط أدوات الرسم والتعديل على الخريطة'
+                : 'Show the on-map drawing & editing tools bar'
+            }
+            side={direction === 'rtl' ? 'start' : 'end'}
+          >
+            <button
+              type="button"
+              className={
+                'si-sat-ctx-rail-btn si-sat-ctx-rail-btn--map' +
+                (railWide ? ' si-sat-ctx-rail-btn--row si-sat-ctx-rail-btn--map-expanded' : ' si-sat-ctx-rail-btn--map-collapsed') +
+                (drawToolsOpen ? ' si-sat-ctx-rail-btn--active' : '')
+              }
+              title={language === 'ar' ? 'أدوات التعديل' : 'Edit Tools'}
+              aria-label={language === 'ar' ? 'أدوات التعديل' : 'Edit Tools'}
+              aria-pressed={drawToolsOpen}
+              onClick={() => onToggleDrawTools()}
+            >
+              <i className="fa-solid fa-pen-to-square" aria-hidden />
+              <span className="si-sat-ctx-rail-label" aria-hidden={!railWide}>
+                <span className="si-sat-ctx-rail-label-title">{language === 'ar' ? 'أدوات التعديل' : 'Edit Tools'}</span>
+                <span className="si-sat-ctx-rail-label-desc">
+                  {language === 'ar' ? 'الرسم والتعديل على الخريطة' : 'Draw & edit AOI on the map'}
+                </span>
+              </span>
+            </button>
+          </SiSmartToolboxTooltip>
+        ) : null}
+        {isMap && onToggleMeasureTools ? (
+          <SiSmartToolboxTooltip
+            title={language === 'ar' ? 'أدوات القياس' : 'Measurement'}
+            hint={
+              language === 'ar'
+                ? 'لوحة قياس موحّدة: المسافة، المساحة، المحيط، الاتجاه، الإحداثيات والارتفاع'
+                : 'Unified panel: distance, area, perimeter, bearing, coordinates & elevation'
+            }
+            side={direction === 'rtl' ? 'start' : 'end'}
+          >
+            <button
+              type="button"
+              className={
+                'si-sat-ctx-rail-btn si-sat-ctx-rail-btn--map' +
+                (railWide ? ' si-sat-ctx-rail-btn--row si-sat-ctx-rail-btn--map-expanded' : ' si-sat-ctx-rail-btn--map-collapsed') +
+                (measureToolsOpen ? ' si-sat-ctx-rail-btn--active' : '')
+              }
+              title={language === 'ar' ? 'أدوات القياس' : 'Measurement'}
+              aria-label={language === 'ar' ? 'أدوات القياس' : 'Measurement'}
+              aria-pressed={measureToolsOpen}
+              onClick={() => onToggleMeasureTools()}
+            >
+              <i className="fa-solid fa-ruler-combined" aria-hidden />
+              <span className="si-sat-ctx-rail-label" aria-hidden={!railWide}>
+                <span className="si-sat-ctx-rail-label-title">{language === 'ar' ? 'أدوات القياس' : 'Measurement'}</span>
+                <span className="si-sat-ctx-rail-label-desc">
+                  {language === 'ar' ? 'قياسات موحّدة على الخريطة' : 'All-in-one map measurements'}
+                </span>
+              </span>
+            </button>
+          </SiSmartToolboxTooltip>
+        ) : null}
+        {isMap && onToggleCropClassification ? (
+          <SiSmartToolboxTooltip
+            title={language === 'ar' ? 'تصنيف المحاصيل' : 'Crop Classification'}
+            hint={
+              language === 'ar'
+                ? 'تصنيف المحاصيل عبر الذكاء الاصطناعي: AOI ← Sentinel/HLS ← نموذج Prithvi ← خريطة مصنفة'
+                : 'AI crop classification: AOI → Sentinel/HLS → Prithvi model → classified map'
+            }
+            side={direction === 'rtl' ? 'start' : 'end'}
+          >
+            <button
+              type="button"
+              className={
+                'si-sat-ctx-rail-btn si-sat-ctx-rail-btn--map' +
+                (railWide ? ' si-sat-ctx-rail-btn--row si-sat-ctx-rail-btn--map-expanded' : ' si-sat-ctx-rail-btn--map-collapsed') +
+                (cropClassificationOpen ? ' si-sat-ctx-rail-btn--active' : '')
+              }
+              title={language === 'ar' ? 'تصنيف المحاصيل' : 'Crop Classification'}
+              aria-label={language === 'ar' ? 'تصنيف المحاصيل' : 'Crop Classification'}
+              aria-pressed={cropClassificationOpen}
+              onClick={() => onToggleCropClassification()}
+            >
+              <i className="fa-solid fa-wheat-awn" aria-hidden />
+              <span className="si-sat-ctx-rail-label" aria-hidden={!railWide}>
+                <span className="si-sat-ctx-rail-label-title">{language === 'ar' ? 'تصنيف المحاصيل' : 'Crop Classification'}</span>
+                <span className="si-sat-ctx-rail-label-desc">
+                  {language === 'ar' ? 'تصنيف المحاصيل بالذكاء الاصطناعي' : 'AI crop classification'}
+                </span>
+              </span>
+            </button>
+          </SiSmartToolboxTooltip>
+        ) : null}
+        {isMap && onToggleFloodMonitoring ? (
+          <SiSmartToolboxTooltip
+            title={language === 'ar' ? 'رصد الفيضانات (رادار SAR)' : 'Flood Monitoring (SAR-Based)'}
+            hint={
+              language === 'ar'
+                ? 'كشف ورصد امتداد الفيضان داخل الـ AOI باستخدام تغيّر الإشارة الرادارية (Sentinel-1 C-band، VV/VH). يتطلب AOI نشطًا.'
+                : 'Detect & monitor flood extent inside the AOI from SAR backscatter change (Sentinel-1 C-band, VV/VH). Requires an active AOI.'
+            }
+            side={direction === 'rtl' ? 'start' : 'end'}
+          >
+            <button
+              type="button"
+              className={
+                'si-sat-ctx-rail-btn si-sat-ctx-rail-btn--map' +
+                (railWide ? ' si-sat-ctx-rail-btn--row si-sat-ctx-rail-btn--map-expanded' : ' si-sat-ctx-rail-btn--map-collapsed') +
+                (floodMonitoringOpen ? ' si-sat-ctx-rail-btn--active' : '')
+              }
+              title={language === 'ar' ? 'رصد الفيضانات (رادار SAR)' : 'Flood Monitoring (SAR-Based)'}
+              aria-label={language === 'ar' ? 'رصد الفيضانات (رادار SAR)' : 'Flood Monitoring (SAR-Based)'}
+              aria-pressed={floodMonitoringOpen}
+              onClick={() => onToggleFloodMonitoring()}
+            >
+              <i className="fa-solid fa-house-flood-water" aria-hidden />
+              <span className="si-sat-ctx-rail-label" aria-hidden={!railWide}>
+                <span className="si-sat-ctx-rail-label-title">{language === 'ar' ? 'رصد الفيضانات' : 'Flood Monitoring'}</span>
+                <span className="si-sat-ctx-rail-label-desc">
+                  {language === 'ar' ? 'كشف الفيضان عبر SAR' : 'SAR flood detection'}
+                </span>
+              </span>
+            </button>
+          </SiSmartToolboxTooltip>
+        ) : null}
+        {isMap && onToggleHydroWatershed ? (
+          <SiSmartToolboxTooltip
+            title={language === 'ar' ? 'حوض المياه (هيدرولوجيا التضاريس)' : 'Hydro Watershed'}
+            hint={
+              language === 'ar'
+                ? 'سير عمل هيدرولوجيا التضاريس: AOI ← نموذج ارتفاعات ← الجريان والأنهار وحوض التصريف لنمذجة المياه الموزعة. يتطلب AOI نشطًا.'
+                : 'AOI → DEM, flow, streams, watershed & mesh for distributed hydrology. Requires an active AOI.'
+            }
+            side={direction === 'rtl' ? 'start' : 'end'}
+          >
+            <button
+              type="button"
+              className={
+                'si-sat-ctx-rail-btn si-sat-ctx-rail-btn--map' +
+                (railWide ? ' si-sat-ctx-rail-btn--row si-sat-ctx-rail-btn--map-expanded' : ' si-sat-ctx-rail-btn--map-collapsed') +
+                (hydroWatershedOpen ? ' si-sat-ctx-rail-btn--active' : '')
+              }
+              title={language === 'ar' ? 'حوض المياه (هيدرولوجيا التضاريس)' : 'Hydro Watershed Workflow — AOI → DEM, flow, streams, watershed & mesh for distributed hydrology.'}
+              aria-label={language === 'ar' ? 'حوض المياه (هيدرولوجيا التضاريس)' : 'Hydro Watershed Workflow — AOI → DEM, flow, streams, watershed & mesh for distributed hydrology.'}
+              aria-pressed={hydroWatershedOpen}
+              onClick={() => onToggleHydroWatershed()}
+            >
+              <i className="fa-solid fa-water" aria-hidden />
+              <span className="si-sat-ctx-rail-label" aria-hidden={!railWide}>
+                <span className="si-sat-ctx-rail-label-title">{language === 'ar' ? 'حوض المياه' : 'Hydro Watershed'}</span>
+                <span className="si-sat-ctx-rail-label-desc">
+                  {language === 'ar' ? 'هيدرولوجيا التضاريس' : 'Terrain hydrology workflow'}
+                </span>
+              </span>
+            </button>
+          </SiSmartToolboxTooltip>
         ) : null}
         {railMenuGroups.map((group, gi) => (
           <Fragment key={group.join('-')}>
@@ -1263,15 +1444,6 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                     onClick={() => setSurface(s => (s === 'dark' ? 'light' : 'dark'))}
                   >
                     <i className={`fa-solid ${surface === 'dark' ? 'fa-sun' : 'fa-moon'}`} aria-hidden />
-                  </button>
-                  <button
-                    type="button"
-                    className="si-sat-ctx-icon-btn"
-                    title={dockMode === 'dock' ? 'Floating style' : 'Docked style'}
-                    aria-label="Toggle dock or float appearance"
-                    onClick={() => setDockMode(m => (m === 'dock' ? 'float' : 'dock'))}
-                  >
-                    <i className={`fa-solid ${dockMode === 'dock' ? 'fa-window-restore' : 'fa-table-columns'}`} aria-hidden />
                   </button>
                   <button type="button" className="si-sat-ctx-icon-btn" title="Close" aria-label="Close panel" onClick={closePanel}>
                     <i className="fa-solid fa-xmark" aria-hidden />

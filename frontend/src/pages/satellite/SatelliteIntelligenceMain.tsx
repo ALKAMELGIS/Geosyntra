@@ -1,5 +1,4 @@
 import React, {
-  Fragment,
   Suspense,
   useState,
   useMemo,
@@ -389,6 +388,21 @@ import {
 import { SiCopyTextButton } from './components/SiCopyTextButton';
 import type { AoiStaticMultiLayerLineChartDataset } from './components/AoiStaticMultiLayerLineChart';
 import { SatelliteMapAnalysisChrome, type MapToolboxNavigateHandler } from './components/SatelliteMapAnalysisChrome';
+import { SiMapDrawBar } from './components/SiMapDrawBar';
+import { SiMapMeasureTool } from './components/SiMapMeasureTool';
+import { SiPrithviCropToolPanel } from './components/SiPrithviCropToolPanel';
+import { FloodSarPanel } from './components/FloodSarPanel';
+import { useFloodSar } from './components/useFloodSar';
+import { FLOOD_DB_DEFAULT } from '../../lib/floodSar/floodEngine';
+import { HydroWatershedPanel } from './components/HydroWatershedPanel';
+import { useHydroWatershed } from './components/useHydroWatershed';
+import { HYDRO_WS_LAYER_KEYS } from '../../lib/hydroWatershed/hydroEngine';
+import {
+  startAoiJob as startCropAiAoiJob,
+  pollJob as pollCropAiJob,
+  cropPredictionImageUrl,
+  type CropClassificationJob,
+} from '../../lib/siPrithviCropPipeline';
 import { SiAoiWorkspaceSettingsPanel } from './components/SiAoiWorkspaceSettingsPanel';
 import { SiFieldAnalysisLayerVisibility } from './components/fields/SiFieldAnalysisLayerVisibility';
 import {
@@ -563,6 +577,17 @@ import {
   warmSiMapElevationScene,
   siElevationCrossfadeOpacity,
 } from './utils/siMapElevationTransition';
+import {
+  syncSiFloodMapLayers,
+  type SiFloodLayerKey,
+  type SiFloodRenderState,
+} from './utils/siFloodMapLayers';
+import {
+  syncSiHydroMapLayers,
+  type SiHydroLayerKey,
+  type SiHydroRenderState,
+  type SiHydroStreamMode,
+} from './utils/siHydroMapLayers';
 import {
   resolveSiMapElevationViewFromArrowKey,
   siMapElevationKeyboardTargetBlocked,
@@ -1017,6 +1042,16 @@ const PC_STAC_SEARCH_URL = 'https://planetarycomputer.microsoft.com/api/stac/v1/
 const STAC_CONNECTION_STORAGE_KEY = 'si-stac-connection-v1';
 const SATELLITE_CUSTOM_LAYERS_STORAGE_KEY = 'si-satellite-custom-layers-v1';
 const GEO_AI_CHAT_PAGE_SIZE = 40;
+
+/** Vertex-edit sub-tools surfaced in the Drawing Tools toolbar when Edit is active. */
+const AOI_EDIT_SUBTOOLS: { id: AoiGeometryEditSubTool; icon: string; title: string }[] = [
+  { id: 'vertex', icon: 'fa-solid fa-circle-dot', title: 'Move vertex' },
+  { id: 'addVertex', icon: 'fa-solid fa-plus', title: 'Add vertex (click edge)' },
+  { id: 'removeVertex', icon: 'fa-solid fa-minus', title: 'Remove vertex' },
+  { id: 'reshape', icon: 'fa-solid fa-bezier-curve', title: 'Reshape boundary' },
+  { id: 'rotate', icon: 'fa-solid fa-rotate', title: 'Rotate around center' },
+  { id: 'scale', icon: 'fa-solid fa-up-right-and-down-left-from-center', title: 'Scale from corner' },
+];
 
 /** Sections shown inside the map toolbox processing portal. */
 type MapToolboxSectionId =
@@ -1813,6 +1848,81 @@ function revokeStacMapOverlayBlob(url: string | undefined) {
 }
 
 /**
+ * Clip a georeferenced raster image strictly to an AOI polygon and return a
+ * same-origin `blob:` URL of the masked PNG.
+ *
+ * The AOI acts ONLY as a clipping geometry: pixels outside the polygon are made
+ * fully transparent, while everything inside is preserved untouched. The image
+ * is assumed to be sampled equirectangularly across `bounds`
+ * (`[minLng, minLat, maxLng, maxLat]`) — the standard layout for these EO
+ * prediction PNGs — so geo → pixel mapping is linear in lng/lat. For the small
+ * AOIs involved the Mercator vs. equirectangular difference is sub-pixel.
+ *
+ * Returns `null` if the geometry/bounds are unusable so callers can fall back to
+ * the unclipped image rather than hiding the result entirely.
+ */
+async function siBuildAoiClippedRasterUrl(
+  imageUrl: string,
+  bounds: [number, number, number, number],
+  aoi: GeoJSON.Polygon | GeoJSON.MultiPolygon,
+): Promise<string | null> {
+  const [minLng, minLat, maxLng, maxLat] = bounds;
+  const lngSpan = maxLng - minLng;
+  const latSpan = maxLat - minLat;
+  if (!(lngSpan > 0) || !(latSpan > 0)) return null;
+
+  const polygons: GeoJSON.Position[][][] =
+    aoi.type === 'Polygon' ? [aoi.coordinates] : aoi.coordinates;
+  if (!polygons.length) return null;
+
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.decoding = 'async';
+  const loaded = await new Promise<HTMLImageElement | null>(resolve => {
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = imageUrl;
+  });
+  if (!loaded) return null;
+
+  const w = loaded.naturalWidth || loaded.width;
+  const h = loaded.naturalHeight || loaded.height;
+  if (!w || !h) return null;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  ctx.drawImage(loaded, 0, 0, w, h);
+
+  // Keep only the pixels that fall inside the AOI rings (holes respected via
+  // the even-odd fill rule). `destination-in` erases everything outside.
+  ctx.globalCompositeOperation = 'destination-in';
+  ctx.beginPath();
+  for (const rings of polygons) {
+    for (const ring of rings) {
+      ring.forEach(([lng, lat], i) => {
+        const px = ((lng - minLng) / lngSpan) * w;
+        const py = ((maxLat - lat) / latSpan) * h;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      });
+      ctx.closePath();
+    }
+  }
+  ctx.fill('evenodd');
+  ctx.globalCompositeOperation = 'source-over';
+
+  const blob = await new Promise<Blob | null>(resolve =>
+    canvas.toBlob(b => resolve(b), 'image/png'),
+  );
+  if (!blob) return null;
+  return URL.createObjectURL(blob);
+}
+
+/**
  * Download preview bytes with CORS, then return a blob: URL for Mapbox `image` sources.
  * Mapbox sometimes fails to paint remote HTTPS URLs (CORS / redirect); same-origin blobs are reliable.
  */
@@ -2097,6 +2207,12 @@ interface CustomLayer {
   fillStyle?: 'solid' | 'pattern' | 'hatch' | 'gradient';
   blendMode?: 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten';
 }
+
+/**
+ * Stable id for the managed "Area of Interest" layer that mirrors the active
+ * drawn AOI into the Added Layers panel (visibility / opacity / remove / zoom).
+ */
+const DRAWN_AOI_LAYER_ID = 'si-drawn-aoi-layer';
 
 const SI_TABLE_MAX_FEATURES = 10000;
 
@@ -3917,7 +4033,8 @@ export default function SatelliteIntelligence() {
   const [exploreSelectedResultKeys, setExploreSelectedResultKeys] = useState<string[]>([]);
   const [stacAddToMenuKey, setStacAddToMenuKey] = useState<string | null>(null);
   const [showStacFootprintsOnMap, setShowStacFootprintsOnMap] = useState(false);
-  const [isWmsOverlayVisible, setIsWmsOverlayVisible] = useState(true);
+  // Layer Live "Show on map" is opt-in: hidden by default until the user enables it.
+  const [isWmsOverlayVisible, setIsWmsOverlayVisible] = useState(false);
   const [stacMapThumb, setStacMapThumb] = useState<null | { url: string; coordinates: [[number, number], [number, number], [number, number], [number, number]] }>(
     null,
   );
@@ -4077,6 +4194,10 @@ export default function SatelliteIntelligence() {
   const [aoiGeometryEditEnabled, setAoiGeometryEditEnabled] = useState(false);
   const [aoiEditSubTool, setAoiEditSubTool] = useState<AoiGeometryEditSubTool>('vertex');
   const [aoiEditShowAllVertices, setAoiEditShowAllVertices] = useState(false);
+  /** Floating horizontal Draw/Edit tools bar — opened from the map toolbox "Edit Tools" rail button. */
+  const [isMapDrawToolsOpen, setIsMapDrawToolsOpen] = useState(false);
+  /** Unified Measurement panel — opened from the map toolbox "Measurement" rail button. */
+  const [isMapMeasureOpen, setIsMapMeasureOpen] = useState(false);
   const [drawGeometryLocked, setDrawGeometryLocked] = useState(false);
   const [drawContextMenu, setDrawContextMenu] = useState<{
     x: number;
@@ -4098,6 +4219,323 @@ export default function SatelliteIntelligence() {
   const [drawnGeometry, setDrawnGeometry] = useState<any | null>(null);
   /** Debounced geometry for MPC zonal sampling — live AOI move without API spam. */
   const debouncedDrawnGeometryForZonal = useDebouncedValue(drawnGeometry, 420);
+
+  /** Crop Classification (Prithvi) — AOI → Sentinel/HLS → AI inference → classified map. */
+  const [isCropAiOpen, setIsCropAiOpen] = useState(false);
+  const [cropAiSeason, setCropAiSeason] = useState<{ start: string; end: string }>(() => {
+    const end = new Date();
+    const start = new Date(end.getTime() - 150 * 86400000);
+    return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
+  });
+  const [cropAiJob, setCropAiJob] = useState<CropClassificationJob | null>(null);
+  const cropAiAbortRef = useRef<AbortController | null>(null);
+  const cropAiRunning =
+    !!cropAiJob && cropAiJob.status !== 'done' && cropAiJob.status !== 'error';
+  /** Normalise the drawn AOI (Feature | Geometry) to a Polygon/MultiPolygon geometry. */
+  const cropAiAoiGeometry = useMemo<GeoJSON.Polygon | GeoJSON.MultiPolygon | null>(() => {
+    const g: any = drawnGeometry;
+    if (!g) return null;
+    const geom = g.type === 'Feature' ? g.geometry : g;
+    if (geom && (geom.type === 'Polygon' || geom.type === 'MultiPolygon')) return geom;
+    return null;
+  }, [drawnGeometry]);
+  const trackCropAiJob = useCallback((jobId: string) => {
+    cropAiAbortRef.current?.abort();
+    const ctrl = new AbortController();
+    cropAiAbortRef.current = ctrl;
+    void pollCropAiJob(jobId, job => setCropAiJob(job), ctrl.signal).catch(() => {
+      /* aborted or network error — last snapshot already shown */
+    });
+  }, []);
+  const handleCropAiRunAoi = useCallback(() => {
+    if (!cropAiAoiGeometry) return;
+    setCropAiJob({
+      id: 'pending',
+      mode: 'aoi',
+      status: 'queued',
+      progress: 0,
+      message: 'Starting…',
+      result: null,
+      error: null,
+    });
+    void startCropAiAoiJob({ aoi: cropAiAoiGeometry, season: cropAiSeason, timesteps: 3 })
+      .then(trackCropAiJob)
+      .catch(err =>
+        setCropAiJob({
+          id: 'error',
+          mode: 'aoi',
+          status: 'error',
+          progress: 1,
+          message: 'Failed to start.',
+          result: null,
+          error: String(err?.message || err),
+        }),
+      );
+  }, [cropAiAoiGeometry, cropAiSeason, trackCropAiJob]);
+  const handleCropAiCancel = useCallback(() => {
+    cropAiAbortRef.current?.abort();
+    cropAiAbortRef.current = null;
+    setCropAiJob(null);
+  }, []);
+  const handleCropAiPickAoi = useCallback(() => setIsMapDrawToolsOpen(true), []);
+  const toggleCropAiPanel = useCallback(() => setIsCropAiOpen(open => !open), []);
+
+  /* ── Flood Monitoring (SAR-based) cockpit ──────────────────────────────── */
+  const [isFloodOpen, setIsFloodOpen] = useState(false);
+  const toggleFloodPanel = useCallback(() => setIsFloodOpen(o => !o), []);
+  const flood = useFloodSar(cropAiAoiGeometry);
+  const floodResult = flood.result;
+  const [floodThresholdDb, setFloodThresholdDb] = useState(FLOOD_DB_DEFAULT);
+  const [floodPreDate, setFloodPreDate] = useState('2025-01-13');
+  const [floodPostDate, setFloodPostDate] = useState('2026-06-25');
+  const [floodLayerVis, setFloodLayerVis] = useState<Record<SiFloodLayerKey, boolean>>({
+    change: true,
+    flood: true,
+    boundaries: true,
+  });
+  const [floodRasterOpacity] = useState<{ flood: number; change: number }>({
+    flood: 0.92,
+    change: 0.85,
+  });
+  const [floodDismissed, setFloodDismissed] = useState(false);
+  const floodMounted = Boolean(floodResult) && !floodDismissed;
+  const setFloodLayerVisible = useCallback((key: SiFloodLayerKey, value: boolean) => {
+    setFloodLayerVis(prev => ({ ...prev, [key]: value }));
+  }, []);
+
+  const runFloodMonitoring = useCallback(() => {
+    setFloodDismissed(false);
+    setFloodLayerVis({ change: true, flood: true, boundaries: true });
+    void flood.run({
+      thresholdDb: floodThresholdDb,
+      preEventDate: floodPreDate,
+      postEventDate: floodPostDate,
+    });
+  }, [flood, floodThresholdDb, floodPreDate, floodPostDate]);
+
+  // Fit to the flood result once per session when it first appears.
+  const floodArmedRef = useRef(false);
+  useEffect(() => {
+    if (!floodResult) {
+      floodArmedRef.current = false;
+      return;
+    }
+    if (floodArmedRef.current) return;
+    floodArmedRef.current = true;
+    const map = resolveSiMapboxMap(mapRef.current) as MapboxMap | null;
+    if (map?.fitBounds) {
+      const [minLng, minLat, maxLng, maxLat] = floodResult.bounds;
+      map.fitBounds(
+        [
+          [minLng, minLat],
+          [maxLng, maxLat],
+        ],
+        { padding: 64, duration: 700, maxZoom: 15 },
+      );
+    }
+  }, [floodResult]);
+
+  const floodRenderStateRef = useRef<SiFloodRenderState>({
+    result: null,
+    mounted: false,
+    visibility: { change: true, flood: true, boundaries: true },
+    opacity: { flood: 0.92, change: 0.85 },
+  });
+  floodRenderStateRef.current = {
+    result: floodResult ?? null,
+    mounted: floodMounted,
+    visibility: {
+      change: floodLayerVis.change,
+      flood: floodLayerVis.flood,
+      boundaries: floodLayerVis.boundaries,
+    },
+    opacity: { flood: floodRasterOpacity.flood, change: floodRasterOpacity.change },
+  };
+
+  useEffect(() => {
+    if (!isMapLoaded) return;
+    const map = resolveSiMapboxMap(mapRef.current) as MapboxMap | null;
+    syncSiFloodMapLayers(map, floodRenderStateRef.current);
+  }, [isMapLoaded, floodResult, floodMounted, floodLayerVis, floodRasterOpacity]);
+
+  useEffect(() => {
+    if (!isMapLoaded) return;
+    const map = resolveSiMapboxMap(mapRef.current) as MapboxMap | null;
+    if (!map) return;
+    const reapply = () => syncSiFloodMapLayers(map, floodRenderStateRef.current);
+    map.on('style.load', reapply);
+    return () => {
+      try {
+        map.off('style.load', reapply);
+      } catch {
+        /* map destroyed */
+      }
+    };
+  }, [isMapLoaded]);
+
+  const handleFloodZoomToLayer = useCallback(() => {
+    if (!floodResult) return;
+    const map = resolveSiMapboxMap(mapRef.current) as MapboxMap | null;
+    if (!map?.fitBounds) return;
+    const [minLng, minLat, maxLng, maxLat] = floodResult.bounds;
+    map.fitBounds(
+      [
+        [minLng, minLat],
+        [maxLng, maxLat],
+      ],
+      { padding: 64, duration: 600, maxZoom: 16 },
+    );
+  }, [floodResult]);
+
+  const handleFloodExportGeoJson = useCallback(() => {
+    if (!floodResult?.boundaries) return;
+    try {
+      const blob = new Blob([JSON.stringify(floodResult.boundaries)], {
+        type: 'application/geo+json',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `flood-extent-${floodResult.postEventDate || 'aoi'}.geojson`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      console.warn('[flood] export failed', e);
+    }
+  }, [floodResult]);
+
+  /* ── Hydro Watershed (terrain hydrology) cockpit ───────────────────────── */
+  const allHydroVisible = useCallback(
+    (): Record<SiHydroLayerKey, boolean> =>
+      HYDRO_WS_LAYER_KEYS.reduce(
+        (acc, k) => {
+          acc[k] = true;
+          return acc;
+        },
+        {} as Record<SiHydroLayerKey, boolean>,
+      ),
+    [],
+  );
+  const [isHydroOpen, setIsHydroOpen] = useState(false);
+  const toggleHydroPanel = useCallback(() => setIsHydroOpen(o => !o), []);
+  const hydro = useHydroWatershed(cropAiAoiGeometry);
+  const hydroResult = hydro.result;
+  const [hydroStreamMode, setHydroStreamMode] = useState<SiHydroStreamMode>('strahler');
+  const [hydroLayerVis, setHydroLayerVis] = useState<Record<SiHydroLayerKey, boolean>>(allHydroVisible);
+  const [hydroDismissed, setHydroDismissed] = useState(false);
+  const hydroMounted = Boolean(hydroResult) && !hydroDismissed;
+  const toggleHydroLayer = useCallback((key: SiHydroLayerKey) => {
+    setHydroLayerVis(prev => ({ ...prev, [key]: !prev[key] }));
+  }, []);
+
+  const runHydroWorkflow = useCallback(() => {
+    setHydroDismissed(false);
+    setHydroLayerVis(allHydroVisible());
+    void hydro.run();
+  }, [hydro, allHydroVisible]);
+
+  // Fit to the hydro result once per session when it first appears.
+  const hydroArmedRef = useRef(false);
+  useEffect(() => {
+    if (!hydroResult) {
+      hydroArmedRef.current = false;
+      return;
+    }
+    if (hydroArmedRef.current) return;
+    hydroArmedRef.current = true;
+    const map = resolveSiMapboxMap(mapRef.current) as MapboxMap | null;
+    if (map?.fitBounds) {
+      const [minLng, minLat, maxLng, maxLat] = hydroResult.bounds;
+      map.fitBounds(
+        [
+          [minLng, minLat],
+          [maxLng, maxLat],
+        ],
+        { padding: 64, duration: 700, maxZoom: 15 },
+      );
+    }
+  }, [hydroResult]);
+
+  const hydroRenderStateRef = useRef<SiHydroRenderState>({
+    result: null,
+    mounted: false,
+    visibility: allHydroVisible(),
+    streamMode: 'strahler',
+  });
+  hydroRenderStateRef.current = {
+    result: hydroResult ?? null,
+    mounted: hydroMounted,
+    visibility: hydroLayerVis,
+    streamMode: hydroStreamMode,
+  };
+
+  useEffect(() => {
+    if (!isMapLoaded) return;
+    const map = resolveSiMapboxMap(mapRef.current) as MapboxMap | null;
+    syncSiHydroMapLayers(map, hydroRenderStateRef.current);
+  }, [isMapLoaded, hydroResult, hydroMounted, hydroLayerVis, hydroStreamMode]);
+
+  useEffect(() => {
+    if (!isMapLoaded) return;
+    const map = resolveSiMapboxMap(mapRef.current) as MapboxMap | null;
+    if (!map) return;
+    const reapply = () => syncSiHydroMapLayers(map, hydroRenderStateRef.current);
+    map.on('style.load', reapply);
+    return () => {
+      try {
+        map.off('style.load', reapply);
+      } catch {
+        /* map destroyed */
+      }
+    };
+  }, [isMapLoaded]);
+
+  const handleHydroExportLayer = useCallback(
+    (key: SiHydroLayerKey) => {
+      const res = hydroResult;
+      if (!res) return;
+      try {
+        if (key === 'streams' || key === 'watershed') {
+          const fc = key === 'streams' ? res.streams : res.watershed;
+          const blob = new Blob([JSON.stringify(fc)], { type: 'application/geo+json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `hydro-${key}.geojson`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          return;
+        }
+        const url =
+          key === 'elevation'
+            ? res.elevationImageUrl
+            : key === 'hillshade'
+              ? res.hillshadeImageUrl
+              : key === 'slope'
+                ? res.slopeImageUrl
+                : res.flowAccumImageUrl;
+        if (!url) return;
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `hydro-${key}.png`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      } catch (e) {
+        console.warn('[hydro] export failed', e);
+      }
+    },
+    [hydroResult],
+  );
+
+  const handleHydroRemoveLayer = useCallback((key: SiHydroLayerKey) => {
+    setHydroLayerVis(prev => ({ ...prev, [key]: false }));
+  }, []);
+
   const [multiAoiItems, setMultiAoiItems] = useState<SiMultiAoiWorkspaceRow[]>([]);
   const [activeMultiAoiId, setActiveMultiAoiId] = useState<string | null>(null);
   const [aoiWorkspaceSettingsOpenId, setAoiWorkspaceSettingsOpenId] = useState<string | null>(null);
@@ -5893,7 +6331,9 @@ export default function SatelliteIntelligence() {
           feature: ft as GeoJSON.Feature,
           source,
           color: nextMultiAoiColor(next.length),
-          mapVisible: false,
+          // Show every registered AOI on the map immediately (active + saved),
+          // so a freshly drawn/uploaded AOI never lands hidden in the workspace.
+          mapVisible: true,
           rasterStackVisible: {
             ...siInitialAoiRasterStackVisible(
               remoteSensingLayerOptionsRef.current,
@@ -6328,6 +6768,27 @@ export default function SatelliteIntelligence() {
     [customLayers, activeLayerActionDialog, labelsDraft, siSymbologyPreviewLayerId],
   );
 
+  // Whenever custom layers change, guarantee the basemap stays at the bottom and every
+  // operational/custom layer is raised above it — gated only on `isMapLoaded` so newly
+  // generated layers (AOI, analysis outputs) become visible on the canvas immediately
+  // without waiting on the transient `mapStyleLayersReady`.
+  useEffect(() => {
+    if (!isMapLoaded) return;
+    const raise = () => {
+      const map = resolveSiMapboxMap(mapRef.current) as MapboxMap | null;
+      if (!map?.getStyle?.()) return;
+      try {
+        syncSiMapOverlayLayerStack(map);
+        map.triggerRepaint?.();
+      } catch {
+        /* style mid-reload */
+      }
+    };
+    raise();
+    const t = window.setTimeout(raise, 250);
+    return () => window.clearTimeout(t);
+  }, [customLayerStackSyncSig, isMapLoaded]);
+
   const prevMapStyleLayersReadyRef = useRef(false);
   /** After Mapbox style is ready, remount visible layers with default display symbology (not Symbology Apply). */
   useEffect(() => {
@@ -6441,6 +6902,81 @@ export default function SatelliteIntelligence() {
       window.clearInterval(intervalId);
     };
   }, [mapStyleLayersMounted, customLayerStackSyncSig]);
+
+  /**
+   * Mirror the active drawn AOI into the Added Layers panel as a managed
+   * "Area of Interest" vector layer. This gives the AOI a real top-level layer
+   * row (visibility toggle, opacity, zoom-to-layer, rename, remove) exactly
+   * like an uploaded AOI, and paints the outline + fill on the map through the
+   * proven custom-layer mounting pipeline (`commitCustomLayerToMap`). Kept in
+   * sync with `drawnGeometry`; removed when the AOI is cleared or a multi-AOI
+   * workspace becomes active. Debounced so live vertex edits don't thrash the
+   * render pipeline.
+   */
+  // Holds the latest `commitCustomLayerToMap`; assigned after that callback is
+  // defined below to avoid a temporal-dead-zone access during render.
+  const commitAoiLayerRef = useRef<typeof commitCustomLayerToMap | null>(null);
+  const aoiMirrorTimerRef = useRef<number | null>(null);
+  useEffect(() => {
+    const hasAoi = Boolean(drawnGeometry) && multiAoiItems.length === 0;
+
+    if (!hasAoi) {
+      if (aoiMirrorTimerRef.current) {
+        window.clearTimeout(aoiMirrorTimerRef.current);
+        aoiMirrorTimerRef.current = null;
+      }
+      const existing = customLayersRef.current.find(l => l.id === DRAWN_AOI_LAYER_ID);
+      if (existing) {
+        const map = resolveSiMapboxMap(mapRef.current) as MapboxMap | null;
+        if (map) removeSiCustomLayerFromMapbox(map, existing);
+        setCustomLayers(prev => prev.filter(l => l.id !== DRAWN_AOI_LAYER_ID));
+      }
+      return;
+    }
+
+    const toAoiFc = (geom: any): GeoJSON.FeatureCollection => {
+      if (geom?.type === 'FeatureCollection') return geom as GeoJSON.FeatureCollection;
+      if (geom?.type === 'Feature') return { type: 'FeatureCollection', features: [geom] };
+      return {
+        type: 'FeatureCollection',
+        features: [{ type: 'Feature', properties: {}, geometry: geom }],
+      } as GeoJSON.FeatureCollection;
+    };
+
+    const geom = drawnGeometry;
+    if (aoiMirrorTimerRef.current) window.clearTimeout(aoiMirrorTimerRef.current);
+    aoiMirrorTimerRef.current = window.setTimeout(() => {
+      const commitLayer = commitAoiLayerRef.current;
+      if (!commitLayer) return;
+      const existing = customLayersRef.current.find(l => l.id === DRAWN_AOI_LAYER_ID);
+      void commitLayer(
+        {
+          ...(existing ?? {}),
+          id: DRAWN_AOI_LAYER_ID,
+          name: existing?.name ?? 'Area of Interest',
+          geojson: toAoiFc(geom),
+          visible: existing?.visible ?? true,
+          source: 'generated',
+          renderMode: 'vector',
+          color: '#22c55e',
+          fillColor: '#22c55e',
+          // 50% AOI mask fill (per request) over a thin outline; tunable via the
+          // layer's opacity control in the panel.
+          polygonFillAlpha: 0.5,
+          weight: 1.5,
+          ephemeral: true,
+        } as CustomLayer,
+        { interactive: false, statusLabel: 'Area of Interest' },
+      );
+    }, 180);
+
+    return () => {
+      if (aoiMirrorTimerRef.current) {
+        window.clearTimeout(aoiMirrorTimerRef.current);
+        aoiMirrorTimerRef.current = null;
+      }
+    };
+  }, [drawnGeometry, multiAoiItems.length]);
 
   /** Auto-repair: visible layers with GeoJSON must have Mapbox layers mounted (retry + remount). */
   useEffect(() => {
@@ -6792,6 +7328,9 @@ export default function SatelliteIntelligence() {
     },
     [ensureArcgisSymbologyLoadedForAdd, fitAddedLayerIntoView, isMapLoaded],
   );
+  // Keep the AOI-mirror ref pointing at the latest commit callback (declared
+  // here, after `commitCustomLayerToMap`, to stay outside its TDZ).
+  commitAoiLayerRef.current = commitCustomLayerToMap;
 
   const clearLocationAllocationResults = useCallback(() => {
     setSiLaFacilitiesGeoJson(null);
@@ -9377,12 +9916,13 @@ export default function SatelliteIntelligence() {
   useEffect(() => {
     if (typeof document === 'undefined') return;
     const tableOpen = activeLayerActionDialog?.mode === 'table';
-    const reserve = tableOpen
+    const tableReserve = tableOpen
       ? siLayerTableDockCollapsed
         ? siTableDockCollapsedHeight
         : siLayerTableModalHeight
       : 0;
-    document.documentElement.style.setProperty('--si-map-bottom-reserve', `${reserve}px`);
+    // The bottom band only needs to clear the attribute table dock.
+    document.documentElement.style.setProperty('--si-map-bottom-reserve', `${tableReserve}px`);
     return () => {
       document.documentElement.style.removeProperty('--si-map-bottom-reserve');
     };
@@ -10184,6 +10724,11 @@ export default function SatelliteIntelligence() {
         triggerSiMapLayerRenderSync(mapInst);
       }
       setCustomLayers(prev => prev.filter(item => item.id !== layerId));
+      // Removing the managed AOI layer clears the underlying drawn AOI so it is
+      // not re-added by the mirror effect or shown by the fallback renderer.
+      if (layerId === DRAWN_AOI_LAYER_ID) {
+        setDrawnGeometry(null);
+      }
       setActiveLayerActionDialog(prev => (prev?.layerId === layerId ? null : prev));
       setStacStatus(`Removed layer "${layer.name}".`);
       return;
@@ -17848,7 +18393,183 @@ export default function SatelliteIntelligence() {
     };
   }, [mapCropHealthOpen, cropHealthSettings.showStressRaster, cropHealthResult?.stressRaster]);
 
+  /** Crop Classification prediction painted directly over the AOI once the job completes. */
+  const cropAiPredictionLayer = useMemo(() => {
+    const pred = cropAiJob?.status === 'done' ? cropAiJob.result?.prediction : null;
+    if (!pred?.url || !pred?.bounds) return null;
+    const [minLng, minLat, maxLng, maxLat] = pred.bounds;
+    const url = pred.url.startsWith('data:') ? pred.url : cropPredictionImageUrl(pred.url);
+    return {
+      url,
+      bounds: pred.bounds as [number, number, number, number],
+      coordinates: [
+        [minLng, maxLat],
+        [maxLng, maxLat],
+        [maxLng, minLat],
+        [minLng, minLat],
+      ] as [[number, number], [number, number], [number, number], [number, number]],
+    };
+  }, [cropAiJob]);
+
+  /**
+   * AOI-clipped version of the prediction raster. The AOI is used purely as a
+   * clipping mask: we re-render the prediction PNG onto a canvas, erase every
+   * pixel outside the AOI polygon, and expose the result as a same-origin
+   * `blob:` URL. This never touches the layer's visibility, z-order or
+   * interactivity — it only changes which pixels the single raster source paints.
+   * Falls back to the raw (unclipped) URL while masking is pending or if it fails.
+   */
+  const [cropAiClippedUrl, setCropAiClippedUrl] = useState<string | null>(null);
+  // Sticky AOI used to clip the raster. It is bound to the AOI that was active
+  // when the mask was built and is intentionally NOT cleared when the drawing
+  // overlay is removed ("Clear Drawing"), so the raster stays clipped to the
+  // last confirmed AOI instead of reverting to its full extent.
+  const cropAiClipAoiRef = useRef<GeoJSON.Polygon | GeoJSON.MultiPolygon | null>(null);
+  useEffect(() => {
+    const lyr = cropAiPredictionLayer;
+    // A live drawn AOI always (re)arms the sticky mask; clearing the drawing
+    // leaves the previous AOI in place so the clip survives.
+    if (cropAiAoiGeometry) cropAiClipAoiRef.current = cropAiAoiGeometry;
+    const aoi = cropAiAoiGeometry ?? cropAiClipAoiRef.current;
+    if (!lyr?.url || !lyr.bounds || !aoi) {
+      setCropAiClippedUrl(null);
+      return;
+    }
+    let cancelled = false;
+    let createdUrl: string | null = null;
+    void siBuildAoiClippedRasterUrl(lyr.url, lyr.bounds, aoi).then(masked => {
+      if (cancelled) {
+        if (masked) revokeStacMapOverlayBlob(masked);
+        return;
+      }
+      createdUrl = masked;
+      setCropAiClippedUrl(masked);
+    });
+    return () => {
+      cancelled = true;
+      if (createdUrl) revokeStacMapOverlayBlob(createdUrl);
+    };
+  }, [cropAiPredictionLayer, cropAiAoiGeometry]);
+
+  /** The raster URL actually painted: AOI-clipped when available, else raw. */
+  const cropAiRasterUrl = cropAiClippedUrl ?? cropAiPredictionLayer?.url ?? null;
+
+  /* ────────────────────────────────────────────────────────────────────────
+   * Crop classification result as a managed raster layer in the Layers panel.
+   * The prediction is surfaced as a virtual "Added layers" raster row (like the
+   * Hydro analysis results) so it gets the standard raster-layer controls:
+   * visibility toggle, opacity slider, GeoTIFF export and remove — without ever
+   * being pushed through the custom-layer vector stack (which can't paint images).
+   * ──────────────────────────────────────────────────────────────────────── */
+  const [cropAiRasterVisible, setCropAiRasterVisible] = useState(true);
+  const [cropAiRasterOpacity, setCropAiRasterOpacity] = useState(1);
+  /** User dismissed the result layer from the panel (independent of the job). */
+  const [cropAiRasterDismissed, setCropAiRasterDismissed] = useState(false);
+  // Refs mirror the panel controls so the imperative re-assert can honour them
+  // WITHOUT re-running (and re-zooming) every time the user nudges the slider.
+  const cropAiRasterVisibleRef = useRef(cropAiRasterVisible);
+  const cropAiRasterOpacityRef = useRef(cropAiRasterOpacity);
+  cropAiRasterVisibleRef.current = cropAiRasterVisible;
+  cropAiRasterOpacityRef.current = cropAiRasterOpacity;
+  /** A fresh prediction re-arms the layer row (visible, opaque, not dismissed). */
+  const cropAiPredictionUrlKey = cropAiPredictionLayer?.url ?? null;
+  useEffect(() => {
+    if (!cropAiPredictionUrlKey) return;
+    setCropAiRasterDismissed(false);
+    setCropAiRasterVisible(true);
+    setCropAiRasterOpacity(1);
+  }, [cropAiPredictionUrlKey]);
+
+  /** Whether the prediction raster should be mounted/painted on the GL canvas. */
+  const cropAiRasterMounted = Boolean(cropAiPredictionLayer) && !cropAiRasterDismissed;
+
   const cropHealthSeverityOpacity = Math.max(0.15, Math.min(1, cropHealthSettings.healthOpacity));
+
+  /* ────────────────────────────────────────────────────────────────────────
+   * Crop classification → Map Canvas (PERMANENT ROOT-CAUSE FIX)
+   *
+   * Root cause: routing the prediction through the custom-layer registry only
+   * ever mounted its GeoJSON footprint (the empty green box) — the registry's
+   * imperative mount (`ensureSiCustomLayerMapboxMount`) has NO image branch, so
+   * the raster pixels never painted. (Not a z-order problem; the footprint sat
+   * on top yet showed nothing.)
+   *
+   * Fix: render the prediction with the exact pattern the working crop-health
+   * raster uses — a DIRECT top-level react-map-gl `<Source type="image">` /
+   * `<Layer type="raster">` driven by `cropAiPredictionLayer` (see JSX next to
+   * the crop-health raster). `handleCropAiAddToMap` (the panel button) then
+   * force-asserts that GL layer fully visible and zooms to it: refreshes the
+   * image source, opacity → 1, visibility → 'visible', clears any filter, and
+   * lifts it above the basemap — all WITHOUT touching the AOI layer.
+   * ──────────────────────────────────────────────────────────────────────── */
+  const CROP_AI_SOURCE_ID = 'si-crop-ai-prediction';
+  const CROP_AI_RASTER_LAYER_ID = 'si-crop-ai-prediction-raster';
+  const handleCropAiAddToMap = useCallback(() => {
+    const lyr = cropAiPredictionLayer;
+    if (!lyr) return;
+    const map = resolveSiMapboxMap(mapRef.current) as MapboxMap | null;
+    if (!map?.getStyle?.()) return;
+
+    const lngs = lyr.coordinates.map(c => c[0]);
+    const lats = lyr.coordinates.map(c => c[1]);
+    const fitBounds: [[number, number], [number, number]] = [
+      [Math.min(...lngs), Math.min(...lats)],
+      [Math.max(...lngs), Math.max(...lats)],
+    ];
+
+    // Neutralise every "exists but invisible" root cause on the mounted layer:
+    // refresh the image binding, force opacity/visibility, drop filters, raise
+    // above the basemap, then repaint. Never mutates the AOI layer.
+    const forceVisible = () => {
+      try {
+        const src = map.getSource(CROP_AI_SOURCE_ID) as
+          | { updateImage?: (o: { url: string; coordinates: typeof lyr.coordinates }) => void }
+          | undefined;
+        src?.updateImage?.({ url: cropAiRasterUrl ?? lyr.url, coordinates: lyr.coordinates });
+        if (map.getLayer(CROP_AI_RASTER_LAYER_ID)) {
+          // Honour the Layers-panel controls rather than forcing full opacity.
+          map.setLayoutProperty(
+            CROP_AI_RASTER_LAYER_ID,
+            'visibility',
+            cropAiRasterVisibleRef.current ? 'visible' : 'none',
+          );
+          map.setPaintProperty(
+            CROP_AI_RASTER_LAYER_ID,
+            'raster-opacity',
+            cropAiRasterOpacityRef.current,
+          );
+          map.setPaintProperty(CROP_AI_RASTER_LAYER_ID, 'raster-fade-duration', 0);
+          try {
+            map.setFilter(CROP_AI_RASTER_LAYER_ID, null);
+          } catch {
+            /* raster layers take no filter — ignore */
+          }
+          try {
+            map.moveLayer(CROP_AI_RASTER_LAYER_ID);
+          } catch {
+            /* layer mid-rebuild */
+          }
+        }
+        map.triggerRepaint?.();
+      } catch {
+        /* style mid-reload — the declarative layer remounts and re-asserts */
+      }
+    };
+
+    forceVisible();
+    // Re-assert across a few frames so a late basemap/style settle can't undo it.
+    requestAnimationFrame(forceVisible);
+    window.setTimeout(forceVisible, 250);
+    map.fitBounds?.(fitBounds, { padding: 60, duration: 700, maxZoom: 16 });
+  }, [cropAiPredictionLayer, cropAiRasterUrl]);
+
+  // Show the result on the map automatically the instant the job completes
+  // (the declarative raster mounts on its own; this just re-asserts + zooms).
+  useEffect(() => {
+    if (!isMapLoaded || !cropAiRasterMounted) return;
+    const id = window.setTimeout(() => handleCropAiAddToMap(), 60);
+    return () => window.clearTimeout(id);
+  }, [cropAiRasterMounted, isMapLoaded, handleCropAiAddToMap]);
 
   const runMapCropHealthAnalysis = useCallback(async () => {
     if (!effectiveAnalysisEngineBaseUrl) {
@@ -18395,9 +19116,16 @@ export default function SatelliteIntelligence() {
     };
 
     const cancelReady = whenMapboxStyleReady(map, runAfterBasemapStyle, () => cancelled);
+    // Safety net: if the style-ready callback never fires (raster basemap / missed
+    // idle event), restore the render gate so AOI + analysis layers can never get
+    // stuck hidden off the canvas.
+    const readySafetyTimer = window.setTimeout(() => {
+      if (!cancelled) setMapStyleLayersReady(true);
+    }, 1500);
     return () => {
       cancelled = true;
       cancelReady();
+      window.clearTimeout(readySafetyTimer);
       if (!is3dMeshBasemapEntry(currentBasemapEntryRef.current)) {
         syncSiMap3dMeshBasemapLayer(map, null);
       }
@@ -18740,16 +19468,99 @@ export default function SatelliteIntelligence() {
       };
     };
 
+    // Crop classification result → virtual raster row (visibility, opacity,
+    // remove). Not backed by a customLayers item; it drives the declarative
+    // prediction raster directly, mirroring how Hydro results are surfaced.
+    const cropAiRasterRow: SiAddedLayerRowModel | null = cropAiRasterMounted
+      ? {
+          id: 'si-crop-ai-prediction',
+          label: 'Crop classification',
+          meta: 'AOI raster',
+          visible: cropAiRasterVisible,
+          toggleable: true,
+          actionable: false,
+          kind: 'raster',
+          opacity: cropAiRasterOpacity,
+          onToggle: () => setCropAiRasterVisible(v => !v),
+          onOpacityChange: v => setCropAiRasterOpacity(Math.max(0, Math.min(1, v))),
+          onRemove: () => setCropAiRasterDismissed(true),
+        }
+      : null;
+
+    // Flood Monitoring (SAR) outputs → virtual rows in the Layer Manager.
+    const floodRows: SiAddedLayerRowModel[] = [];
+    if (floodMounted && floodResult) {
+      if (floodResult.floodImageUrl) {
+        floodRows.push({
+          id: 'si-flood-extent',
+          label: 'Flood · Extent (raster)',
+          meta: 'AOI raster',
+          visible: floodLayerVis.flood,
+          toggleable: true,
+          actionable: false,
+          kind: 'raster',
+          opacity: floodRasterOpacity.flood,
+          onToggle: () => setFloodLayerVisible('flood', !floodLayerVis.flood),
+          onRemove: () => setFloodDismissed(true),
+        });
+      }
+      if (floodResult.boundaries) {
+        floodRows.push({
+          id: 'si-flood-boundaries',
+          label: 'Flood · Boundaries (vector)',
+          meta: 'AOI vector',
+          visible: floodLayerVis.boundaries,
+          toggleable: true,
+          actionable: false,
+          kind: 'vector',
+          onToggle: () => setFloodLayerVisible('boundaries', !floodLayerVis.boundaries),
+          onRemove: () => setFloodDismissed(true),
+        });
+      }
+      if (floodResult.changeImageUrl) {
+        floodRows.push({
+          id: 'si-flood-change',
+          label: 'Flood · Change detection',
+          meta: 'AOI raster',
+          visible: floodLayerVis.change,
+          toggleable: true,
+          actionable: false,
+          kind: 'raster',
+          opacity: floodRasterOpacity.change,
+          onToggle: () => setFloodLayerVisible('change', !floodLayerVis.change),
+          onRemove: () => setFloodDismissed(true),
+        });
+      }
+    }
+
+    const ungroupedLayers = [
+      ...(cropAiRasterRow ? [cropAiRasterRow] : []),
+      ...floodRows,
+      ...organized.ungrouped.map(makeRow).filter((r): r is SiAddedLayerRowModel => r != null),
+    ];
+
     return {
       systemRows,
       groups: organized.groups.map(g => ({
         name: g.name,
         layers: g.layers.map(makeRow).filter((r): r is SiAddedLayerRowModel => r != null),
       })),
-      ungroupedLayers: organized.ungrouped.map(makeRow).filter((r): r is SiAddedLayerRowModel => r != null),
+      ungroupedLayers,
       emptyGroups: organized.emptyGroups,
     };
-  }, [addedLayerEntries, customLayers, layerGroupNames]);
+  }, [
+    addedLayerEntries,
+    customLayers,
+    layerGroupNames,
+    cropAiRasterMounted,
+    cropAiRasterVisible,
+    cropAiRasterOpacity,
+    floodMounted,
+    floodResult,
+    floodLayerVis,
+    floodRasterOpacity,
+    setFloodLayerVisible,
+  ]);
 
   /** Shared “Main tools” layers UI: Added layers list (map toolbox Main + Processing Options). */
   const layersEnvMainTools = useMemo(
@@ -20920,7 +21731,7 @@ export default function SatelliteIntelligence() {
 
   const renderSiMapInterior = () => (
     <>
-            {mapStyleLayersMounted ? (
+            {isMapLoaded ? (
               <>
                 {routeMapAnalysisMode === 'route' && geoAiRouteGeoJson ? (
                   <Source id="si-geo-ai-route" type="geojson" data={geoAiRouteGeoJson as any}>
@@ -21180,21 +21991,8 @@ export default function SatelliteIntelligence() {
                       filter={['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]]}
                       paint={{
                         'fill-color': drawStyle.strokeColor,
-                        'fill-opacity': SI_AOI_DRAW_DRAFT_OUTLINE_PAINT.fillOpacity * drawVisualOpacity,
-                      }}
-                    />
-                    <Layer
-                      id="si-draw-draft-polygon-glow"
-                      type="line"
-                      filter={['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]]}
-                      paint={{
-                        'line-color': drawStyle.strokeColor,
-                        'line-width': Math.max(
-                          drawStyle.strokeWidth + SI_AOI_DRAW_DRAFT_OUTLINE_PAINT.glowWidthExtra,
-                          SI_AOI_DRAW_DRAFT_OUTLINE_PAINT.minLineWidth + 2,
-                        ),
-                        'line-blur': SI_AOI_DRAW_DRAFT_OUTLINE_PAINT.glowBlur,
-                        'line-opacity': SI_AOI_DRAW_DRAFT_OUTLINE_PAINT.glowOpacity * drawVisualOpacity,
+                        // Fill = 0 so the AOI never tints / affects the analysis raster beneath it.
+                        'fill-opacity': 0,
                       }}
                     />
                     <Layer
@@ -21203,10 +22001,8 @@ export default function SatelliteIntelligence() {
                       filter={['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]]}
                       paint={{
                         'line-color': SI_AOI_DRAW_DRAFT_OUTLINE_PAINT.lineHighlight,
-                        'line-width': Math.max(
-                          drawStyle.strokeWidth + SI_AOI_DRAW_DRAFT_OUTLINE_PAINT.lineWidthExtra,
-                          SI_AOI_DRAW_DRAFT_OUTLINE_PAINT.minLineWidth,
-                        ),
+                        // Thin 0.5px hairline outline (no glow) so it stays unobtrusive over analysis.
+                        'line-width': 0.5,
                         'line-opacity': drawVisualOpacity,
                       }}
                     />
@@ -21438,24 +22234,28 @@ export default function SatelliteIntelligence() {
               </Source>
             )}
 
-            {mapStyleLayersMounted &&
-            showWorkspaceAoiOutlineOnMap &&
-            drawnGeometry &&
-            multiAoiItems.length === 0 ? (
+            {isMapLoaded && drawnGeometry ? (
               <Source id="drawn-index-geometry-source" type="geojson" data={drawnGeometry as any}>
+                <Layer
+                  id="drawn-index-geometry-fill"
+                  type="fill"
+                  filter={['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]]}
+                  paint={{
+                    'fill-color': drawStyle.strokeColor,
+                    // Very light AOI fill — barely tinted so imagery stays visible; the
+                    // 2px boundary line carries the extent.
+                    'fill-opacity': 0.05 * drawVisualOpacity,
+                  }}
+                />
                 <Layer
                   id="drawn-index-geometry-line"
                   type="line"
                   filter={['in', ['geometry-type'], ['literal', ['LineString', 'Polygon', 'MultiPolygon']]]}
                   paint={{
                     'line-color': drawStyle.strokeColor,
-                    'line-width': [
-                      'case',
-                      ['==', ['geometry-type'], 'LineString'],
-                      Math.max(2, drawStyle.strokeWidth + 1),
-                      drawStyle.strokeWidth,
-                    ],
-                    'line-opacity': drawVisualOpacity,
+                    // Solid 2px AOI boundary that stays clearly visible after the draw completes.
+                    'line-width': 2,
+                    'line-opacity': Math.max(0.9, drawVisualOpacity),
                   }}
                 />
                 <Layer
@@ -21559,10 +22359,33 @@ export default function SatelliteIntelligence() {
                 coordinates={cropHealthStressRasterLayer.coordinates}
               >
                 <Layer
-                  id="si-crop-health-stress-raster-layer"
+                  id="si-crop-health-stress-heatmap-raster"
                   type="raster"
                   paint={{
                     'raster-opacity': cropHealthSeverityOpacity,
+                    'raster-fade-duration': 0,
+                  }}
+                />
+              </Source>
+            ) : null}
+
+            {/* Crop classification prediction — rendered with the SAME proven
+                direct-declarative pattern as the crop-health raster above so the
+                pixels actually paint on the GL canvas. `handleCropAiAddToMap`
+                force-asserts its visibility above the basemap. */}
+            {cropAiRasterMounted && cropAiPredictionLayer ? (
+              <Source
+                id="si-crop-ai-prediction"
+                type="image"
+                url={cropAiRasterUrl ?? cropAiPredictionLayer.url}
+                coordinates={cropAiPredictionLayer.coordinates}
+              >
+                <Layer
+                  id="si-crop-ai-prediction-raster"
+                  type="raster"
+                  layout={{ visibility: cropAiRasterVisible ? 'visible' : 'none' }}
+                  paint={{
+                    'raster-opacity': cropAiRasterOpacity,
                     'raster-fade-duration': 0,
                   }}
                 />
@@ -21782,12 +22605,15 @@ export default function SatelliteIntelligence() {
               />
             ) : null}
 
-                {mapStyleLayersMounted &&
+                {isMapLoaded &&
                   customLayers.map(layerRaw => {
                   const layer = resolveSiCustomLayerMapDisplayLayer(layerRaw);
                   if (layer.visible === false) return null;
                   const featureCount = countGeoJsonFeatures(layer.geojson);
-                  if (featureCount === 0) {
+                  // Raster / BIM layers carry no GeoJSON features — they must skip the
+                  // empty-feature extent placeholder and fall through to their own render
+                  // branch below, otherwise the raster image never mounts on the canvas.
+                  if (featureCount === 0 && layer.renderMode !== 'raster' && layer.renderMode !== 'bim') {
                     const extentBounds = computeCustomLayerExtentBounds(layer);
                     if (!extentBounds) return null;
                     const extentGj = buildLayerExtentBoundaryGeoJson(extentBounds, layer.id);
@@ -22100,7 +22926,7 @@ export default function SatelliteIntelligence() {
                   }
                   return (
                     <>
-                      <Source key={srcKey} id={instanceId} type="geojson" data={layer.geojson}>
+                      <Source id={instanceId} type="geojson" data={layer.geojson}>
                         {fillLine}
                         <Layer
                           id={`${instanceId}-circle`}
@@ -23380,8 +24206,108 @@ export default function SatelliteIntelligence() {
             onToggleQuickDashboard={toggleQuickDashboard}
             exploreIndexesOpen={exploreIndexesOpen}
             onToggleExploreIndexes={toggleExploreIndexes}
+            drawToolsOpen={isMapDrawToolsOpen}
+            onToggleDrawTools={() => setIsMapDrawToolsOpen(v => !v)}
+            measureToolsOpen={isMapMeasureOpen}
+            onToggleMeasureTools={() => setIsMapMeasureOpen(v => !v)}
+            cropClassificationOpen={isCropAiOpen}
+            onToggleCropClassification={toggleCropAiPanel}
+            floodMonitoringOpen={isFloodOpen}
+            onToggleFloodMonitoring={toggleFloodPanel}
+            hydroWatershedOpen={isHydroOpen}
+            onToggleHydroWatershed={toggleHydroPanel}
             mapAnalysisToolsLockedByPopups={false}
           />
+
+          <SiMapDrawBar
+            open={isMapLoaded && isMapDrawToolsOpen}
+            onClose={() => setIsMapDrawToolsOpen(false)}
+            interactionMode={interactionMode}
+            onViewMode={() => applyInteractionMode('view')}
+            onMoveMode={() => applyInteractionMode('move')}
+            drawShape={drawShapeTool}
+            onSelectShape={applyDrawShapeTool}
+            hasMoveSelection={hasMoveSelection}
+            hasClearableDrawing={satelliteHasClearableDrawing}
+            onClearDrawing={clearSatelliteDrawingWithFade}
+            hasEditableGeometry={!!drawnGeometry}
+            editEnabled={aoiGeometryEditEnabled}
+            onToggleEdit={toggleAoiGeometryEdit}
+            editSubTool={aoiEditSubTool}
+            onEditSubTool={setAoiEditSubTool}
+            showAllVertices={aoiEditShowAllVertices}
+            onToggleShowAllVertices={() => setAoiEditShowAllVertices(v => !v)}
+          />
+
+          <SiMapMeasureTool
+            open={isMapLoaded && isMapMeasureOpen}
+            onClose={() => setIsMapMeasureOpen(false)}
+            mapRef={mapRef}
+            mapLoaded={isMapLoaded}
+            terrainAvailable={mapElevationViewActive}
+            is3D={is3DView}
+            onArm={() => applyInteractionMode('view')}
+          />
+
+          {isMapLoaded && isCropAiOpen ? (
+            <SiPrithviCropToolPanel
+              aoiGeometry={cropAiAoiGeometry}
+              hasSelfInference={false}
+              season={cropAiSeason}
+              onSeasonChange={setCropAiSeason}
+              job={cropAiJob}
+              isRunning={cropAiRunning}
+              onPickAoi={handleCropAiPickAoi}
+              onRunAoi={handleCropAiRunAoi}
+              onRunChip={() => {}}
+              onCancel={handleCropAiCancel}
+              onAddToMap={handleCropAiAddToMap}
+              onClose={() => setIsCropAiOpen(false)}
+            />
+          ) : null}
+
+          {isMapLoaded && isFloodOpen ? (
+            <FloodSarPanel
+              hasAoi={!!cropAiAoiGeometry}
+              isRunning={flood.isRunning}
+              progress={flood.progress}
+              error={flood.error}
+              result={floodResult}
+              thresholdDb={floodThresholdDb}
+              onThresholdChange={setFloodThresholdDb}
+              preEventDate={floodPreDate}
+              postEventDate={floodPostDate}
+              onPreEventDateChange={setFloodPreDate}
+              onPostEventDateChange={setFloodPostDate}
+              layerVis={floodLayerVis}
+              onToggleLayer={key => setFloodLayerVisible(key, !floodLayerVis[key])}
+              onRun={runFloodMonitoring}
+              onCancel={flood.cancel}
+              onClose={() => setIsFloodOpen(false)}
+              onZoomToLayer={handleFloodZoomToLayer}
+              onExportGeoJson={handleFloodExportGeoJson}
+            />
+          ) : null}
+
+          {isMapLoaded && isHydroOpen ? (
+            <HydroWatershedPanel
+              hasAoi={!!cropAiAoiGeometry}
+              isRunning={hydro.isRunning}
+              progress={hydro.progress}
+              stage={hydro.stage}
+              error={hydro.error}
+              result={hydroResult}
+              layerVis={hydroLayerVis}
+              onToggleLayer={toggleHydroLayer}
+              streamMode={hydroStreamMode}
+              onStreamModeChange={setHydroStreamMode}
+              onRun={runHydroWorkflow}
+              onCancel={hydro.cancel}
+              onClose={() => setIsHydroOpen(false)}
+              onExportLayer={handleHydroExportLayer}
+              onRemoveLayer={handleHydroRemoveLayer}
+            />
+          ) : null}
 
           <SiQuickDashboardPanel
             open={quickDashboardOpen}
@@ -23929,6 +24855,23 @@ export default function SatelliteIntelligence() {
                                 >
                                   <i className="fa-solid fa-up-down-left-right" aria-hidden />
                                 </button>
+                                <button
+                                  type="button"
+                                  className={`si-map-analysis-tool${aoiGeometryEditEnabled ? ' si-map-analysis-tool--on' : ''}`}
+                                  title={
+                                    !drawnGeometry
+                                      ? 'Draw or select an AOI first, then Edit to change its vertices'
+                                      : aoiGeometryEditEnabled
+                                        ? 'Exit Edit — stop editing vertices'
+                                        : 'Edit — move / add / remove vertices, reshape, rotate, scale'
+                                  }
+                                  aria-label="Edit AOI geometry"
+                                  aria-pressed={aoiGeometryEditEnabled}
+                                  disabled={!drawnGeometry}
+                                  onClick={toggleAoiGeometryEdit}
+                                >
+                                  <i className="fa-solid fa-pen-to-square" aria-hidden />
+                                </button>
                                 <span className="si-map-analysis-toolbar-sep" aria-hidden role="separator" />
                                 <button
                                   type="button"
@@ -23953,6 +24896,38 @@ export default function SatelliteIntelligence() {
                                   onClick={() => toggleWmsSymbology('toolbar-embedded')}
                                 />
                               </div>
+                              {aoiGeometryEditEnabled ? (
+                                <div
+                                  className="si-map-analysis-toolbar__row si-map-analysis-toolbar__row--edit"
+                                  role="toolbar"
+                                  aria-label="Edit AOI vertices"
+                                >
+                                  {AOI_EDIT_SUBTOOLS.map(st => (
+                                    <button
+                                      key={st.id}
+                                      type="button"
+                                      className={`si-map-analysis-tool${aoiEditSubTool === st.id ? ' si-map-analysis-tool--on' : ''}`}
+                                      title={st.title}
+                                      aria-label={st.title}
+                                      aria-pressed={aoiEditSubTool === st.id}
+                                      onClick={() => setAoiEditSubTool(st.id)}
+                                    >
+                                      <i className={st.icon} aria-hidden />
+                                    </button>
+                                  ))}
+                                  <span className="si-map-analysis-toolbar-sep" aria-hidden role="separator" />
+                                  <button
+                                    type="button"
+                                    className={`si-map-analysis-tool${aoiEditShowAllVertices ? ' si-map-analysis-tool--on' : ''}`}
+                                    title={aoiEditShowAllVertices ? 'Show fewer vertex handles' : 'Show all vertex handles'}
+                                    aria-label="Toggle all vertex handles"
+                                    aria-pressed={aoiEditShowAllVertices}
+                                    onClick={() => setAoiEditShowAllVertices(v => !v)}
+                                  >
+                                    <i className="fa-solid fa-circle-nodes" aria-hidden />
+                                  </button>
+                                </div>
+                              ) : null}
                             </div>
                           </div>
                           <div className="si-rs-actions si-rs-actions--compact si-rs-actions--export">

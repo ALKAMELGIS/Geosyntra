@@ -73,6 +73,17 @@ export function lowerSiMapBasemapLayersToBottom(map: MapboxMap): void {
   }
 }
 
+/**
+ * Analysis-result overlays (Hydro Watershed + Flood Monitoring outputs: DEM,
+ * slope, flow direction/accumulation, wetness, flood zones, stream order/streams,
+ * basins, watershed, …). These must ALWAYS paint above the AOI / draw / selection
+ * reference overlays so analytical results are never hidden by the AOI polygon.
+ * Add future analysis-layer prefixes here.
+ */
+export function isSiMapAnalysisOverlayLayerId(layerId: string): boolean {
+  return layerId.startsWith('si-hydro-') || layerId.startsWith('si-flood-');
+}
+
 /** Draw / AOI / selection overlays that must stay above feature layers and WMS rasters. */
 export function isSiMapUiOverlayLayerId(layerId: string): boolean {
   return (
@@ -86,7 +97,8 @@ export function isSiMapUiOverlayLayerId(layerId: string): boolean {
     layerId.startsWith('si-stac-footprints-') ||
     layerId.startsWith('si-geo-ai-route-') ||
     layerId.startsWith('si-route-nav-marker-') ||
-    layerId.startsWith('si-ors-')
+    layerId.startsWith('si-ors-') ||
+    isSiMapAnalysisOverlayLayerId(layerId)
   );
 }
 
@@ -94,9 +106,11 @@ export function isSiMapUiOverlayLayerId(layerId: string): boolean {
 export function raiseSiMapCustomVectorLayersToTop(map: MapboxMap): void {
   if (!map.getStyle?.()) return;
   const layerIds = (map.getStyle()?.layers ?? []).map(l => l.id);
-  const auxIds = layerIds.filter(isSiMapCustomLayerAuxMapboxLayerId);
-  const geomIds = layerIds.filter(isSiMapCustomVectorGeometryMapboxLayerId);
-  const labelIds = layerIds.filter(isSiMapCustomVectorLabelMapboxLayerId);
+  // Exclude UI-overlay layers (draw, AOI, selection, …). They are stacked by
+  // `raiseSiMapUiOverlayLayersToTop`, which preserves their declared order.
+  const auxIds = layerIds.filter(id => isSiMapCustomLayerAuxMapboxLayerId(id) && !isSiMapUiOverlayLayerId(id));
+  const geomIds = layerIds.filter(id => isSiMapCustomVectorGeometryMapboxLayerId(id) && !isSiMapUiOverlayLayerId(id));
+  const labelIds = layerIds.filter(id => isSiMapCustomVectorLabelMapboxLayerId(id) && !isSiMapUiOverlayLayerId(id));
   for (const id of auxIds) {
     try {
       if (map.getLayer(id)) map.moveLayer(id);
@@ -120,11 +134,28 @@ export function raiseSiMapCustomVectorLayersToTop(map: MapboxMap): void {
   }
 }
 
-/** Keep draw/AOI/selection overlays above feature layers. */
+/**
+ * Keep draw/AOI/selection overlays above feature layers, and analysis-result
+ * overlays (hydro/flood) above the AOI. Two-pass: reference overlays are raised
+ * first, then analysis layers are raised on top — so `moveLayer` (which sends each
+ * id to the very top) leaves analysis results above the AOI regardless of the
+ * order they were inserted. The AOI stays a visible boundary, never a cover.
+ */
 export function raiseSiMapUiOverlayLayersToTop(map: MapboxMap): void {
   if (!map.getStyle?.()) return;
   const ids = (map.getStyle()?.layers ?? []).map(l => l.id).filter(isSiMapUiOverlayLayerId);
-  for (const id of ids) {
+  const referenceIds = ids.filter(id => !isSiMapAnalysisOverlayLayerId(id));
+  const analysisIds = ids.filter(isSiMapAnalysisOverlayLayerId);
+  // Phase 1: AOI / draw / selection reference overlays (sit just below analysis).
+  for (const id of referenceIds) {
+    try {
+      if (map.getLayer(id)) map.moveLayer(id);
+    } catch {
+      /* layer removed mid-style rebuild */
+    }
+  }
+  // Phase 2: analysis results — always on top of the AOI boundary.
+  for (const id of analysisIds) {
     try {
       if (map.getLayer(id)) map.moveLayer(id);
     } catch {

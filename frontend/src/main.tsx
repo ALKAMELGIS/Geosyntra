@@ -110,10 +110,11 @@ if (typeof document !== 'undefined') {
     )
   }
 
-  if (mustUseApiGateway()) {
-    void initializeMapbox().finally(mountApp)
-  } else {
-    void initializeMapbox()
-    mountApp()
-  }
+  // Mount the SPA immediately. Never gate the React tree behind the Mapbox
+  // config fetch: if the backend API gateway is unreachable/hanging, awaiting
+  // initializeMapbox() here would leave #root empty forever (black screen).
+  // Mapbox initializes in the background and map surfaces subscribe to the
+  // session, so the token is applied as soon as it arrives.
+  mountApp()
+  void initializeMapbox()
 }

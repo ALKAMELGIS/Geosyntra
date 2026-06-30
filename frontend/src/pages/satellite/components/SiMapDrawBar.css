@@ -1,0 +1,114 @@
+/* Geosyntra · Map Draw Bar
+   Floating horizontal drawing/editing toolbar that sits over the map.
+   Fixed near the top-centre, below the app chrome. */
+
+.si-map-draw-bar {
+  position: fixed;
+  top: calc(var(--si-map-toolbox-top, 84px) + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 97;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 3px;
+  max-width: min(92vw, 560px);
+  padding: 4px 6px;
+  border-radius: 12px;
+  background: rgba(13, 20, 33, 0.88);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  box-shadow: 0 8px 24px rgba(2, 6, 23, 0.4);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.si-map-draw-bar__brand-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #e2e8f0;
+}
+
+.si-map-draw-bar__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 4px 0 2px;
+  color: #34d399;
+}
+
+.si-map-draw-bar__sep {
+  width: 1px;
+  align-self: stretch;
+  min-height: 18px;
+  background: rgba(148, 163, 184, 0.2);
+  margin: 0 1px;
+}
+
+.si-map-draw-tool {
+  width: 27px;
+  height: 27px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #cbd5e1;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.si-map-draw-tool:hover:not(:disabled) {
+  border-color: rgba(52, 211, 153, 0.45);
+  color: #ecfdf5;
+  background: rgba(16, 185, 129, 0.14);
+}
+
+.si-map-draw-tool:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.si-map-draw-tool--on {
+  border-color: rgba(16, 185, 129, 0.8);
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.95), rgba(5, 150, 105, 0.95));
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.32);
+}
+
+.si-map-draw-tool--danger:hover:not(:disabled) {
+  border-color: rgba(248, 113, 113, 0.55);
+  color: #fee2e2;
+  background: rgba(239, 68, 68, 0.16);
+}
+
+.si-map-draw-tool--close:hover:not(:disabled) {
+  border-color: rgba(226, 232, 240, 0.45);
+  color: #ffffff;
+  background: rgba(148, 163, 184, 0.2);
+}
+
+/* Vertex-edit sub-tools appear as a full-width wrapped row under the main tools. */
+.si-map-draw-bar__edit-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 3px;
+  flex-basis: 100%;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+@media (max-width: 640px) {
+  .si-map-draw-bar {
+    max-width: 92vw;
+  }
+  .si-map-draw-tool {
+    width: 26px;
+    height: 26px;
+  }
+}

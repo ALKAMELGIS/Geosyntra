@@ -1,9 +1,15 @@
-import { useEffect, useId, useState } from 'react'
-import Particles, { initParticlesEngine } from '@tsparticles/react'
+import { useEffect, useId, useState, type ComponentType } from 'react'
 import type { Container, SingleOrMultiple } from '@tsparticles/engine'
-import { loadSlim } from '@tsparticles/slim'
 import { motion, useAnimation } from 'framer-motion'
 import { cn } from '@/lib/utils'
+
+/**
+ * tsparticles (`@tsparticles/react` + `@tsparticles/slim` + `@tsparticles/engine`)
+ * is ~150 kB and purely decorative. Importing it statically pulled it into the
+ * critical landing entry chunk and delayed first paint, so it is now code-split
+ * and fetched lazily after mount — the sparkles fade in once it resolves.
+ */
+type ParticlesComponent = ComponentType<Record<string, unknown>>
 
 /**
  * SparklesCore — 1:1 port of the upstream Aceternity component shipped with
@@ -35,13 +41,23 @@ type ParticlesProps = {
 export const SparklesCore = (props: ParticlesProps) => {
   const { id, className, background, minSize, maxSize, speed, particleColor, particleDensity } =
     props
-  const [init, setInit] = useState(false)
+  const [Particles, setParticles] = useState<ParticlesComponent | null>(null)
   useEffect(() => {
-    initParticlesEngine(async engine => {
-      await loadSlim(engine)
-    }).then(() => {
-      setInit(true)
-    })
+    let cancelled = false
+    void (async () => {
+      const [{ default: ParticlesImpl, initParticlesEngine }, { loadSlim }] = await Promise.all([
+        import('@tsparticles/react'),
+        import('@tsparticles/slim'),
+      ])
+      await initParticlesEngine(async engine => {
+        await loadSlim(engine)
+      })
+      if (cancelled) return
+      setParticles(() => ParticlesImpl as ParticlesComponent)
+    })()
+    return () => {
+      cancelled = true
+    }
   }, [])
   const controls = useAnimation()
 
@@ -59,7 +75,7 @@ export const SparklesCore = (props: ParticlesProps) => {
   const generatedId = useId()
   return (
     <motion.div animate={controls} className={cn('opacity-0', className)}>
-      {init && (
+      {Particles && (
         <Particles
           id={id || generatedId}
           className={cn('h-full w-full')}

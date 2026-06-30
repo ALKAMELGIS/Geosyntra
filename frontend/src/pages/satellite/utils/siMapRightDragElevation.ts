@@ -2,11 +2,12 @@ import type { Map as MapboxMap } from 'mapbox-gl';
 import { warmSiMapElevationScene } from './siMapElevationTransition';
 import {
   SI_ELEVATION_VIEW_PITCH,
-  SI_MAPBOX_TERRAIN_DEM_SOURCE_ID,
   SI_TERRAIN_EXAGGERATION_MAX,
   SI_TERRAIN_EXAGGERATION_MIN,
   clampElevationPitch,
   configureSiMapGoogleEarthCameraControls,
+  ensureSiTerrainRenderDemSource,
+  normalizeSiTerrainElevationProvider,
   readSiMapboxProjectionName,
   siElevationPitchScreenOffset,
   siMapApplyCameraOrbitDrag,
@@ -104,8 +105,12 @@ export function siMapApplyRightDragElevationTilt(
   prepGlobeAndDem(map);
 
   try {
-    if (map.getSource(SI_MAPBOX_TERRAIN_DEM_SOURCE_ID)) {
-      map.setTerrain({ source: SI_MAPBOX_TERRAIN_DEM_SOURCE_ID, exaggeration: exag });
+    const demSourceId = ensureSiTerrainRenderDemSource(
+      map,
+      normalizeSiTerrainElevationProvider(terrain.elevationProvider),
+    );
+    if (map.getSource(demSourceId)) {
+      map.setTerrain({ source: demSourceId, exaggeration: exag });
     }
   } catch {
     /* style not ready */

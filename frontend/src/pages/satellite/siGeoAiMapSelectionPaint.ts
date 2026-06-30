@@ -24,8 +24,10 @@ export const SI_AOI_MAP_OUTLINE_ONLY_FILL_PAINT = {
 export const SI_AOI_MAP_OUTLINE_LINE_PAINT = {
   activeColor: '#e0f2fe',
   inactiveColor: '#4ade80',
-  activeWidth: 3.2,
-  inactiveWidth: 2.1,
+  // Clearly visible AOI boundary outline; the wider active width keeps the
+  // selected AOI obvious while inactive AOIs stay readable on imagery.
+  activeWidth: 2.4,
+  inactiveWidth: 1.6,
   lineOpacity: 0.96,
 } as const
 

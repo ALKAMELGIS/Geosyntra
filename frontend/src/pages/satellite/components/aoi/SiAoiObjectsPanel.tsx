@@ -1,5 +1,4 @@
 import type { AoiGeometryEditSubTool, MapDrawTool, SiAoiDrawnStats, SiAoiWorkspaceRow } from './siAoiModuleTypes'
-import { SiAoiGeometryEditControls } from './SiAoiGeometryEditControls'
 import './siAoiModule.css'
 
 export type SiAoiObjectsPanelProps = {
@@ -36,6 +35,16 @@ const DOCK_TOOLS: { id: MapDrawTool; icon: string; label: string; title: string 
   { id: 'freehand', icon: 'fa-solid fa-pen-fancy', label: 'Freehand', title: 'Freehand sketch' },
   { id: 'move', icon: 'fa-solid fa-up-down-left-right', label: 'Move', title: 'Move AOI on map' },
   { id: 'select', icon: 'fa-solid fa-arrow-pointer', label: 'Select', title: 'Select (view — Shift+right-click for options)' },
+]
+
+/** Vertex-edit sub-tools shown inline once Edit is active (consolidated into Drawing tools). */
+const EDIT_SUBTOOLS: { id: AoiGeometryEditSubTool; icon: string; title: string }[] = [
+  { id: 'vertex', icon: 'fa-solid fa-circle-dot', title: 'Move vertex' },
+  { id: 'addVertex', icon: 'fa-solid fa-plus', title: 'Add vertex (click edge)' },
+  { id: 'removeVertex', icon: 'fa-solid fa-minus', title: 'Remove vertex' },
+  { id: 'reshape', icon: 'fa-solid fa-bezier-curve', title: 'Reshape boundary' },
+  { id: 'rotate', icon: 'fa-solid fa-rotate', title: 'Rotate around center' },
+  { id: 'scale', icon: 'fa-solid fa-up-right-and-down-left-from-center', title: 'Scale from corner' },
 ]
 
 export function SiAoiObjectsPanel({
@@ -104,6 +113,25 @@ export function SiAoiObjectsPanel({
               <i className={t.icon} aria-hidden />
             </button>
           ))}
+          {onToggleAoiEdit ? (
+            <button
+              type="button"
+              className={`si-aoi-draw-tool${aoiEditEnabled ? ' si-aoi-draw-tool--on' : ''}`}
+              title={
+                !hasEditableGeometry
+                  ? 'Draw or select an AOI first, then Edit to change its vertices'
+                  : aoiEditEnabled
+                    ? 'Exit Edit — stop editing vertices'
+                    : 'Edit — move / add / remove vertices, reshape, rotate, scale'
+              }
+              aria-label="Edit AOI geometry"
+              aria-pressed={aoiEditEnabled}
+              disabled={!hasEditableGeometry}
+              onClick={onToggleAoiEdit}
+            >
+              <i className="fa-solid fa-pen-to-square" aria-hidden />
+            </button>
+          ) : null}
           <button
             type="button"
             className="si-aoi-draw-tool si-aoi-draw-tool--danger"
@@ -115,23 +143,41 @@ export function SiAoiObjectsPanel({
             <i className="fa-solid fa-eraser" aria-hidden />
           </button>
         </div>
-      </section>
 
-      {onToggleAoiEdit && onAoiEditSubTool && onToggleAoiEditAllVertices ? (
-        <section>
-          <p className="si-aoi-module__section-kicker">Geometry editing</p>
-          <SiAoiGeometryEditControls
-            compact
-            editEnabled={aoiEditEnabled}
-            onToggleEdit={onToggleAoiEdit}
-            hasEditableGeometry={hasEditableGeometry}
-            subTool={aoiEditSubTool}
-            onSubTool={onAoiEditSubTool}
-            showAllVertices={aoiEditShowAllVertices}
-            onToggleAllVertices={onToggleAoiEditAllVertices}
-          />
-        </section>
-      ) : null}
+        {aoiEditEnabled && onAoiEditSubTool ? (
+          <div
+            className="si-aoi-draw-toolbar__tools si-aoi-draw-toolbar__tools--edit"
+            role="toolbar"
+            aria-label="Edit AOI vertices"
+          >
+            {EDIT_SUBTOOLS.map(st => (
+              <button
+                key={st.id}
+                type="button"
+                className={`si-aoi-draw-tool${aoiEditSubTool === st.id ? ' si-aoi-draw-tool--on' : ''}`}
+                title={st.title}
+                aria-label={st.title}
+                aria-pressed={aoiEditSubTool === st.id}
+                onClick={() => onAoiEditSubTool(st.id)}
+              >
+                <i className={st.icon} aria-hidden />
+              </button>
+            ))}
+            {onToggleAoiEditAllVertices ? (
+              <button
+                type="button"
+                className={`si-aoi-draw-tool${aoiEditShowAllVertices ? ' si-aoi-draw-tool--on' : ''}`}
+                title={aoiEditShowAllVertices ? 'Show fewer vertex handles' : 'Show all vertex handles'}
+                aria-label="Toggle all vertex handles"
+                aria-pressed={aoiEditShowAllVertices}
+                onClick={onToggleAoiEditAllVertices}
+              >
+                <i className="fa-solid fa-circle-nodes" aria-hidden />
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
 
       {multiAoiItems.length > 0 ? (
         <section>

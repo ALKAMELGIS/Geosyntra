@@ -216,6 +216,26 @@
   border-left: 1px solid rgba(255, 255, 255, 0.06);
 }
 
+/* Inline opacity slider for virtual rows. */
+.si-layer-tree__opacity {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 2px 24px;
+  color: #9ca3af;
+}
+.si-layer-tree__opacity i {
+  font-size: 10px;
+  flex: none;
+}
+.si-layer-tree__opacity input[type='range'] {
+  flex: 1;
+  min-width: 0;
+  height: 3px;
+  accent-color: #cbd5e1;
+  cursor: pointer;
+}
+
 /* Root-level layers (no "Ungrouped" pseudo-folder header). */
 .si-layer-tree__ungrouped-stack {
   display: flex;

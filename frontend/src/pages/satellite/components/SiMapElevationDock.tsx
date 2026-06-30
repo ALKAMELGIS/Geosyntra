@@ -9,7 +9,11 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import type { SiContourColorTheme, SiMapTerrainSettings } from '../utils/siMapProjectionTerrain';
+import type {
+  SiContourColorTheme,
+  SiMapTerrainSettings,
+  SiTerrainElevationProvider,
+} from '../utils/siMapProjectionTerrain';
 import {
   SI_CONTOUR_INTERVAL_MAX,
   SI_CONTOUR_INTERVAL_SLIDER_MIN,
@@ -58,6 +62,24 @@ const ELEV_PANEL_TABS: Array<{ id: ElevPanelTab; icon: string; title: string }> 
   { id: 'contours', icon: 'fa-wave-square', title: 'Contour interval & index' },
   { id: 'lines', icon: 'fa-bezier-curve', title: 'Line colors & smooth stroke' },
   { id: 'labels', icon: 'fa-font', title: 'Elevation labels on map' },
+];
+
+const ELEV_PROVIDER_OPTIONS: Array<{
+  id: SiTerrainElevationProvider;
+  label: string;
+  title: string;
+}> = [
+  {
+    id: 'esri',
+    label: 'Esri 3D',
+    title: 'Esri World Elevation (Terrain3D) — high-resolution global 3D elevation',
+  },
+  {
+    id: 'terrarium',
+    label: 'Global',
+    title: 'Free global Terrarium DEM — fast, token-free worldwide terrain',
+  },
+  { id: 'mapbox', label: 'Mapbox', title: 'Mapbox Terrain-DEM v1 (requires Mapbox token)' },
 ];
 
 function clampContourMainLineEveryInput(n: number): number {
@@ -761,6 +783,35 @@ export function SiMapElevationDock({
                 >
                   {activeTab === 'terrain' ? (
                     <>
+                      <div className="si-elev-kicker">Elevation source</div>
+                      <div
+                        className="si-elev-segment si-elev-segment--provider"
+                        role="radiogroup"
+                        aria-label="3D elevation source"
+                      >
+                        {ELEV_PROVIDER_OPTIONS.map(opt => {
+                          const isActive =
+                            (settings.elevationProvider ?? 'esri') === opt.id;
+                          return (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              className={
+                                'si-elev-segment__btn' +
+                                (isActive ? ' si-elev-segment__btn--on' : '')
+                              }
+                              role="radio"
+                              aria-checked={isActive}
+                              disabled={disabled}
+                              title={opt.title}
+                              onClick={() => onSettingsChange({ elevationProvider: opt.id })}
+                            >
+                              {opt.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="si-elev-divider" />
                       <div className="si-elev-kicker">Terrain & relief</div>
                       <TerrainRangeSlider
                         id="si-terrain-exaggeration"

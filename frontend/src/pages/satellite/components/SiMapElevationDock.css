@@ -1,10 +1,10 @@
 /* Bottom-left map chrome */
 .si-map-elevation-dock {
   --si-elevation-dock-lift: 2cm;
-  --si-elev-dock-zoom-btn: 1.75rem;
+  --si-elev-dock-zoom-btn: 1.35rem;
   --si-elev-dock-fab: 2rem;
   --si-elev-dock-gear: 1.65rem;
-  --si-elev-dock-zoom-pad: 2px;
+  --si-elev-dock-zoom-pad: 1.5px;
   --si-elev-dock-gap: 6px;
   /* Luxury black glass — same tokens as si-sat-ctx-dock--dark / map-toolbox */
   --si-glass-blur: 30px;
@@ -628,12 +628,12 @@
   height: var(--si-elev-dock-zoom-btn);
   display: grid;
   place-items: center;
-  border-radius: 8px;
+  border-radius: 7px;
   border: 1px solid transparent;
   color: var(--si-glass-text);
   background: rgba(255, 255, 255, 0.02);
   cursor: pointer;
-  font-size: 0.65rem;
+  font-size: 0.55rem;
 }
 
 .si-map-elevation-dock__zoom-btn:hover:not(:disabled) {

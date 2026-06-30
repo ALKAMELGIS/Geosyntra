@@ -74,10 +74,26 @@ export function siMapTerrainDemUsesMapboxV1(map: MapboxMap): boolean {
   return isSiMapboxTerrainDemV1Template(readMountedDemSignature(map));
 }
 
+/**
+ * App-wide preferred elevation DEM (set from the 3D terrain provider control). All terrain
+ * paths resolve to this kind unless an explicit per-call override is passed, so the live
+ * `setTerrain` mesh never flaps between providers.
+ */
+let preferredDemKind: SiMapTerrainDemKind = 'terrarium';
+
+export function setSiPreferredTerrainDemKind(kind: SiMapTerrainDemKind): void {
+  preferredDemKind = kind;
+}
+
+export function getSiPreferredTerrainDemKind(): SiMapTerrainDemKind {
+  return preferredDemKind;
+}
+
 export function resolveSiMapTerrainDemKind(opts?: EnsureSiMapTerrainDemSourceOpts): SiMapTerrainDemKind {
-  /** Esri LERC protocol is flaky in-browser — keep for explicit legacy only. */
   if (opts?.preferEsriDem) return 'esri';
   if (opts?.preferMapboxDem && siMapboxTerrainDemV1IsAvailable()) return 'mapbox';
+  if (preferredDemKind === 'esri') return 'esri';
+  if (preferredDemKind === 'mapbox' && siMapboxTerrainDemV1IsAvailable()) return 'mapbox';
   return 'terrarium';
 }
 
@@ -125,6 +141,7 @@ const mapPrefetchDetach = new WeakMap<MapboxMap, () => void>();
 
 export function resetSiMapTerrainDemKindForTests(map?: MapboxMap): void {
   activeDemPrefetchKind = 'terrarium';
+  preferredDemKind = 'terrarium';
   if (map) {
     detachSiMapTerrainDemReadyResync(map);
     detachSiTerrainDemMapPrefetch(map);

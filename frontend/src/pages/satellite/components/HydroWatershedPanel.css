@@ -1,0 +1,351 @@
+/* =============================================================================
+ * Geosyntra · Hydro Watershed terrain-hydrology cockpit panel.
+ * Luxury obsidian glass: near-black frosted surface, muted off-white type,
+ * white-backed icon chip, restrained blue accent. No flashing / blinking.
+ * ========================================================================== */
+.hydro-tool {
+  --hy-accent: #5b9dff;
+  --hy-accent-soft: rgba(91, 157, 255, 0.16);
+  --hy-text: rgba(228, 233, 238, 0.84);
+  --hy-text-dim: rgba(228, 233, 238, 0.5);
+  --hy-glass: rgba(255, 255, 255, 0.045);
+  --hy-glass-hi: rgba(255, 255, 255, 0.08);
+  --hy-line: rgba(255, 255, 255, 0.1);
+
+  position: fixed;
+  top: calc(var(--si-map-toolbox-top, 84px) + 12px);
+  left: 14px;
+  z-index: 98;
+  width: 264px;
+  max-width: min(92vw, 264px);
+  max-height: calc(100vh - var(--si-map-toolbox-top, 84px) - 28px);
+  overflow-y: auto;
+  pointer-events: auto;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 9px;
+  border-radius: 13px;
+  background:
+    radial-gradient(130% 90% at 0% 0%, rgba(91, 157, 255, 0.07) 0%, rgba(0, 0, 0, 0) 42%),
+    linear-gradient(180deg, rgba(9, 10, 13, 0.93) 0%, rgba(4, 5, 7, 0.96) 100%);
+  -webkit-backdrop-filter: blur(22px) saturate(150%);
+  backdrop-filter: blur(22px) saturate(150%);
+  border: 1px solid var(--hy-line);
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.72),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  font-size: 12px;
+  color: var(--hy-text);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
+.hydro-tool *,
+.hydro-tool *::before,
+.hydro-tool *::after {
+  box-sizing: border-box;
+}
+.hydro-tool::-webkit-scrollbar {
+  width: 8px;
+}
+.hydro-tool::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+.hydro-tool__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.hydro-tool__brand-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(28, 32, 38, 0.95) 0%, rgba(10, 12, 16, 0.98) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(235, 240, 245, 0.78);
+  font-size: 14px;
+  flex: 0 0 auto;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+.hydro-tool__brand {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.hydro-tool__title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  color: #eef2f5;
+}
+.hydro-tool__sub {
+  margin: 0;
+  font-size: 9px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--hy-text-dim);
+  line-height: 1.3;
+}
+.hydro-tool__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  border: 1px solid var(--hy-line);
+  background: var(--hy-glass);
+  color: var(--hy-text-dim);
+  cursor: pointer;
+  flex: 0 0 auto;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.hydro-tool__close:hover {
+  background: var(--hy-glass-hi);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* ── Run / status ───────────────────────────────────────────────────────── */
+.hydro-tool__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+  border: 1px solid var(--hy-line);
+  transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+.hydro-tool__btn.is-primary {
+  background: linear-gradient(180deg, rgba(91, 157, 255, 0.22) 0%, rgba(91, 157, 255, 0.08) 100%);
+  border-color: rgba(91, 157, 255, 0.4);
+  color: #eaf2fe;
+}
+.hydro-tool__btn.is-primary:hover:not(:disabled) {
+  background: linear-gradient(180deg, rgba(91, 157, 255, 0.3) 0%, rgba(91, 157, 255, 0.12) 100%);
+}
+.hydro-tool__btn.is-danger {
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.2) 0%, rgba(239, 68, 68, 0.07) 100%);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #ffe7e7;
+}
+.hydro-tool__btn:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+.hydro-tool__scan {
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+}
+.hydro-tool__scan-bar {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--hy-accent), #93c5fd);
+  transition: width 0.25s ease;
+}
+.hydro-tool__stage {
+  font-size: 10px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--hy-text-dim);
+  text-align: center;
+}
+.hydro-tool__hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  font-size: 11px;
+  color: var(--hy-text-dim);
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px dashed var(--hy-line);
+  background: rgba(255, 255, 255, 0.02);
+}
+.hydro-tool__err {
+  font-size: 11px;
+  color: #ffb3b3;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+/* ── Result cards ───────────────────────────────────────────────────────── */
+.hydro-tool__card {
+  border-radius: 10px;
+  border: 1px solid var(--hy-line);
+  background: rgba(0, 0, 0, 0.28);
+  padding: 7px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.hydro-tool__card-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.hydro-tool__card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: var(--hy-glass-hi);
+  border: 1px solid var(--hy-line);
+  color: var(--hy-text);
+  font-size: 10px;
+  flex: 0 0 auto;
+}
+.hydro-tool__card-title {
+  font-size: 11.5px;
+  font-weight: 650;
+  color: #e9eef2;
+  flex: 1 1 auto;
+  letter-spacing: 0.2px;
+}
+.hydro-tool__icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid var(--hy-line);
+  background: var(--hy-glass);
+  color: var(--hy-text-dim);
+  cursor: pointer;
+  flex: 0 0 auto;
+  font-size: 11px;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.hydro-tool__icon-btn:hover:not(:disabled) {
+  background: var(--hy-glass-hi);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.22);
+}
+.hydro-tool__icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Stat rows ──────────────────────────────────────────────────────────── */
+.hydro-tool__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.hydro-tool__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.hydro-tool__row-lbl {
+  font-size: 10.5px;
+  color: var(--hy-text-dim);
+}
+.hydro-tool__row-val {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #eef3f6;
+  white-space: nowrap;
+}
+
+/* ── Segmented (Strahler / Shreve) ──────────────────────────────────────── */
+.hydro-tool__seg {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  padding: 3px;
+  border-radius: 9px;
+  border: 1px solid var(--hy-line);
+  background: rgba(0, 0, 0, 0.32);
+}
+.hydro-tool__seg-btn {
+  border: none;
+  background: transparent;
+  color: var(--hy-text-dim);
+  font-size: 10.5px;
+  font-weight: 650;
+  padding: 5px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.hydro-tool__seg-btn.is-active {
+  background: var(--hy-accent-soft);
+  color: #eaf2fe;
+  box-shadow: inset 0 0 0 1px rgba(91, 157, 255, 0.4);
+}
+
+/* ── Card footer actions (eye / export / trash) ─────────────────────────── */
+.hydro-tool__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 2px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  margin-top: 1px;
+}
+.hydro-tool__act {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 7px;
+  border: 1px solid var(--hy-line);
+  background: var(--hy-glass);
+  color: var(--hy-text);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.hydro-tool__act:hover {
+  background: var(--hy-glass-hi);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+.hydro-tool__act--icon {
+  width: 24px;
+  padding: 0;
+  flex: 0 0 auto;
+}
+.hydro-tool__act--export {
+  flex: 1 1 auto;
+}
+.hydro-tool__act--eye.is-off {
+  color: var(--hy-text-dim);
+  opacity: 0.7;
+}
+.hydro-tool__act--eye.is-on {
+  color: var(--hy-accent);
+  border-color: var(--hy-accent-soft);
+}
+.hydro-tool__act--trash:hover {
+  color: #ffb3b3;
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.08);
+}
